@@ -1,0 +1,7 @@
+function multiply (number1, number2){
+  return number1*number2;
+}
+function add (number3){
+  return number3;
+}
+multiply(36325,9824) + add(777);
