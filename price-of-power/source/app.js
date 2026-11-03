@@ -293,7 +293,7 @@
       case 'continue': $('#chapter-dialog').close(); perform(G.acknowledgeChapter); break;
     }
   });
-  document.addEventListener('pop:military', e => { const d=e.detail; if(d.action==='launch') perform(s=>G.launchMilitary(s,d),'Поход сформирован. Состав отрядов и срок пути показаны в «Вестях с дорог».'); else if(d.action==='tactic') perform(s=>G.battleOrder(s,d.tactic),'Боевой приказ исполнен: силы, позиции и журнал столкновения обновлены.'); });
+  document.addEventListener('pop:military', e => { const d=e.detail; if(d.action==='launch') perform(s=>G.launchMilitary(s,d),'Поход сформирован. Состав отрядов и срок пути показаны в «Вестях с дорог».'); else if(d.action==='tactic') perform(s=>G.battleOrder(s,d.tactic,d.unitId,d.targetId),'Боевой приказ исполнен: силы, позиции и журнал столкновения обновлены.'); });
   document.addEventListener('wheel',event=>{if(!event.target.closest('.dominion-map')||!ui.mapStarted)return;event.preventDefault();changeMapZoom(event.deltaY<0?.15:-.15);},{passive:false});
   document.addEventListener('pointerdown',event=>{const map=event.target.closest('.dominion-map');if(!map||event.target.closest('button'))return;mapDrag={id:event.pointerId,startX:event.clientX,startY:event.clientY,x:ui.map.x,y:ui.map.y};map.setPointerCapture?.(event.pointerId);map.classList.add('dragging');});
   document.addEventListener('pointermove',event=>{if(!mapDrag||mapDrag.id!==event.pointerId)return;ui.map.x=mapDrag.x+event.clientX-mapDrag.startX;ui.map.y=mapDrag.y+event.clientY-mapDrag.startY;applyMapTransform();});

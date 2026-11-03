@@ -619,9 +619,9 @@
     const entries = MILITARY.launch(s, options); s.ap--;
     logMilitary(s, entries); return settle(s);
   }
-  function battleOrder(state, tactic) {
+  function battleOrder(state, tactic, unitId, targetId) {
     if (state.ended) fail('Правление завершено.');
-    const s = copy(state); logMilitary(s, MILITARY.issueBattleOrder(s, tactic, () => random(s))); settle(s);
+    const s = copy(state); logMilitary(s, MILITARY.issueBattleOrder(s, tactic, () => random(s), unitId, targetId)); settle(s);
     if (s.ended || (s.month > 0 && s.month % 12 === 0 && !MILITARY.hasBattle(s) && (!s.chapter || s.chapter.month !== s.month))) s.chapter = makeChapter(s);
     return s;
   }

@@ -211,7 +211,7 @@
     m.lastBattle={id:b.id,month:s.month,location:b.location,locationName:location(b.location).name,attackerName:b.attackerName,kind:b.kind,outcome,title,text,losses:b.losses,enemyLosses:b.enemyLosses,loot,changes:resultChanges,log:[...b.log,text]};
     m.battle=m.pendingBattles.shift() || null;if(m.battle){m.battle.startPlayer=snap(s);m.battle.startedArmy=s.player.army;}syncArmy(s);return `${title}: ${text}`;
   }
-  function issueBattleOrder(s,tactic,random){
+  function issueBattleOrder(s,tactic,random,unitId=null,targetId='enemy-main'){
     const m=s.military,b=m?.battle;if(!b)throw new Error('Сражение сейчас не идёт.');
     if(!TACTICS.some(t=>t.id===tactic))throw new Error('Неизвестный боевой приказ.');
     const before=snap(s);let result;
@@ -219,20 +219,29 @@
       const possible=b.unitIds.reduce((n,id)=>n+m.units.find(u=>u.id===id).strength,0);
       const loss=takeLosses(s,b,Math.ceil(possible*(.025+random()*.035)));b.losses+=loss;b.log.push(`Отступление под прикрытием: потери силы ${loss}.`);result=finishBattle(s,b,'retreat');
     }else{
-      const terrain=location(b.location).terrain,power=playerPower(s,b);
+      const terrain=location(b.location).terrain,acting=unitId?m.units.find(u=>u.id===unitId&&b.unitIds.includes(u.id)&&u.strength>0):null;
+      if(unitId&&!acting)throw new Error('Выбранный отряд не может выполнить приказ.');
+      const activeUnits=acting?[acting]:b.unitIds.map(id=>m.units.find(u=>u.id===id)),basePower=acting?acting.strength*(.65+acting.morale/200)*(1-acting.fatigue/160)*(1+acting.experience/250):playerPower(s,b);
+      let power=basePower;
       const archers=b.unitIds.filter(id=>m.units.find(u=>u.id===id).type==='archers').reduce((n,id)=>n+m.units.find(u=>u.id===id).strength,0);
       let attack=1,defend=1;
       if(tactic==='guard'){attack=.8;defend=1.3;}
       if(tactic==='advance'){attack=1.17;defend=.9;}
       if(tactic==='flank'){attack=terrain==='river'?.8:['forest','hill'].includes(terrain)?1.2:1.08;defend=.95;}
       if(tactic==='ranged'){attack=archers>0?(b.phase<2?1.22:1.05):.7;defend=1.08;}
+      if(acting){
+        if(acting.type==='archers'){if(tactic==='ranged'&&b.phase<1)attack*=1.45;else if(b.phase>=1){attack*=.42;defend*=.45;}}
+        if(acting.type==='cavalry'&&targetId==='enemy-ranged')attack*=1.45;
+        if(acting.type==='infantry'&&tactic==='guard')defend*=1.25;
+        if(targetId==='enemy-guard')attack*=.82;if(targetId==='enemy-reserve')attack*=.9;
+      }
       const hostile=b.enemyPower*(.65+b.enemyMorale/200)*(1-b.enemyFatigue/170),enemyMoraleBefore=b.enemyMorale;
       const enemyLoss=Math.min(b.enemyPower,Math.max(1,Math.round(power*.1*attack*(.8+random()*.4))));
-      const ownLoss=takeLosses(s,b,Math.max(1,Math.round(hostile*.055/defend*(.8+random()*.4))));
+      let ownLoss;if(acting){const requested=Math.max(1,Math.round(hostile*.035/defend*(.8+random()*.4)*(acting.type==='archers'&&b.phase>=1?1.8:1)));ownLoss=Math.min(acting.strength,requested);acting.strength-=ownLoss;s.player.army=total(m);}else ownLoss=takeLosses(s,b,Math.max(1,Math.round(hostile*.055/defend*(.8+random()*.4))));
       b.enemyPower-=enemyLoss;b.enemyLosses+=enemyLoss;b.losses+=ownLoss;b.enemyMorale=clamp(Math.round(b.enemyMorale-enemyLoss*1.2),0,100);b.enemyFatigue=clamp(b.enemyFatigue+6,0,100);
-      for(const id of b.unitIds){const u=m.units.find(u=>u.id===id);u.fatigue=clamp(u.fatigue+(tactic==='flank'?10:5),0,100);u.morale=clamp(Math.round(u.morale-ownLoss*.65+(enemyLoss>ownLoss?2:0)),0,100);}
+      for(const u of activeUnits){u.fatigue=clamp(u.fatigue+(tactic==='flank'?10:5),0,100);u.morale=clamp(Math.round(u.morale-ownLoss*.65+(enemyLoss>ownLoss?2:0)),0,100);}
       const tacticName=TACTICS.find(t=>t.id===tactic).name,advantage=enemyLoss-ownLoss;
-      b.lastAction={tactic,tacticName,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position:b.phase===0?'Стороны сблизились, сохраняя отдельные линии строя.':b.phase===1?'Передовые части вошли в соприкосновение; резервы остаются позади.':'Бой дошёл до решающей схватки.'};
+      b.lastAction={tactic,tacticName,unitId:acting?.id||null,unitName:acting?.name||'Все отряды',targetId,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position:b.phase===0?'Стороны сблизились, сохраняя отдельные линии строя.':b.phase===1?'Передовые части вошли в соприкосновение; резервы остаются позади.':'Бой дошёл до решающей схватки.'};
       b.log.push(`${tacticName}: потеря силы наших войск ${ownLoss}, противника ${enemyLoss}.`);b.phase++;
       if(!b.unitIds.some(id=>m.units.find(u=>u.id===id).strength>0))result=finishBattle(s,b,'defeat');
       else if(b.enemyPower<=0||b.enemyMorale<22)result=finishBattle(s,b,'victory');
@@ -251,7 +260,8 @@
   function view(s){
     const m=s.military || create(s),placeView=l=>{const p=m.locations.find(p=>p.id===l.id);return {...l,...copy(p),terrainLabel:TERRAIN[l.terrain],distance:distance('capital',l.id),friendlyUnits:m.units.filter(u=>u.location===l.id&&u.status==='ready').map(u=>u.id),threat:p.unrest>=60?'Волнения':p.bandits>=55?'Разбойники усилились':p.bandits>=25?'Неспокойная дорога':'Относительно спокойно'};};
     const battle=m.battle?{...copy(m.battle),locationName:location(m.battle.location).name,terrain:location(m.battle.location).terrain,terrainLabel:TERRAIN[location(m.battle.location).terrain],phaseName:['Сближение','Схватка','Развязка'][m.battle.phase],playerPower:Math.round(playerPower(s,m.battle)),enemyEstimate:{min:Math.max(0,Math.floor(m.battle.enemyPower*.85)),max:Math.ceil(m.battle.enemyPower*1.15)},enemyUnits:[{id:'enemy-main',name:m.battle.kind==='bandits'?'Главная шайка':'Главный строй',type:'Пехота',share:.38},{id:'enemy-ranged',name:m.battle.kind==='bandits'?'Стрелки в укрытии':'Передовые стрелки',type:'Стрелки',share:.2},{id:'enemy-mobile',name:m.battle.kind==='invasion'?'Конный резерв':'Обходная группа',type:m.battle.kind==='invasion'?'Конница':'Лёгкие бойцы',share:.18},{id:'enemy-guard',name:m.battle.kind==='bandits'?'Люди атамана':'Знамённая стража',type:'Тяжёлая пехота',share:.14},{id:'enemy-reserve',name:'Дальний резерв',type:'Резерв',share:.1}].map(u=>({...u,strength:Math.max(0,Math.round(m.battle.enemyPower*u.share))})),features:battleFeatures(m.battle,m.battle.location==='capital'?'fort':location(m.battle.location).terrain),tactics:copy(TACTICS)}:null;
-    return {locations:LOCATIONS.map(placeView),units:m.units.map(u=>({...copy(u),typeLabel:TYPES[u.type],locationName:location(u.location).name,statusLabel:({ready:'На месте',marching:'В походе',battle:'В бою'})[u.status]})),reserve:m.reserve,
+    const profiles={infantry:{attack:7,armor:8,range:1,speed:4,melee:9,role:'Удерживает строй и защищает стрелков.'},archers:{attack:9,armor:3,range:8,speed:5,melee:2,role:'Силен на расстоянии, крайне уязвим в ближнем бою.'},cavalry:{attack:10,armor:7,range:1,speed:9,melee:8,role:'Быстрый удар, обход и атака стрелков.'}};
+    return {locations:LOCATIONS.map(placeView),units:m.units.map(u=>({...copy(u),...profiles[u.type],typeLabel:TYPES[u.type],locationName:location(u.location).name,statusLabel:({ready:'На месте',marching:'В походе',battle:'В бою'})[u.status]})),reserve:m.reserve,
       marches:m.marches.map(p=>({...copy(p),targetName:location(p.target).name,missionLabel:MISSIONS[p.mission]})),
       enemyMarches:m.enemyMarches.map(p=>({id:p.id,attackerName:nation(p.attackerId),target:p.target,targetName:location(p.target).name,remaining:p.remaining,estimate:{min:Math.floor(p.power*.75),max:Math.ceil(p.power*1.25)}})),
       battle,lastBattle:copy(m.lastBattle),weather:m.weather,summary:{totalStrength:s.player.army,readyStrength:m.units.filter(u=>u.status==='ready').reduce((n,u)=>n+u.strength,0),banditSites:m.locations.filter(p=>p.bandits>=40).length,unrestSites:m.locations.filter(p=>p.unrest>=40).length}};
