@@ -7,7 +7,7 @@
   const signed = n => `${n > 0 ? '+' : ''}${n}`;
   const fmt = n => Number(n).toLocaleString('ru-RU');
   const MANUAL = 'priceOfPower.v04.manual', AUTO = 'priceOfPower.v04.auto';
-  const ui = { tab: 'home', filter: 'Все', target: 'val', metric: 'gold', range: 12, scene: null, chat: null };
+  const ui = { tab: 'home', filter: 'Все', target: 'val', metric: 'gold', range: 12, scene: null, chat: null, mapStarted: false };
   let state = G.createGame(), toastTimer, storageOkay = true, turnBusy = false;
   function toast(message, error = false) {
     const node = $('#status'); node.textContent = message; node.hidden = false; node.classList.toggle('error', error);
@@ -43,16 +43,23 @@
   }
   function setTab(tab, scroll = false) {
     if (!['home', 'council', 'orders', 'development', 'court', 'army', 'intel', 'history'].includes(tab)) return;
+    if(tab!=='home')ui.mapStarted=true;
     ui.tab = tab;
-    for (const panel of document.querySelectorAll('[data-page]')) panel.hidden = panel.dataset.page !== tab;
-    $('#stats').hidden = tab === 'home';
-    $('#realm-details').hidden = tab === 'home';
-    $('.turn-control').hidden = tab === 'home';
+    document.body.classList.toggle('map-interface',ui.mapStarted);
+    for (const panel of document.querySelectorAll('[data-page]')) panel.hidden = ui.mapStarted ? (panel.dataset.page!=='home'&&panel.dataset.page!==tab) : panel.dataset.page!==tab;
+    $('#map-panel-close')?.remove();
+    if(ui.mapStarted&&tab!=='home'){
+      const close=document.createElement('button');close.id='map-panel-close';close.className='map-panel-close';close.dataset.tab='home';close.setAttribute('aria-label','Вернуться на карту');close.innerHTML='<span>×</span> На карту';
+      document.querySelector(`[data-page="${tab}"]`).prepend(close);
+    }
+    $('#stats').hidden = !ui.mapStarted && tab === 'home';
+    $('#realm-details').hidden = !ui.mapStarted && tab === 'home';
+    $('.turn-control').hidden = !ui.mapStarted && tab === 'home';
     for (const item of document.querySelectorAll('nav [data-tab]')) {
       const active = item.dataset.tab === tab; item.classList.toggle('active', active);
       if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
     }
-    if (scroll) window.scrollTo({ top: 0, behavior: 'auto' });
+    if (scroll && !ui.mapStarted) window.scrollTo({ top: 0, behavior: 'auto' });
   }
   function changesHTML(changes, before = null, after = null) {
     const items = Object.entries(changes);
@@ -70,7 +77,7 @@
     let realmMap=$('#home-action-map');
     if(!realmMap){realmMap=document.createElement('section');realmMap.id='home-action-map';realmMap.className='home-action-map';document.querySelector('#realm-home .home-columns').before(realmMap);}
     const incoming=v.military?.enemyMarches?.length||0;
-    realmMap.innerHTML=`<div class="home-map-heading"><div><span class="eyebrow">ЖИВАЯ КАРТА КНЯЖЕСТВА</span><h2>Выберите место действия</h2></div><p>${incoming?`К границам движется враг: походов замечено ${incoming}. Откройте крепость и военные законы.`:'Двор, службы, земли и границы связаны. Нажмите на место, чтобы управлять им.'}</p></div><div class="home-map-canvas ${incoming?'under-threat':''}"><button class="home-hotspot castle" data-tab="court"><b>♛</b><strong>Княжеский двор</strong><small>${v.encounters.filter(e=>!e.resolved).length} просьб ждут ответа</small></button><button class="home-hotspot council" data-tab="council"><b>⚖</b><strong>Совет</strong><small>${v.event?'срочное решение':'дела разобраны'}</small></button><button class="home-hotspot city" data-tab="development"><b>⌂</b><strong>Город и земли</strong><small>${v.orders.length} поручений в работе</small></button><button class="home-hotspot gate" data-tab="army"><b>⚔</b><strong>Крепость и армия</strong><small>${incoming?'Враг приближается':`сила ${v.player.army}`}</small></button><button class="home-hotspot border" data-tab="intel"><b>◈</b><strong>Границы</strong><small>соседи и разведка</small></button><button class="home-hotspot laws" data-tab="orders"><b>▤</b><strong>Законы и службы</strong><small>14 сфер управления</small></button></div>`;
+    realmMap.innerHTML=`<div class="home-map-heading"><div><span class="eyebrow">ВАШИ ВЛАДЕНИЯ · АРДЕНСКОЕ КНЯЖЕСТВО</span><h2>Управляйте страной на карте</h2></div><p>${incoming?`К рубежам движется враг: походов замечено ${incoming}. Крепость отмечена тревогой.`:'Столица, деревни, угодья, промыслы и рубежи принадлежат вам. Выберите объект княжества.'}</p></div><div class="home-map-canvas dominion-map ${incoming?'under-threat':''}"><svg class="dominion-boundaries" viewBox="0 0 1200 720" preserveAspectRatio="none" aria-hidden="true"><path class="dominion-border" d="M103 174 286 74 510 98 690 52 1009 119 1113 290 1060 535 832 655 557 624 326 684 114 543 61 340Z"/><path class="province" d="M103 174 286 74 382 279 182 366 61 340Z"/><path class="province" d="M286 74 510 98 573 309 382 279Z"/><path class="province" d="M510 98 690 52 829 269 573 309Z"/><path class="province" d="M690 52 1009 119 1113 290 829 269Z"/><path class="province" d="M61 340 182 366 385 489 326 684 114 543Z"/><path class="province" d="M182 366 382 279 573 309 586 510 385 489Z"/><path class="province" d="M573 309 829 269 923 458 832 655 586 510Z"/><path class="province" d="M829 269 1113 290 1060 535 832 655 923 458Z"/><path class="dominion-river" d="M660 38C628 164 737 231 643 342S579 529 632 697"/><path class="dominion-road" d="M220 555 465 424 610 337 824 252 1028 182M467 424 370 225M610 337 836 535"/></svg><span class="map-title">АРДЕНСКОЕ КНЯЖЕСТВО</span><span class="outside north">СЕВЕРНЫЙ РУБЕЖ · НОРДВИК</span><span class="outside west">ЗАПАДНЫЙ ТРАКТ · ВАЛЬДОРИЯ</span><span class="outside east">ВОСТОЧНЫЙ ТРАКТ · МЕРСИЯ</span><button class="home-hotspot capital" data-tab="council"><b>♛</b><strong>Столица Арден</strong><small>${v.event?'совет ждёт решения':`${v.orders.length} дел в работе`}</small></button><button class="home-hotspot palace" data-tab="court"><b>♙</b><strong>Княжеский двор</strong><small>${v.encounters.filter(e=>!e.resolved).length} прошений</small></button><button class="home-hotspot town" data-tab="development"><b>⌂</b><strong>Городские кварталы</strong><small>службы, дома и строительство</small></button><button class="home-hotspot fields" data-tab="development"><b>❧</b><strong>Долинные земли</strong><small>поля ${v.player.farms} · сады ${v.player.orchards}</small></button><button class="home-hotspot forest" data-tab="orders"><b>♣</b><strong>Западные леса</strong><small>древесина ${v.player.wood}</small></button><button class="home-hotspot mines" data-tab="orders"><b>◆</b><strong>Каменные промыслы</strong><small>камень ${v.player.stone} · железо ${v.player.iron}</small></button><button class="home-hotspot port" data-tab="intel"><b>⚓</b><strong>Речная переправа</strong><small>торговля и посольства</small></button><button class="home-hotspot fortress ${incoming?'threat':''}" data-tab="army"><b>⚔</b><strong>Пограничная крепость</strong><small>${incoming?'ВРАГ ПРИБЛИЖАЕТСЯ':`оборона ${v.player.defense}`}</small></button><button class="home-hotspot chancery" data-tab="development"><b>▤</b><strong>Канцелярия</strong><small>законы и назначения</small></button><button class="home-hotspot chronicle" data-tab="history"><b>≡</b><strong>Архив</strong><small>показатели и летопись</small></button></div>`;
     const starts = {
       balanced: { title: 'Наследство Ольмара', text: 'Вы получили страну, способную жить дальше, но привыкшую откладывать трудные решения. Денег хватит на первые начинания. Зерна в амбарах достаточно на время, однако зимние расходы превышают поступления.', challenge: 'Определить, что нельзя откладывать. Укрепить хозяйство, познакомиться с людьми и выяснить, насколько обоснованы пограничные опасения.' },
       frontier: { title: 'Княжество на рубеже', text: 'Вы вступили на престол после усиления пограничных застав. Дружина подготовлена лучше, чем прежде, но военные приготовления встревожили соседей. На хозяйство осталось меньше денег.', challenge: 'Выяснить, кто действительно угрожает Ардену. Найти равновесие между безопасностью, расходами на войска и отношениями с другими дворами.' },
@@ -223,6 +230,7 @@
   }
   function render() {
     const v = G.getView(state);
+    if(v.month>0||v.history.length>1)ui.mapStarted=true;
     $('#date').textContent = v.date; $('#rule-year').textContent = `${v.yearOfRule}-й год правления`;
     $('#next-month').disabled = v.ended || Boolean(v.event) || Boolean(v.chapter && !v.chapter.acknowledged);
     $('#turn-hint').textContent = v.ended ? 'Правление завершено' : v.event ? 'Совет ожидает решения' : v.chapter && !v.chapter.acknowledged ? 'Прочитайте итоги года' : `${v.ap}/2 новых приказов · ${v.attention}/2 личных дел`;
@@ -286,7 +294,7 @@
   $('#chart-range').addEventListener('change', e => { ui.range = Number(e.target.value); renderChart(G.getView(state)); });
   $('#new-game-form').addEventListener('submit', e => {
     e.preventDefault();
-    try { const fresh = G.createGame({ seed: $('#world-seed').value, scenario: $('#scenario').value }); state = fresh; ui.scene = null; ui.chat = null; ui.tab = 'home'; $('#new-game-dialog').close(); store(AUTO); render(); showIntroduction(true); toast('Новая история началась. Ручное сохранение не удалено.'); }
+    try { const fresh = G.createGame({ seed: $('#world-seed').value, scenario: $('#scenario').value }); state = fresh; ui.scene = null; ui.chat = null; ui.tab = 'home'; ui.mapStarted = false; $('#new-game-dialog').close(); store(AUTO); render(); showIntroduction(true); toast('Новая история началась. Ручное сохранение не удалено.'); }
     catch(error) { toast(error.message, true); }
   });
   $('#save-file').addEventListener('change', async e => {
