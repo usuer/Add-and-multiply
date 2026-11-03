@@ -7,8 +7,8 @@
   const signed = n => `${n > 0 ? '+' : ''}${n}`;
   const fmt = n => Number(n).toLocaleString('ru-RU');
   const MANUAL = 'priceOfPower.v04.manual', AUTO = 'priceOfPower.v04.auto';
-  const ui = { tab: 'home', filter: 'Все', target: 'val', metric: 'gold', range: 12, scene: null };
-  let state = G.createGame(), toastTimer, storageOkay = true;
+  const ui = { tab: 'home', filter: 'Все', target: 'val', metric: 'gold', range: 12, scene: null, chat: null };
+  let state = G.createGame(), toastTimer, storageOkay = true, turnBusy = false;
   function toast(message, error = false) {
     const node = $('#status'); node.textContent = message; node.hidden = false; node.classList.toggle('error', error);
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { node.hidden = true; }, 6500);
@@ -18,11 +18,31 @@
     catch { storageOkay = false; $('#save-state').textContent = 'Браузер запретил сохранение. Используйте файл в разделе хроники.'; return false; }
   }
   function perform(action, message) {
-    try { state = action(state); store(AUTO); render(); if (message) toast(message); }
-    catch (error) { toast(error.message, true); }
+    try { const previousBattle = G.getView(state).military?.battle?.id; state = action(state); if (G.getView(state).military?.battle?.id && G.getView(state).military.battle.id !== previousBattle) ui.tab = 'army'; store(AUTO); render(); if (message) toast(message); return true; }
+    catch (error) { toast(error.message, true); return false; }
+  }
+  async function nextMonth() {
+    if (turnBusy || $('#next-month').disabled) return;
+    turnBusy = true;
+    const before = G.getView(state);
+    $('#next-month').disabled = true;
+    window.PopPresentation.beginTurn(before.date);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 120));
+      if (perform(G.advanceMonth)) {
+        const after = G.getView(state);
+        await window.PopPresentation.finishTurn(after, {...before,player:after.lastTurn?.before || before.player});
+      } else window.PopPresentation.cancelTurn();
+    } finally { turnBusy = false; render(); }
+  }
+  function showIntroduction(force = false) {
+    const v = G.getView(state);
+    if (v.month !== 0 || v.history.length !== 1) return;
+    try { if (!force && localStorage.getItem(`popIntro06:${v.seed}`)) return; } catch {}
+    window.PopPresentation.showIntro(v);
   }
   function setTab(tab, scroll = false) {
-    if (!['home', 'council', 'orders', 'development', 'court', 'intel', 'history'].includes(tab)) return;
+    if (!['home', 'council', 'orders', 'development', 'court', 'army', 'intel', 'history'].includes(tab)) return;
     ui.tab = tab;
     for (const panel of document.querySelectorAll('[data-page]')) panel.hidden = panel.dataset.page !== tab;
     $('#stats').hidden = tab === 'home';
@@ -80,11 +100,7 @@
     }
     return `<g transform="translate(${x} ${y}) scale(${scale})" stroke="#c3b88e" stroke-width="1.2" stroke-linejoin="round">${inside}</g>`;
   }
-  function renderTown(v) {
-    const slots = [[20, 100], [140, 82], [250, 108], [360, 85], [480, 100], [590, 85], [710, 105], [820, 85]];
-    const count = v.buildings.reduce((sum, b) => sum + v.player[b.key], 0);
-    $('#town').innerHTML = `<div class="section-heading"><div><span class="eyebrow">ОТ ПОСЕЛЕНИЯ К ГОРОДУ</span><h2>Арден при вашем правлении</h2></div><span class="badge">${count} уровней построено</span></div><svg viewBox="0 0 930 205" role="img" aria-label="Поселение. Построенные объекты выделены цветом, незастроенные участки приглушены."><path d="M0 172Q130 146 270 166T555 163T930 166V205H0Z" fill="#384c35"/><path d="M0 185Q230 165 480 182T930 180" fill="none" stroke="#9b986a" stroke-width="4" opacity=".6"/><path d="m0 69 75-48 70 48 51-27 73 38 80-38 68 42 66-36 80 36 79-37 84 38 94-39 100 28" fill="none" stroke="#425b40" stroke-width="24" opacity=".3"/>${v.buildings.map((b, i) => `<g opacity="${v.player[b.key] ? 1 : 0.2}"><title>${esc(b.name)}: уровень ${v.player[b.key]}</title>${art(b.symbol, ...slots[i], 1.1)}<text x="${slots[i][0] + 47}" y="199" fill="#c7c8aa" font-family="Georgia,serif" font-size="12" text-anchor="middle">${esc(b.name.split(' ')[0])} ${v.player[b.key]}</text></g>`).join('')}</svg><p class="town-caption">Яркие объекты построены. Каждый уровень добавляет реальный эффект; наведите на объект, чтобы увидеть его уровень.</p>`;
-  }
+  function renderTown(v) { window.PopDevelopment.renderTown(v); }
   function renderStats(v) {
     const rows = [
       ['gold', 'Казна', '◉', 'монет', `${signed(v.economy.gold)} / мес. по текущему бюджету`],
@@ -109,7 +125,7 @@
     $('#completed-orders').innerHTML = v.completed.length ? '<div class="completed-title">НЕДАВНО ЗАВЕРШЕНО</div>' + v.completed.slice(0, 3).map(o => `<div class="completed-item"><strong>${esc(v.commands.find(d => d.id === o.type).name)}</strong><p>${esc(o.result)}</p></div>`).join('') : '';
     let advice = 'Посмотрите, что известно о соседях, и оставьте часть казны на непредвиденные дела. Сведения с возрастом теряют точность.';
     if (v.player.food < 35) advice = 'Зерна мало. Быстрая закупка поможет пережить ближайший месяц; поля и сады дадут устойчивый источник еды.';
-    else if (v.economy.food < 0) advice = 'Мы съедаем больше, чем производим. Запас позволяет выиграть время, но нужны поля, сады или продовольственный резерв.';
+    else if (v.economy.food < 0) advice = 'Мы съедаем больше, чем производим. Запас позволяет выиграть время, но нужны поля, сады или ограничение вывоза зерна.';
     else if (v.player.gold < 30) advice = 'Казна близка к истощению. Не начинайте всё сразу: развитие и содержание служб должны опираться на доход.';
     $('#adviser').innerHTML = `<span class="eyebrow">КАЗНАЧЕЙ МИРЕНА ВЕЛЬ</span><p>«${esc(advice)}»</p>`;
     const report = $('#monthly-report'); report.hidden = !v.lastTurn;
@@ -117,6 +133,7 @@
   }
   function commandCard(v, d, building = null) {
     const blocker = G.orderBlocker(state, d.id, ui.target);
+    if (building) return window.PopDevelopment.buildingCard(v, d, building, blocker);
     const icon = building ? `<svg viewBox="0 0 90 75" class="building-icon" aria-hidden="true">${art(building.symbol)}</svg><div class="levels" aria-label="Уровень ${d.level} из ${d.maxLevel}">${Array.from({length: d.maxLevel}, (_, i) => `<span class="${i < d.level ? 'filled' : ''}"></span>`).join('')}</div>` : '';
     return `<article class="command-card"><span class="eyebrow">${building ? `УРОВЕНЬ ${d.level} / ${d.maxLevel}` : esc(d.category)}</span>${icon}<h2>${esc(building ? building.name : d.name)}</h2><p class="command-description">${esc(building ? building.effect : d.description)}</p><div class="command-cost"><span>◉ ${d.gold} монет</span><span>◷ ${d.duration} мес.</span></div><button class="button secondary" data-order="${d.id}" ${blocker ? 'disabled' : ''}>${building ? d.level ? 'Повысить уровень' : 'Начать строительство' : 'Отдать приказ'}</button><p class="command-blocker">${esc(blocker || d.executor)}</p></article>`;
   }
@@ -127,9 +144,10 @@
     $('#development-ap').textContent = `Новых приказов: ${v.ap} / 2`;
     $('#command-catalog').innerHTML = v.commands.filter(d => !d.building && !d.law && (ui.filter === 'Все' || d.category === ui.filter)).map(d => commandCard(v, d)).join('');
     $('#buildings').innerHTML = v.buildings.map(b => commandCard(v, v.commands.find(d => d.id === b.command), b)).join('');
-    $('#laws').innerHTML = v.lawOptions.map(law => `<article class="law-card"><span class="eyebrow">ДЕЙСТВУЮЩИЙ УКЛАД</span><h2>${esc(law.name)}</h2>${law.options.map(o => {
+    $('#policy-budget').innerHTML = `<h3>Что происходит с зерном и казной</h3><p>Зерно: производство <strong>+${v.economy.production}</strong>, пища жителей и войска <strong>−${v.economy.consumption}</strong>, торговый вывоз <strong>−${v.economy.exports || 0}</strong>, потери хранения <strong>−${v.economy.losses}</strong>. Баланс <strong>${signed(v.economy.food)}/мес.</strong></p><p>Казна: поступления <strong>+${v.economy.income}</strong>, содержание войска, служб и действующих законов <strong>−${v.economy.upkeep}</strong>. Баланс <strong>${signed(v.economy.gold)}/мес.</strong> Принятие указа не требует отдельной платы.</p>`;
+    $('#laws').innerHTML = v.lawOptions.map(law => `<article class="law-card"><span class="eyebrow">ДЕЙСТВУЮЩИЙ УКЛАД</span><h2>${esc(law.name)}</h2><p class="law-explanation">${esc(law.explanation || '')}</p>${law.options.map(o => {
       const active = v.laws[law.key] === o.value, d = v.commands.find(d => d.id === `law_${law.key}_${o.value}`), blocker = G.orderBlocker(state, d.id, ui.target);
-      return `<div class="law-option"><strong>${esc(o.name)}</strong>${active ? ' <span class="badge">Действует</span>' : ''}<p>${esc(o.effect)}</p><button class="button secondary" data-order="${d.id}" ${blocker ? 'disabled' : ''}>${active ? 'Закон действует' : blocker ? esc(blocker) : 'Принять закон · 5 монет'}</button></div>`;
+      return `<div class="law-option"><strong>${esc(o.name)}</strong>${active ? ' <span class="badge">Действует</span>' : ''}<p>${esc(o.effect)}</p><button class="button secondary" data-order="${d.id}" ${blocker ? 'disabled' : ''}>${active ? 'Закон действует' : blocker ? esc(blocker) : 'Подготовить указ · без сбора'}</button></div>`;
     }).join('')}</article>`).join('');
     renderTown(v);
   }
@@ -149,11 +167,22 @@
     }
   }
   function renderCourt(v) {
-    $('#attention').textContent = `Личное внимание: ${v.attention} / 2`;
+    $('#attention').textContent = `Осталось личных дел: ${v.attention}`;
+    renderRuler(v);
     $('#encounter-preview').innerHTML = v.encounters.map(e => `<button class="encounter-preview" data-scene="${e.id}">${portrait(e.person, true)}<span><small>${esc(e.type)} · ${esc(e.person.name)}</small><strong>${esc(e.title)}</strong></span><span aria-hidden="true">${e.resolved ? '✓' : '→'}</span></button>`).join('') || '<p class="muted">Новые посетители прибудут в следующем месяце.</p>';
     $('#encounters').innerHTML = v.encounters.map(e => `<article class="command-card story-card"><div class="section-heading"><span class="eyebrow">${esc(e.type)}</span>${portrait(e.person, true)}</div><h2>${esc(e.title)}</h2><p class="command-description">${esc(e.quote)}</p><p class="story-person">${esc(e.person.name)} · ${esc(e.place)}</p><button class="button secondary" data-scene="${e.id}">${e.resolved ? 'Решение принято · прочитать' : 'Открыть встречу →'}</button></article>`).join('');
-    $('#characters').innerHTML = v.characters.map(p => `<article class="person-card">${portrait(p)}<div><span class="eyebrow">${esc(p.role)}</span><h3>${esc(p.name)}</h3><p>${esc(p.temperament || p.description)}</p><div class="confidence"><div class="confidence-track"><span style="width:${p.trust}%"></span></div><span>Доверие ${p.trust}%</span></div><small>${esc(p.bonus || 'Доверие меняется от ваших личных решений.')}</small><details class="character-profile"><summary>Характер и личные связи</summary><p>${esc(p.bio || p.description)}</p><dl>${[['Ценит',p.values],['Слабость',p.blindSpot],['Личный интерес',p.personalStake]].filter(([,value])=>value).map(([label,value])=>`<dt>${label}</dt><dd>${esc(value)}</dd>`).join('')}</dl>${p.ties?.length ? `<ul>${p.ties.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>` : ''}</details></div></article>`).join('');
+    $('#characters').innerHTML = v.characters.map(p => `<article class="person-card">${portrait(p)}<div><span class="eyebrow">${esc(p.role)}</span><h3>${esc(p.name)}</h3><p>${esc(p.temperament || p.description)}</p><div class="confidence"><div class="confidence-track"><span style="width:${p.trust}%"></span></div><span>Доверие ${p.trust}%</span></div><small>${esc(p.bonus || 'Доверие меняется от ваших личных решений.')}</small><button class="button secondary chat-open" data-chat="${esc(p.id)}">Поговорить · бесплатно</button><details class="character-profile"><summary>Характер и личные связи</summary><p>${esc(p.bio || p.description)}</p><dl>${[['Ценит',p.values],['Слабость',p.blindSpot],['Личный интерес',p.personalStake]].filter(([,value])=>value).map(([label,value])=>`<dt>${label}</dt><dd>${esc(value)}</dd>`).join('')}</dl>${p.ties?.length ? `<ul>${p.ties.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>` : ''}</details></div></article>`).join('');
+    $('#conversation-notes').innerHTML = (v.conversationNotes || []).map(n => `<article><span class="eyebrow">${esc(n.name)} · ${esc(n.date)}</span><h3>${esc(n.title)}</h3><p>${esc(n.response)}</p></article>`).join('') || '<p class="muted">Пока здесь нет записей. Задайте человеку вопрос, чтобы сохранить ответ.</p>';
     $('#future-stories').innerHTML = v.futureStories.length ? `<div class="adviser"><span class="eyebrow">ИСТОРИИ ПРОДОЛЖАЮТСЯ</span>${v.futureStories.map(f => `<p>${esc(f.title)} · ожидается через ${f.dueIn} мес.</p>`).join('')}</div>` : '';
+  }
+  function renderRuler(v) {
+    const r = v.ruler; if (!r) return;
+    $('#ruler-status').innerHTML = `<div><span class="eyebrow">ЛИЧНОЕ СОСТОЯНИЕ ПРАВИТЕЛЯ</span><h2>${r.ill ? 'Лекарь отменил новые аудиенции' : 'Правление требует сил'}</h2><div class="ruler-meters"><span>Ваше здоровье <b>${r.health}%</b></span><span>Переутомление <b>${r.fatigue}%</b></span><span>Приёмов сверх нормы за месяц <b>${r.overtimeThisMonth}</b></span></div><p class="ruler-warning ${r.fatigue >= 65 || r.ill ? 'negative' : ''}">${esc(r.warning)}</p><p class="muted">Это ваше личное состояние. Показатель здоровья княжества относится к жителям. Совет продолжит разбирать срочные дела, пока вы восстанавливаетесь.</p></div><div class="ruler-actions"><button class="button secondary" data-action="overtime" ${r.canOvertime ? '' : 'disabled'}>Работать сверх нормы · ещё один приём</button><button class="button quiet" data-action="rest-ruler" ${r.canRest ? '' : 'disabled'}>Отменить приёмы и отдохнуть</button></div>`;
+  }
+  function renderChat(v) {
+    const p = v.characters.find(p => p.id === ui.chat?.personId); if (!p) return;
+    const topic = (p.topics || []).find(t => t.id === ui.chat.topicId);
+    $('#chat-content').innerHTML = `<span class="eyebrow">РАЗГОВОР БЕЗ ПРОШЕНИЯ</span><div class="scene-person">${portrait(p)}<div><h2>${esc(p.name)}</h2><p class="muted">${esc(p.role)}</p><p class="scene-temperament">${esc(p.temperament || p.description)}</p></div></div><p class="chat-intro">Можно узнать человека и его взгляд на жизнь княжества. Разговор не требует денег и не расходует государственные поручения или лимит личных дел. Повторное чтение не даёт наград.</p>${v.ruler?.ill ? '<p class="negative">Во время болезни новые разговоры отложены. Прежние записи можно перечитать.</p>' : ''}<div class="chat-questions">${(p.topics || []).map(t=>`<button class="button secondary ${topic?.id === t.id ? 'selected' : ''}" data-talk-person="${esc(p.id)}" data-talk-topic="${esc(t.id)}" ${v.ruler?.ill && !t.asked ? 'disabled' : ''}>${t.asked ? 'Перечитать: ' : ''}${esc(t.title)}</button>`).join('')}</div>${topic?.asked ? `<section id="chat-reply"><span class="eyebrow">${esc(p.name)} ОТВЕЧАЕТ</span>${topic.response.split('\n').map(text=>`<p>${esc(text)}</p>`).join('')}<small>Ответ записан в вашей записной книжке.</small></section>` : '<p class="muted chat-prompt">Выберите вопрос, который хотите задать.</p>'}`;
   }
   function renderScene(v) {
     const scene = v.encounters.find(e => e.id === ui.scene); if (!scene) return;
@@ -163,7 +192,7 @@
       const description = r.before !== r.after ? `${r.before} → ${r.after}` : r.direction === 'improved' ? `отношения улучшились; остаются ${r.after.toLowerCase()}` : r.direction === 'worsened' ? `отношения ухудшились; остаются ${r.after.toLowerCase()}` : r.after;
       return `<p>${esc(r.name)}: ${esc(description)}.</p>`;
     }).join('');
-    const resultHTML = scene.resolved ? `<section id="scene-result" class="adviser scene-result" aria-live="polite"><span class="eyebrow">РЕШЕНИЕ ПРИНЯТО</span><p>${esc(selected?.title || '')}</p><p class="scene-afterword">${esc(result?.narrative || 'Встреча завершена. Записи о решении сохранены в летописи.')}</p>${result?.changes ? changesHTML(result.changes) : '<p class="muted">Точные изменения этой старой встречи в сохранении не записаны.</p>'}<div class="result-facts">${typeof result?.trustChange === 'number' ? `<p class="trust-delta">${esc(scene.person.name)}: доверие ${signed(result.trustChange)}.</p>` : ''}${relations}</div></section>` : `<p class="muted scene-hint">Личное внимание: ${v.attention}/2. Встреча не расходует лимит государственных приказов.</p><div class="scene-choices">${scene.choices.map(c => `<button class="choice" data-story-choice="${c.id}" ${c.disabled ? 'disabled' : ''}><strong>${esc(c.title)}</strong><span class="choice-description">${esc(c.description)}</span><small>${c.gold ? `Необходимо: ${c.gold} монет` : 'Без расходов монет'}${c.food ? ` · ${c.food} зерна` : ''}${c.disabled ? ' · сейчас недоступно' : ''}</small></button>`).join('')}</div>`;
+    const resultHTML = scene.resolved ? `<section id="scene-result" class="adviser scene-result" aria-live="polite"><span class="eyebrow">РЕШЕНИЕ ПРИНЯТО</span><p>${esc(selected?.title || '')}</p><p class="scene-afterword">${esc(result?.narrative || 'Встреча завершена. Записи о решении сохранены в летописи.')}</p>${result?.changes ? changesHTML(result.changes) : '<p class="muted">Точные изменения этой старой встречи в сохранении не записаны.</p>'}<div class="result-facts">${typeof result?.trustChange === 'number' ? `<p class="trust-delta">${esc(scene.person.name)}: доверие ${signed(result.trustChange)}.</p>` : ''}${relations}</div></section>` : `<p class="muted scene-hint">Личное внимание: ${v.attention}. Встреча не расходует лимит государственных приказов.</p><div class="scene-choices">${scene.choices.map(c => `<button class="choice" data-story-choice="${c.id}" ${c.disabled ? 'disabled' : ''}><strong>${esc(c.title)}</strong><span class="choice-description">${esc(c.description)}</span><small>${c.gold ? `Необходимо: ${c.gold} монет` : 'Без расходов монет'}${c.food ? ` · ${c.food} зерна` : ''}${c.disabled ? ' · сейчас недоступно' : ''}</small></button>`).join('')}</div>`;
     $('#scene-content').innerHTML = `<span class="eyebrow">${esc(scene.type)} · ${esc(scene.place)}</span><div class="scene-person">${portrait(scene.person)}<div><h2>${esc(scene.title)}</h2><p class="muted">${esc(scene.person.name)} · ${esc(scene.person.role)}</p><p class="scene-temperament">${esc(scene.person.temperament || scene.person.description)}</p></div></div><section class="scene-request"><span class="eyebrow">${scene.resolved ? 'С ЧЕМ К ВАМ ПРИШЛИ' : 'ЧЕГО ОТ ВАС ХОТЯТ'}</span><p>${esc(scene.request || scene.title)}</p></section><div class="scene-story">${scene.text.split('\n').map(p => `<p>${esc(p)}</p>`).join('')}</div><p class="scene-quote">${esc(scene.quote)}</p>${scene.origin !== null ? `<p class="event-cause">Продолжение вашего решения в ${esc(G.date(scene.origin).toLowerCase())}.</p>` : ''}${resultHTML}`;
   }
   function renderChart(v) {
@@ -194,9 +223,15 @@
     if (v.ended) $('#ended').innerHTML = '<h2>История этого правления закончилась</h2><p>Государство потеряло устойчивость. В летописи можно увидеть, какие решения к этому привели.</p>';
     renderHome(v); renderStats(v); renderCouncil(v); renderOrders(v); renderIntel(v); renderCourt(v); renderHistory(v); renderChapter(v);
     if (ui.scene !== null) renderScene(v);
+    if (ui.chat) renderChat(v);
+    window.PopMilitaryUI.render(v, { quote: opts => G.militaryQuote(state, opts) });
+    const battle = v.military?.battle;
+    $('#military-alert').hidden = !battle;
+    if (battle) $('#military-alert').innerHTML = `<span>На рубежах идёт бой: ${esc(battle.locationName)}. Выберите приказ или отступление.</span><button class="button secondary" data-tab="army">К войску →</button>`;
+    if (battle) { $('#next-month').disabled = true; $('#turn-hint').textContent = 'Сначала завершите столкновение'; }
     setTab(ui.tab);
     if (storageOkay) $('#save-state').textContent = `Ключ мира: ${v.seed} · локальная кампания`;
-    if (v.chapter && !v.chapter.acknowledged && !$('#chapter-dialog').open) {
+    if (v.chapter && !v.chapter.acknowledged && !v.military?.battle && !turnBusy && !$('#chapter-dialog').open) {
       for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
       $('#chapter-dialog').showModal();
     }
@@ -214,17 +249,22 @@
     if (b.dataset.filter) { ui.filter = b.dataset.filter; renderOrders(G.getView(state)); return; }
     if (b.dataset.order) { perform(s => G.queueOrder(s, b.dataset.order, ui.target), 'Поручение принято. Следите за сроком в разделе совета.'); return; }
     if (b.dataset.scout) { perform(s => G.queueOrder(s, 'scout', b.dataset.scout), 'Разведчик отправлен. Ответ ожидается через два месяца.'); return; }
+    if (b.dataset.chat) { ui.chat = {personId:b.dataset.chat, topicId:null}; renderChat(G.getView(state)); $('#chat-dialog').showModal(); return; }
+    if (b.dataset.talkPerson) { ui.chat = {personId:b.dataset.talkPerson,topicId:b.dataset.talkTopic}; perform(s => G.talkToCharacter(s,b.dataset.talkPerson,b.dataset.talkTopic)); return; }
     if (b.dataset.choice) { perform(s => G.chooseEvent(s, b.dataset.choice), 'Решение принято. Изменения записаны в хронике.'); return; }
     if (b.dataset.scene) { ui.scene = Number(b.dataset.scene); renderScene(G.getView(state)); $('#scene-dialog').showModal(); return; }
     if (b.dataset.storyChoice) { perform(s => G.resolveEncounter(s, ui.scene, b.dataset.storyChoice), 'Встреча завершена. Последствия записаны в летописи.'); return; }
     switch (b.dataset.action) {
-      case 'next': perform(G.advanceMonth); break;
+      case 'overtime': perform(G.workOvertime); break;
+      case 'rest-ruler': perform(G.restRuler); break;
+      case 'close-chat': $('#chat-dialog').close(); ui.chat = null; break;
+      case 'next': nextMonth(); break;
       case 'new': $('#world-seed').value = `Арден-${Date.now().toString(36)}`; $('#new-game-dialog').showModal(); break;
       case 'close-new': $('#new-game-dialog').close(); break;
       case 'close-scene': $('#scene-dialog').close(); ui.scene = null; break;
       case 'save': if (store(MANUAL)) toast('Ручное сохранение записано в этом браузере.'); else toast('Браузер запретил запись. Скачайте сохранение в разделе хроники.', true); break;
       case 'load':
-        try { const raw = localStorage.getItem(MANUAL) || localStorage.getItem(AUTO); if (!raw) throw new Error('Сохранений пока нет. Сначала сохраните кампанию или откройте файл.'); const loaded = G.deserialize(raw); state = loaded; ui.scene = null; ui.tab = 'home'; render(); toast('Кампания восстановлена.'); } catch(error) { toast(error.message, true); }
+        try { const raw = localStorage.getItem(MANUAL) || localStorage.getItem(AUTO); if (!raw) throw new Error('Сохранений пока нет. Сначала сохраните кампанию или откройте файл.'); const loaded = G.deserialize(raw); state = loaded; ui.scene = null; ui.chat = null; ui.tab = 'home'; render(); toast('Кампания восстановлена.'); } catch(error) { toast(error.message, true); }
         break;
       case 'export': try { downloadSave(); } catch(error) { toast(error.message, true); } break;
       case 'import': $('#save-file').click(); break;
@@ -232,23 +272,26 @@
       case 'continue': $('#chapter-dialog').close(); perform(G.acknowledgeChapter); break;
     }
   });
+  document.addEventListener('pop:military', e => { const d=e.detail; if(d.action==='launch') perform(s=>G.launchMilitary(s,d)); else if(d.action==='tactic') perform(s=>G.battleOrder(s,d.tactic)); });
   $('#order-target').addEventListener('change', e => { ui.target = e.target.value; renderOrders(G.getView(state)); });
   $('#chart-metric').addEventListener('change', e => { ui.metric = e.target.value; renderChart(G.getView(state)); });
   $('#chart-range').addEventListener('change', e => { ui.range = Number(e.target.value); renderChart(G.getView(state)); });
   $('#new-game-form').addEventListener('submit', e => {
     e.preventDefault();
-    try { const fresh = G.createGame({ seed: $('#world-seed').value, scenario: $('#scenario').value }); state = fresh; ui.scene = null; ui.tab = 'home'; $('#new-game-dialog').close(); store(AUTO); render(); toast('Новая история началась. Ручное сохранение не удалено.'); }
+    try { const fresh = G.createGame({ seed: $('#world-seed').value, scenario: $('#scenario').value }); state = fresh; ui.scene = null; ui.chat = null; ui.tab = 'home'; $('#new-game-dialog').close(); store(AUTO); render(); showIntroduction(true); toast('Новая история началась. Ручное сохранение не удалено.'); }
     catch(error) { toast(error.message, true); }
   });
   $('#save-file').addEventListener('change', async e => {
     const file = e.target.files[0]; if (!file) return;
-    try { if (file.size > 1000000) throw new Error('Файл слишком велик для сохранения игры.'); const loaded = G.deserialize(await file.text()); state = loaded; ui.scene = null; ui.tab = 'home'; store(AUTO); render(); toast('Кампания загружена из файла.'); }
+    try { if (file.size > 1000000) throw new Error('Файл слишком велик для сохранения игры.'); const loaded = G.deserialize(await file.text()); state = loaded; ui.scene = null; ui.chat = null; ui.tab = 'home'; store(AUTO); render(); toast('Кампания загружена из файла.'); }
     catch(error) { toast(error.message, true); }
     finally { e.target.value = ''; }
   });
   // Escape не позволяет пропустить обязательное прочтение итогов, но закрывает обычные встречи.
   $('#chapter-dialog').addEventListener('cancel', e => { e.preventDefault(); $('#chapter-dialog').close(); perform(G.acknowledgeChapter); });
+  window.PopPresentation.init({onIntroDone:()=>{ try { localStorage.setItem(`popIntro06:${state.seed}`,'seen'); } catch {} setTab('home',true); }});
   try { const raw = localStorage.getItem(AUTO); if (raw) state = G.deserialize(raw); }
   catch { storageOkay = false; toast('Автосохранение недоступно. Можно играть дальше и скачивать сохранение в файл через раздел хроники.', true); }
   render();
+  showIntroduction();
 })();

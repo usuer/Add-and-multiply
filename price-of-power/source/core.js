@@ -1,13 +1,14 @@
 /* Цена власти: детерминированная модель. Работает в браузере и Node.js. */
 (function (root, factory) {
   'use strict';
-  const api = factory(typeof module === 'object' && module.exports ? require('./stories.js') : root.PopStories);
+  const node = typeof module === 'object' && module.exports;
+  const api = factory(node ? require('./stories.js') : root.PopStories, node ? require('./laws.js') : root.PopLaws, node ? require('./military.js') : root.PopMilitary);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.PriceOfPower = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (STORY_DATA) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (STORY_DATA, LAW_DATA, MILITARY) {
   'use strict';
   const VERSION = 4;
-  const { PEOPLE, STORIES } = STORY_DATA;
+  const { PEOPLE, STORIES, TALKS } = STORY_DATA;
   const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
   const COUNTRIES = [
     { id: 'val', name: 'Вальдория', ruler: 'Король Эдрик', trait: 'Осторожный и подозрительный', goal: 'Безопасные границы', army: 70, gold: 88, aggression: 48, relation: -24 },
@@ -41,22 +42,8 @@
     if (!d) { d = { id: b.command, name: `Построить: ${b.name.toLowerCase()}`, category: 'Город', actor: 'builders', executor: 'Земские мастера', gold: b.gold, duration: b.duration, description: b.effect }; COMMANDS.push(d); }
     d.building = b.key;
   }
-  const LAWS = [
-    { key: 'tax', name: 'Налогообложение', options: [
-      { value: 'low', name: 'Щадящий сбор', effect: 'Доход −4/мес., стабильность +2/мес.' },
-      { value: 'balanced', name: 'Обычный сбор', effect: 'Базовый доход. Без дополнительного влияния на стабильность.' },
-      { value: 'high', name: 'Чрезвычайный сбор', effect: 'Доход +7/мес., стабильность −3/мес.' },
-    ] },
-    { key: 'grain', name: 'Торговля зерном', options: [
-      { value: 'market', name: 'Свободная продажа', effect: 'Без ограничений и дополнительных расходов.' },
-      { value: 'reserve', name: 'Княжеский резерв', effect: 'Доход −3/мес., потребление запасов зерна −2/мес.' },
-    ] },
-    { key: 'education', name: 'Доступ к образованию', options: [
-      { value: 'elite', name: 'Дворцовая школа', effect: 'Обучение при дворе. Без дополнительного содержания.' },
-      { value: 'public', name: 'Общедоступное обучение', effect: 'Содержание 4 монеты/мес., стабильность +1/мес., наука +1 раз в полгода. Нужна земская школа.' },
-    ] },
-  ];
-  for (const law of LAWS) for (const option of law.options) COMMANDS.push({ id: `law_${law.key}_${option.value}`, name: option.name, category: 'Законы', actor: 'council', executor: 'Княжеская канцелярия', gold: 5, duration: 1, law: law.key, value: option.value, description: option.effect });
+  const LAWS = LAW_DATA.LAWS;
+  for (const law of LAWS) for (const option of law.options) COMMANDS.push({ id: `law_${law.key}_${option.value}`, name: option.name, category: 'Законы', actor: 'council', executor: 'Княжеская канцелярия', gold: 0, duration: 1, law: law.key, value: option.value, description: option.effect });
   const CAPACITY = { agents: 1, envoys: 1, military: 2, builders: 2, civil: 1, merchants: 1, scholars: 1, council: 1 };
   const METRICS = { gold: 'Казна', food: 'Зерно', stability: 'Стабильность', army: 'Армия', defense: 'Оборона', health: 'Здоровье', population: 'Население', science: 'Наука', diplomacy: 'Дипломатия', intel: 'Разведка', farms: 'Поля', roads: 'Дороги', orchards: 'Сады', wells: 'Водопровод', granaries: 'Склады', schools: 'Школы', clinics: 'Лечебницы', universities: 'Университеты', trade: 'Договоры' };
   const INTENTS = { trade: 'расширение торговли', train: 'набор и обучение войск', fortify: 'укрепление границы', raid: 'подготовка военного давления', recover: 'восстановление хозяйства', diplomacy: 'поиск соглашений' };
@@ -94,6 +81,7 @@
       n.relation = clamp(n.relation, -100, 100);
       for (const key of Object.keys(n.relations)) n.relations[key] = clamp(n.relations[key], -100, 100);
     }
+    if (s.military) MILITARY.syncArmy(s);
     if (!s.ended && (p.stability === 0 || p.population < 10)) {
       s.ended = true;
       log(s, 'Совет отстранил правителя. Эта история завершена.', 'Государство потеряло устойчивость или население.', 'danger');
@@ -101,15 +89,55 @@
     return s;
   }
   function economy(s) {
-    const p = s.player;
+    const p = s.player, policy = LAW_DATA.extraEconomy(s);
     const season = s.month % 12;
     const harvest = season >= 7 && season <= 9 ? 15 : season <= 1 || season === 11 ? 5 : 9;
-    const income = 17 + p.roads * 3 + p.trade * 3 + p.science + p.orchards + p.universities * 2 + ({ low: -4, balanced: 0, high: 7 })[s.laws.tax] - (s.laws.grain === 'reserve' ? 3 : 0) + (trusted(s, 'treasurer') ? 2 : 0);
-    const upkeep = 7 + Math.floor(p.army / 20) + p.clinics * 2 + p.universities * 3 + (s.laws.education === 'public' ? 4 : 0) - (trusted(s, 'marshal') ? 1 : 0);
-    const production = harvest + p.farms * 5 + p.orchards * 3;
-    const consumption = Math.max(5, 9 + Math.floor(p.army / 18) - (p.rationUntil > s.month ? 4 : 0) - (s.laws.grain === 'reserve' ? 2 : 0));
+    const income = 17 + p.roads * 3 + p.trade * 3 + p.science + p.orchards + p.universities * 2 + ({ low: -4, balanced: 0, high: 7 })[s.laws.tax] - (s.laws.grain === 'reserve' ? 3 : 0) + (trusted(s, 'treasurer') ? 2 : 0) + policy.income;
+    const upkeep = 7 + Math.floor(p.army / 20) + p.clinics * 2 + p.universities * 3 + (s.laws.education === 'public' ? 4 : 0) - (trusted(s, 'marshal') ? 1 : 0) + policy.upkeep;
+    const production = harvest + p.farms * 5 + p.orchards * 3 + policy.production;
+    const consumption = Math.max(3, 7 + Math.floor(MILITARY.homeStrength(s) / 18) - (p.rationUntil > s.month ? 4 : 0));
+    const exports = s.laws.grain === 'market' ? 2 : 0;
     const losses = Math.max(0, Math.floor(p.food * 0.025) - p.granaries * 3);
-    return { income, upkeep, production, consumption, losses, gold: income - upkeep, food: production - consumption - losses, season: harvest === 15 ? 'сбор урожая' : harvest === 5 ? 'зимние запасы' : 'полевые работы' };
+    return { income, upkeep, production, consumption, exports, losses, gold: income - upkeep, food: production - consumption - exports - losses, season: harvest === 15 ? 'сбор урожая' : harvest === 5 ? 'зимние запасы' : 'полевые работы' };
+  }
+  function createRuler() { return { fatigue: 0, health: 100, illUntil: 0, overtimeThisMonth: 0, restedThisMonth: false }; }
+  function isRulerIll(s) { return Boolean(s.ruler && s.ruler.illUntil > s.month); }
+  function rulerView(s) {
+    const r = s.ruler || createRuler(), ill = isRulerIll(s);
+    const warning = ill ? 'Лекарь запретил личный приём. Для выздоровления нужны отдых и время; совет может разбирать государственные дела.' : r.fatigue >= 65 ? 'Лекарь предупреждает: дальнейшая работа опасна. Сильное переутомление может привести к болезни и остановке личного приёма.' : r.fatigue >= 35 ? 'Вы устали. Советуетесь с лекарем: лучше закончить приём и отдохнуть, пока усталость не стала опасной.' : 'Вы можете принимать посетителей. Дополнительная работа даёт время для ещё одной встречи, но накапливает усталость.';
+    return { ...copy(r), ill, monthsUntilRecovery: Math.max(0, r.illUntil - s.month), warning, canOvertime: !s.ended && !ill && r.overtimeThisMonth < 6, canRest: !s.ended && !r.restedThisMonth };
+  }
+  function workOvertime(state) {
+    if (state.ended) fail('Правление завершено.');
+    if (isRulerIll(state)) fail('Правитель болен. Дополнительная работа недоступна до выздоровления.');
+    if (state.ruler.overtimeThisMonth >= 6) fail('Вы уже продлили рабочий день слишком много раз. Пора отдохнуть.');
+    const s = copy(state), r = s.ruler;
+    r.fatigue = clamp(r.fatigue + 18 + r.overtimeThisMonth * 4, 0, 100);
+    r.overtimeThisMonth++;
+    r.health = clamp(r.health - Math.max(0, Math.floor((r.fatigue - 30) / 10)), 0, 100);
+    s.attention = Math.min(12, s.attention + 1);
+    let ill = false;
+    if (r.fatigue >= 85) ill = r.fatigue === 100 || random(s) < (r.fatigue - 60) / 50;
+    if (ill) {
+      r.health = Math.min(r.health, 45); r.illUntil = s.month + 2; s.attention = 0;
+      log(s, 'Правитель слёг после переутомления. Личный приём остановлен.', 'Усталость достигла опасного уровня после предупреждений. Лекарь требует отдыха; государственные дела совет может продолжать без личных аудиенций.', 'ruler');
+    } else log(s, 'Вы продлили рабочий день и получили время для ещё одной личной встречи.', `Усталость правителя: ${r.fatigue} из 100. ${r.fatigue >= 65 ? 'Лекарь предупреждает об опасности продолжения работы.' : r.fatigue >= 35 ? 'Накопилась заметная усталость; отдых восстановит силы.' : 'Работа сверх нормы постепенно истощает силы.'}`, 'ruler');
+    return s;
+  }
+  function restRuler(state) {
+    if (state.ended) fail('Правление завершено.');
+    if (state.ruler.restedThisMonth) fail('В этом месяце вы уже выделили время для отдыха.');
+    const s = copy(state), r = s.ruler;
+    r.fatigue = Math.max(0, r.fatigue - 30); r.health = Math.min(100, r.health + 16); r.restedThisMonth = true; s.attention = 0;
+    log(s, 'Вы отменили оставшийся личный приём и отвели время на отдых.', `Усталость правителя: ${r.fatigue}; здоровье: ${r.health}. Государственные поручения продолжают исполняться.`, 'ruler');
+    return s;
+  }
+  function advanceRuler(s) {
+    const r = s.ruler, wasIll = r.illUntil > s.month - 1;
+    r.fatigue = Math.max(0, r.fatigue - (wasIll ? 30 : 12) - (r.restedThisMonth ? 8 : 0));
+    r.health = Math.min(100, r.health + (wasIll ? 18 : 6));
+    r.overtimeThisMonth = 0; r.restedThisMonth = false;
+    if (wasIll && !isRulerIll(s)) log(s, 'Правитель выздоровел и может вернуться к личным встречам.', 'Время и отдых восстановили силы. Лекарь просит не повторять прежний режим работы.', 'ruler');
   }
   function observe(s, army, defense = 0) {
     return { army: Math.max(1, Math.round(army * (0.6 + random(s) * 0.8))), defense: Math.round(defense * (0.6 + random(s) * 0.8)), month: s.month };
@@ -120,10 +148,11 @@
     const s = { version: VERSION, seed, scenario, rng: hash(seed), month: 0, nextId: 1, ap: 2, ended: false,
       player: { gold: 110, food: 80, stability: 68, army: 55, defense: 35, health: 68, science: 2, diplomacy: 2, intel: 1, population: 100, farms: 0, roads: 0, orchards: 0, wells: 0, granaries: 0, schools: 0, clinics: 0, universities: 0, trade: 0, rationUntil: 0 },
       neighbors: [], orders: [], completed: [], reports: [], history: [], aiHistory: [], chains: [], cooldowns: { border: 0, grain: 0 }, pending: null,
-      laws: { tax: 'balanced', grain: 'market', education: 'elite' }, metrics: [], lastTurn: null, chapter: null, initial: null, monthStart: null, monthStartId: 1,
-      attention: 2, characters: PEOPLE.map(p => ({ id: p.id, trust: 50 })), encounters: [], futureStories: [], storyMemory: {} };
+      laws: { ...LAW_DATA.defaults }, metrics: [], lastTurn: null, chapter: null, initial: null, monthStart: null, monthStartId: 1,
+      ruler: createRuler(), attention: 2, characters: PEOPLE.map(p => ({ id: p.id, trust: 50 })), encounters: [], futureStories: [], storyMemory: {}, conversations: [] };
     if (scenario === 'frontier') { s.player.army = 68; s.player.gold = 95; s.player.defense = 42; }
     if (scenario === 'scarcity') { s.player.food = 36; s.player.gold = 130; s.player.stability = 58; }
+    s.military = MILITARY.create(s);
     s.neighbors = COUNTRIES.map(c => ({ id: c.id, gold: c.gold, food: 70, army: c.army, defense: 25, stability: 70,
       relation: c.relation - (scenario === 'frontier' ? 16 : 0), aggression: c.aggression, intent: 'fortify', turns: 0, pactUntil: 0,
       relations: Object.fromEntries(COUNTRIES.filter(o => o.id !== c.id).map(o => [o.id, c.id === 'nor' || o.id === 'nor' ? -25 : 10])), beliefs: {} }));
@@ -186,7 +215,7 @@
     const s = copy(state), d = commandDetails(s, id);
     s.player.gold -= d.gold; s.ap--;
     s.orders.push({ id: s.nextId++, type: id, target: d.target ? target : null, remaining: d.duration, duration: d.duration, started: s.month, paid: d.gold });
-    log(s, `${d.name}${d.target ? ': ' + country(target).name : ''}. Поручение принято.`, `Казна −${d.gold}. Срок: ${d.duration} мес. Исполнитель: ${d.executor}.`, 'order', { gold: -d.gold });
+    log(s, `${d.name}${d.target ? ': ' + country(target).name : ''}. Поручение принято.`, `${d.gold ? 'Казна −' + d.gold + '.' : 'Без разовой платы казне.'} Срок: ${d.duration} мес. Исполнитель: ${d.executor}.`, 'order', d.gold ? { gold: -d.gold } : {});
     return s;
   }
   function completeOrder(s, o) {
@@ -230,6 +259,8 @@
   function decideNeighbor(n) {
     if (n.food < 24 || n.stability < 42) return { action: 'recover', target: null, reason: 'Нехватка продовольствия или внутренние волнения.' };
     if (n.gold < 20) return { action: 'trade', target: null, reason: 'Недостаточно средств для военной политики.' };
+    const playerBelief = n.beliefs.player;
+    if (n.aggression > 60 && n.turns >= 3 && n.relation <= 30 && n.pactUntil <= n.turns && playerBelief.army < n.army * 0.5 && playerBelief.defense < n.army * 0.8 && n.gold >= 12) return { action: 'raid', target: 'player', reason: 'Правитель видит слабую защиту соседа по собственным сведениям и считает давление выгодным.' };
     const targets = Object.entries(n.beliefs).map(([id, belief]) => ({ id, belief, relation: id === 'player' ? n.relation : n.relations[id] }));
     targets.sort((a, b) => (a.relation + a.belief.army * 0.3) - (b.relation + b.belief.army * 0.3));
     const weakest = targets[0];
@@ -238,7 +269,8 @@
     }
     if (n.id === 'mer' && n.gold < 180) return { action: 'trade', target: null, reason: 'Торговая республика наращивает прибыль.' };
     if (n.relation < -30 && n.defense < 65 && n.gold >= 12) return { action: 'fortify', target: null, reason: 'Недоверие к Ардену требует укрепления рубежей.' };
-    if (n.army < (n.id === 'nor' ? 100 : 75) && n.gold >= 16) return { action: 'train', target: null, reason: 'Правитель восстанавливает желаемую численность войск.' };
+    const desiredArmy = Math.min(600, (n.id === 'nor' ? 100 : 75) + Math.round(playerBelief.army * 0.55));
+    if (n.army < desiredArmy && n.gold >= 16) return { action: 'train', target: null, reason: 'Правитель восстанавливает желаемую численность войск.' };
     return { action: 'diplomacy', target: null, reason: 'Сила достаточна, новый конфликт невыгоден.' };
   }
   function runNeighbors(s) {
@@ -261,6 +293,11 @@
         case 'diplomacy': n.relation += 3; for (const id of Object.keys(n.relations)) n.relations[id] += 2; break;
         case 'raid': {
           n.gold -= 12;
+          if (decision.target === 'player') {
+            n.relation -= 8;
+            logMilitary(s, MILITARY.scheduleEnemyRaid(s, n.id, n.army, () => random(s)));
+            break;
+          }
           const victim = decision.target === 'player' ? s.player : s.neighbors.find(o => o.id === decision.target);
           const before = copy(s.player);
           const success = random(s) < clamp(0.5 + (n.army - victim.army - victim.defense * 0.65) / 180, 0.12, 0.85);
@@ -280,19 +317,27 @@
     }
     s.aiHistory = s.aiHistory.slice(0, 120);
   }
+  function shuffledIds(s, ids) {
+    const result = [...ids];
+    for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(random(s) * (i + 1)); [result[i], result[j]] = [result[j], result[i]]; }
+    return result;
+  }
+  function setCouncilChoiceOrder(s) {
+    if (s.pending && !Object.hasOwn(s.pending, 'choiceOrder')) s.pending.choiceOrder = shuffledIds(s, rawEventView(s).choices.map(c => c.id));
+  }
   function refreshEvent(s) {
     if (s.ended || s.pending) return;
     const due = s.chains.filter(c => c.due <= s.month).sort((a, b) => a.due - b.due)[0];
-    if (due) { s.pending = { kind: due.type + '_followup', target: due.target, approach: due.approach, origin: due.origin, secret: due.secret, created: s.month }; s.chains.splice(s.chains.indexOf(due), 1); return; }
+    if (due) { s.pending = { kind: due.type + '_followup', target: due.target, approach: due.approach, origin: due.origin, secret: due.secret, created: s.month }; s.chains.splice(s.chains.indexOf(due), 1); setCouncilChoiceOrder(s); return; }
     if (s.player.food < 60 && s.cooldowns.grain <= s.month && !s.chains.some(c => c.type === 'grain')) {
-      s.pending = { kind: 'grain', target: null, created: s.month }; return;
+      s.pending = { kind: 'grain', target: null, created: s.month }; setCouncilChoiceOrder(s); return;
     }
     const anxious = s.neighbors.filter(n => n.relation < -20).sort((a, b) => a.relation - b.relation)[0];
     if (anxious && s.cooldowns.border <= s.month && !s.chains.some(c => c.type === 'border')) {
-      s.pending = { kind: 'border', target: anxious.id, secret: random(s) < 0.5 ? 'bandits' : 'soldiers', created: s.month };
+      s.pending = { kind: 'border', target: anxious.id, secret: random(s) < 0.5 ? 'bandits' : 'soldiers', created: s.month }; setCouncilChoiceOrder(s);
     }
   }
-  function eventView(s) {
+  function rawEventView(s) {
     const e = s.pending; if (!e) return null;
     const name = e.target ? country(e.target).name : '';
     const choice = (id, title, description, gold = 0, food = 0) => ({ id, title, description, gold, food, disabled: s.player.gold < gold || s.player.food < food });
@@ -313,6 +358,11 @@
       text: ({ relief: 'Деревни помнят, что амбары открыли вовремя. Теперь земледельцы просят вложиться в следующий урожай.', import: 'Привозное зерно помогло, но сделало деревни зависимыми от купеческих обозов. Пора выбрать долгосрочную меру.', ration: 'Нормирование растянуло запасы, однако тяжело далось жителям. Совет предлагает перейти к восстановлению.' })[e.approach],
       cause: `Последствие продовольственного решения в ${date(e.origin).toLowerCase()}. Разовая помощь не заменяет производство.`,
       choices: [choice('fields', 'Помочь деревням с посевом', 'Выделить средства на общие работы и следующий урожай.', 12), choice('fair', 'Распределить помощь поровну', 'Собрать оставшуюся помощь и передать её деревням на равных условиях.'), choice('levy', 'Потребовать новый сбор', 'Поручить сборщикам получить средства с деревень.')] };
+  }
+  function eventView(s) {
+    const view = rawEventView(s); if (!view) return null;
+    if (s.pending.choiceOrder) view.choices = s.pending.choiceOrder.map(id => view.choices.find(c => c.id === id));
+    return view;
   }
   function chooseEvent(state, choiceId) {
     if (state.ended) fail('Правление завершено.');
@@ -356,6 +406,7 @@
   }
   function advanceMonth(state) {
     if (state.ended) fail('Правление завершено. Начните новую кампанию.');
+    if (MILITARY.hasBattle(state)) fail('Сначала завершите столкновение на карте войска.');
     if (state.pending) fail('Сначала примите срочное решение совета.');
     if (state.chapter && !state.chapter.acknowledged) fail('Сначала прочитайте итоги года и продолжите правление.');
     const s = copy(state); s.month++;
@@ -375,13 +426,13 @@
     p.gold += flow.gold;
     p.food += flow.food;
     settle(s);
-    log(s, `Месячный баланс: казна ${signed(p.gold - beforeEconomy.gold)}, зерно ${signed(p.food - beforeEconomy.food)}.`, `Налоги и торговля +${flow.income}, содержание −${flow.upkeep}; урожай +${flow.production}, потребление −${flow.consumption}, потери хранения −${flow.losses}. Завершённые приказы уже учтены.`, 'economy', differences(beforeEconomy, p));
-    const beforeLiving = copy(p);
+    log(s, `Месячный баланс: казна ${signed(p.gold - beforeEconomy.gold)}, зерно ${signed(p.food - beforeEconomy.food)}.`, `Налоги и торговля +${flow.income}, содержание −${flow.upkeep}; урожай +${flow.production}, еда жителей и армии −${flow.consumption}, вывоз −${flow.exports}, потери хранения −${flow.losses}. Завершённые приказы уже учтены.`, 'economy', differences(beforeEconomy, p));
+    const beforeLiving = copy(p), societyPolicy = LAW_DATA.monthlyEffects(s);
     if (unpaid) { p.stability -= 7; log(s, 'Казна не покрыла жалование. Недовольство гарнизона растёт.', 'Недостаток средств: стабильность −7.', 'danger'); }
     if (p.food < 15) { p.stability -= 9; p.army -= Math.min(p.army, 3); p.population -= 1; p.health -= 5; log(s, 'Нехватка зерна ударила по деревням и войскам.', 'Запас ниже 15: стабильность −9, армия −3, население −1 тыс., здоровье −5.', 'danger'); }
     else if (p.food > 45 && p.stability < 85) p.stability += 1;
-    p.stability += ({ low: 2, balanced: 0, high: -3 })[s.laws.tax] + (s.laws.education === 'public' ? 1 : 0) + (trusted(s, 'governor') ? 1 : 0);
-    p.health += p.wells + p.clinics * 2 + (trusted(s, 'doctor') ? 1 : 0);
+    p.stability += ({ low: 2, balanced: 0, high: -3 })[s.laws.tax] + (s.laws.education === 'public' ? 1 : 0) + (trusted(s, 'governor') ? 1 : 0) + societyPolicy.stability;
+    p.health += p.wells + p.clinics * 2 + (trusted(s, 'doctor') ? 1 : 0) + societyPolicy.health;
     if (s.month % 3 === 0 && p.health >= 70 && p.food > 30 && p.stability > 50) p.population++;
     if (s.laws.education === 'public' && p.schools > 0 && s.month % 6 === 0) p.science++;
     settle(s);
@@ -389,14 +440,35 @@
     if (Object.keys(livingChanges).length) log(s, 'Жизнь княжества: жители, законы и городские службы.', 'Учтены питание, налоговый закон, образование, водопровод и лечебницы. Здоровое население при достатке растёт раз в квартал.', 'society', livingChanges);
     // Нельзя грабить уже отрицательные запасы: сначала нормализуем расчёт экономики.
     settle(s);
-    if (!s.ended) runNeighbors(s);
+    if (!s.ended) { runNeighbors(s); logMilitary(s, MILITARY.advance(s, () => random(s))); }
     s.ap = 2;
     if (s.month % 12 === 0 && !s.ended) log(s, `Завершён ${s.month / 12}-й год правления. Кампания продолжается.`, 'Соседи, стройки и нерешённые дела переходят в следующий год.', 'milestone');
-    settle(s); refreshEvent(s); s.attention = 2; refreshEncounters(s);
+    settle(s); refreshEvent(s); advanceRuler(s); s.attention = isRulerIll(s) ? 0 : 2; refreshEncounters(s);
     s.lastTurn = { month: s.month, before: copy(state.monthStart), after: copy(s.player), changes: differences(state.monthStart, s.player), entries: copy(s.history.filter(h => h.id >= state.monthStartId).reverse()) };
     s.metrics.push({ month: s.month, values: copy(s.player) }); s.metrics = s.metrics.slice(-121);
     s.monthStart = copy(s.player); s.monthStartId = s.nextId;
-    if (s.month % 12 === 0 || s.ended) s.chapter = makeChapter(s);
+    if ((s.month % 12 === 0 && !MILITARY.hasBattle(s)) || s.ended) s.chapter = makeChapter(s);
+    return s;
+  }
+  function logMilitary(s, entries) {
+    for (const e of entries) log(s, e.text, e.reason || '', e.kind || 'military', copy(e.changes || {}));
+  }
+  function militaryQuote(state, options) {
+    const q = MILITARY.quote(state, options);
+    const reason = state.ended ? 'Правление завершено.' : MILITARY.hasBattle(state) ? 'Сначала завершите сражение.' : state.ap < 1 ? 'Нужен один свободный государственный приказ.' : state.player.food < q.food ? `Для обоза нужно ${q.food} зерна.` : '';
+    return { ...q, canLaunch: !reason, reason };
+  }
+  function launchMilitary(state, options) {
+    if (state.ended) fail('Правление завершено.');
+    if (state.ap < 1) fail('Для похода нужен один свободный государственный приказ.');
+    const s = copy(state);
+    const entries = MILITARY.launch(s, options); s.ap--;
+    logMilitary(s, entries); return settle(s);
+  }
+  function battleOrder(state, tactic) {
+    if (state.ended) fail('Правление завершено.');
+    const s = copy(state); logMilitary(s, MILITARY.issueBattleOrder(s, tactic, () => random(s))); settle(s);
+    if (s.ended || (s.month > 0 && s.month % 12 === 0 && !MILITARY.hasBattle(s) && (!s.chapter || s.chapter.month !== s.month))) s.chapter = makeChapter(s);
     return s;
   }
   function makeChapter(s) {
@@ -406,20 +478,34 @@
     return { year: Math.max(1, Math.ceil(s.month / 12)), month: s.month, title, story, buildings, hostile, acknowledged: false, final: s.ended, values: copy(p), initial: copy(s.initial) };
   }
   function acknowledgeChapter(state) { const s = copy(state); if (s.chapter) s.chapter.acknowledged = true; return s; }
+  function newEncounter(s, template, origin = null) {
+    const t = STORIES.find(t => t.id === template);
+    return { id: s.nextId++, template, created: s.month, resolved: false, origin, choiceOrder: shuffledIds(s, t.choices.map(c => c.id)) };
+  }
+  function storyConditionsMet(s, t) {
+    const c = t.conditions || {};
+    return (c.minMonth === undefined || s.month >= c.minMonth)
+      && (c.minBuildings === undefined || BUILDINGS.reduce((sum, b) => sum + s.player[b.key], 0) >= c.minBuildings)
+      && (c.minGold === undefined || s.player.gold >= c.minGold)
+      && (c.minFood === undefined || s.player.food >= c.minFood)
+      && (c.minScience === undefined || s.player.science >= c.minScience)
+      && (c.maxStability === undefined || s.player.stability <= c.maxStability)
+      && (c.minBandits === undefined || Math.max(0, ...(s.military?.locations || []).map(p => p.bandits)) >= c.minBandits);
+  }
   function refreshEncounters(s) {
     if (s.ended) { s.encounters = []; return; }
     s.encounters = [];
     const due = s.futureStories.filter(f => f.due <= s.month).slice(0, 2);
-    for (const f of due) { s.encounters.push({ id: s.nextId++, template: f.template, created: s.month, resolved: false, origin: f.origin }); s.futureStories.splice(s.futureStories.indexOf(f), 1); }
-    const candidates = STORIES.filter(t => !t.followup && (s.storyMemory[t.id] === undefined || s.month - s.storyMemory[t.id] >= 4) && (!t.when || (t.when.below !== undefined ? s.player[t.when.metric] < t.when.below : s.player[t.when.metric] > t.when.above)))
-      .map(t => ({ t, score: random(s) + (t.when ? 0.3 : 0) })).sort((a, b) => b.score - a.score);
-    for (const { t } of candidates.slice(0, 3 - s.encounters.length)) { s.storyMemory[t.id] = s.month; s.encounters.push({ id: s.nextId++, template: t.id, created: s.month, resolved: false, origin: null }); }
+    for (const f of due) { s.encounters.push(newEncounter(s, f.template, f.origin)); s.futureStories.splice(s.futureStories.indexOf(f), 1); }
+    const candidates = STORIES.filter(t => !t.followup && storyConditionsMet(s, t) && (s.storyMemory[t.id] === undefined || s.month - s.storyMemory[t.id] >= (t.cooldown || 6)) && (!t.when || (t.when.below !== undefined ? s.player[t.when.metric] < t.when.below : s.player[t.when.metric] > t.when.above)))
+      .map(t => ({ t, score: random(s) + (s.storyMemory[t.id] === undefined ? 2 : 0) + (t.when ? 0.3 : 0) })).sort((a, b) => b.score - a.score);
+    for (const { t } of candidates.slice(0, 3 - s.encounters.length)) { s.storyMemory[t.id] = s.month; s.encounters.push(newEncounter(s, t.id)); }
   }
   function storyView(s, encounter) {
     const t = STORIES.find(t => t.id === encounter.template), person = PEOPLE.find(p => p.id === t.person), trust = s.characters.find(p => p.id === t.person).trust;
-    const view = { id: encounter.id, type: t.type, title: t.title, request: t.request, text: t.text, quote: t.quote, place: t.place, person: { ...person, trust }, date: date(encounter.created), resolved: encounter.resolved, choice: encounter.choice || null, origin: encounter.origin,
-      choices: t.choices.map(c => ({ id: c.id, title: c.title, description: c.description, gold: c.gold, food: c.food,
-        disabled: encounter.resolved || s.ended || s.attention < 1 || s.player.gold < c.gold || s.player.food < c.food || (c.future && s.futureStories.length >= 8) })) };
+    const view = { id: encounter.id, type: t.type, title: t.title, request: t.request, text: t.text, quote: t.quote, place: t.place, person: { ...copy(person), trust }, date: date(encounter.created), resolved: encounter.resolved, choice: encounter.choice || null, origin: encounter.origin,
+      choices: (encounter.choiceOrder ? encounter.choiceOrder.map(id => t.choices.find(c => c.id === id)) : t.choices).map(c => ({ id: c.id, title: c.title, description: c.description, gold: c.gold, food: c.food,
+        disabled: encounter.resolved || s.ended || isRulerIll(s) || s.attention < 1 || s.player.gold < c.gold || s.player.food < c.food || (c.future && s.futureStories.length >= 8) })) };
     if (encounter.resolved) {
       if (encounter.result) view.result = copy(encounter.result);
       else {
@@ -435,6 +521,7 @@
   }
   function resolveEncounter(state, encounterId, choiceId) {
     if (state.ended) fail('Правление завершено.');
+    if (isRulerIll(state)) fail('Правитель болен и пока не может принимать личные встречи. Совет продолжает обычную работу.');
     const encounter = state.encounters.find(e => e.id === encounterId);
     if (!encounter || encounter.resolved) fail('Эта встреча уже завершена или её время прошло.');
     const available = storyView(state, encounter).choices.find(c => c.id === choiceId);
@@ -457,6 +544,30 @@
     return s;
   }
   function signed(n) { return `${n > 0 ? '+' : ''}${n}`; }
+  function talkToCharacter(state, personId, topicId) {
+    const person = PEOPLE.find(p => p.id === personId), topic = TALKS[personId]?.find(t => t.id === topicId);
+    if (!person || !topic) fail('Неизвестный собеседник или тема разговора.');
+    if ((state.conversations || []).some(c => c.personId === personId && c.topicId === topicId)) return copy(state);
+    if (state.ended) fail('Правление завершено. Ранее записанные разговоры доступны в досье.');
+    if (isRulerIll(state)) fail('Правителю нужен отдых: новые разговоры недоступны до выздоровления.');
+    const s = copy(state);
+    if (!s.conversations) s.conversations = [];
+    s.conversations.push({ personId, topicId, response: topic.response, month: s.month });
+    log(s, `Разговор с ${person.name}: ${topic.title}`, topic.response, 'conversation');
+    return s;
+  }
+  function conversationTopics(s, personId) {
+    return (TALKS[personId] || []).map(topic => {
+      const known = (s.conversations || []).find(c => c.personId === personId && c.topicId === topic.id);
+      return { id: topic.id, title: topic.title, asked: Boolean(known), disabled: (s.ended || isRulerIll(s)) && !known, ...(known ? { response: known.response, month: known.month, date: date(known.month) } : {}) };
+    });
+  }
+  function characterView(s, p) {
+    const bonus = { treasurer: 'доход +2/мес.', marshal: 'содержание армии −1/мес.', doctor: 'здоровье +1/мес.', engineer: 'строительство дешевле на 10%.', envoy: 'шанс успеха посольства +10 п. п.', governor: 'стабильность +1/мес.' }[p.id];
+    return { ...copy(PEOPLE.find(t => t.id === p.id)), trust: p.trust,
+      bonus: bonus ? `${p.trust >= 75 ? 'Действует' : 'При доверии 75+'}: ${bonus}` : 'Делится опытом и местными сведениями; отдельного административного бонуса нет.',
+      topics: conversationTopics(s, p.id) };
+  }
   function getView(s) {
     return { version: VERSION, seed: s.seed, scenario: s.scenario, month: s.month, date: date(s.month), yearOfRule: Math.floor(s.month / 12) + 1,
       player: copy(s.player), economy: economy(s), ap: s.ap, ended: s.ended, event: eventView(s), orders: copy(s.orders), completed: copy(s.completed), history: copy(s.history),
@@ -464,7 +575,8 @@
         relations: relationLabel(n.relation),
         pactRemaining: Math.max(0, n.pactUntil - s.month), reports: s.reports.filter(r => r.target === c.id).slice(0, 3).map(r => ({ ...copy(r), age: s.month - r.observed, effectiveConfidence: Math.max(15, r.confidence - (s.month - r.observed) * 6), date: date(r.observed), intentLabel: INTENTS[r.intent] })) }; }),
       commands: COMMANDS.map(d => commandDetails(s, d.id)), buildings: copy(BUILDINGS), lawOptions: copy(LAWS), laws: copy(s.laws), metrics: copy(s.metrics), lastTurn: copy(s.lastTurn), chapter: copy(s.chapter),
-      attention: s.attention, characters: s.characters.map(p => ({ ...PEOPLE.find(t => t.id === p.id), trust: p.trust, bonus: `${p.trust >= 75 ? 'Действует' : 'При доверии 75+'}: ${({ treasurer: 'доход +2/мес.', marshal: 'содержание армии −1/мес.', doctor: 'здоровье +1/мес.', engineer: 'строительство дешевле на 10%.', envoy: 'шанс успеха посольства +10 п. п.', governor: 'стабильность +1/мес.' })[p.id]}` })), encounters: s.encounters.map(e => storyView(s, e)), futureStories: s.futureStories.map(f => ({ title: `Ожидаются вести: ${STORIES.find(t => t.id === f.template).person === 'governor' ? 'западные деревни' : STORIES.find(t => t.id === f.template).person === 'marshal' ? 'пограничная застава' : 'порученная проверка'}`, dueIn: Math.max(0, f.due - s.month) })),
+      military: MILITARY.view(s), ruler: rulerView(s), attention: s.attention, characters: s.characters.map(p => characterView(s, p)), encounters: s.encounters.map(e => storyView(s, e)), futureStories: s.futureStories.map(f => ({ title: `Ожидаются вести: ${STORIES.find(t => t.id === f.template).person === 'governor' ? 'западные деревни' : STORIES.find(t => t.id === f.template).person === 'marshal' ? 'пограничная застава' : 'порученная проверка'}`, dueIn: Math.max(0, f.due - s.month) })),
+      conversationNotes: (s.conversations || []).map(c => ({ ...copy(c), name: PEOPLE.find(p => p.id === c.personId).name, title: TALKS[c.personId].find(t => t.id === c.topicId).title, date: date(c.month) })),
       chains: s.chains.map(c => ({ type: c.type, dueIn: Math.max(0, c.due - s.month) })) };
   }
 
@@ -518,16 +630,22 @@
       check(isObject(e) && ['border', 'grain', 'border_followup', 'grain_followup'].includes(e.kind) && number(e.created, 0, s.month), 'событие совета');
       if (e.kind.startsWith('border')) check(country(e.target) && ['bandits', 'soldiers'].includes(e.secret), 'пограничное событие');
       else check(e.target === null, 'продовольственное событие');
+      if (Object.hasOwn(e, 'choiceOrder')) { const ids = rawEventView(s).choices.map(c => c.id); check(list(e.choiceOrder, ids.length) && e.choiceOrder.length === ids.length && new Set(e.choiceOrder).size === ids.length && e.choiceOrder.every(id => ids.includes(id)), 'порядок решений совета'); }
       if (e.kind.endsWith('_followup')) check(validApproach(e.kind.split('_')[0], e.approach) && number(e.origin, 0, s.month), 'продолжение события');
     }
-    check(isObject(s.laws) && LAWS.every(law => law.options.some(o => o.value === s.laws[law.key])), 'законы');
+    check(LAW_DATA.validate(s.laws), 'законы');
+    check(MILITARY.validate(s.military, s), 'войска, походы и сражения');
     const validSnapshot = p => isObject(p) && Object.keys(METRICS).every(k => number(p[k])) && number(p.stability, 0, 100) && number(p.health, 0, 100) && number(p.rationUntil, 0, 1000010);
     check(validSnapshot(s.initial) && validSnapshot(s.monthStart) && number(s.monthStartId, 1, s.nextId), 'начало правления и месяца');
     check(list(s.metrics, 121) && s.metrics.length > 0 && s.metrics.every((m, i) => isObject(m) && number(m.month, 0, s.month) && validSnapshot(m.values) && (i === 0 || m.month === s.metrics[i - 1].month + 1)) && s.metrics.at(-1).month === s.month, 'история показателей');
     if (s.lastTurn !== null) check(isObject(s.lastTurn) && s.lastTurn.month === s.month && validSnapshot(s.lastTurn.before) && validSnapshot(s.lastTurn.after) && validChanges(s.lastTurn.changes) && list(s.lastTurn.entries, 100) && s.lastTurn.entries.every(validEntry), 'отчёт за месяц');
     if (s.chapter !== null) check(isObject(s.chapter) && number(s.chapter.year, 1, 1000000) && number(s.chapter.month, 0, s.month) && text(s.chapter.title) && text(s.chapter.story) && number(s.chapter.buildings) && number(s.chapter.hostile, 0, 3) && typeof s.chapter.acknowledged === 'boolean' && typeof s.chapter.final === 'boolean' && validSnapshot(s.chapter.values) && validSnapshot(s.chapter.initial), 'итог главы');
-    check(number(s.attention, 0, 2) && list(s.characters, 6) && s.characters.length === 6 && new Set(s.characters.map(p => p?.id)).size === 6 && s.characters.every(p => PEOPLE.some(t => t.id === p?.id) && number(p.trust, 0, 100)), 'персонажи и личное внимание');
+    check(number(s.attention, 0, 12) && list(s.characters, PEOPLE.length) && s.characters.length === PEOPLE.length && new Set(s.characters.map(p => p?.id)).size === PEOPLE.length && s.characters.every(p => PEOPLE.some(t => t.id === p?.id) && number(p.trust, 0, 100)), 'персонажи и личное внимание');
+    check(isObject(s.ruler) && number(s.ruler.fatigue, 0, 100) && number(s.ruler.health, 0, 100) && number(s.ruler.illUntil, 0, 1000010) && number(s.ruler.overtimeThisMonth, 0, 6) && typeof s.ruler.restedThisMonth === 'boolean' && (!isRulerIll(s) || s.attention === 0), 'здоровье правителя');
+    const conversations = Object.hasOwn(s, 'conversations') ? s.conversations : [];
+    check(list(conversations, PEOPLE.length * 2) && conversations.every(c => isObject(c) && PEOPLE.some(p => p.id === c.personId) && TALKS[c.personId]?.some(t => t.id === c.topicId) && number(c.month, 0, s.month) && text(c.response, 3000)) && new Set(conversations.map(c => `${c.personId}/${c.topicId}`)).size === conversations.length, 'разговоры и полученные сведения');
     check(list(s.encounters, 3) && s.encounters.every(e => isObject(e) && number(e.id, 1, s.nextId - 1) && STORIES.some(t => t.id === e.template && (!e.resolved || t.choices.some(c => c.id === e.choice))) && number(e.created, 0, s.month) && typeof e.resolved === 'boolean' && (e.origin === null || number(e.origin, 0, s.month))), 'встречи');
+    for (const e of s.encounters) if (Object.hasOwn(e, 'choiceOrder')) { const ids = STORIES.find(t => t.id === e.template).choices.map(c => c.id); check(list(e.choiceOrder, ids.length) && e.choiceOrder.length === ids.length && new Set(e.choiceOrder).size === ids.length && e.choiceOrder.every(id => ids.includes(id)), 'порядок решений встречи'); }
     const stances = ['Доброжелательные', 'Враждебные', 'Напряжённые', 'Сдержанные'];
     for (const e of s.encounters) if (Object.hasOwn(e, 'result')) {
       const r = e.result;
@@ -538,13 +656,28 @@
     return true;
   }
   function serialize(s) { validateState(s); return JSON.stringify({ format: 'price-of-power', version: VERSION, state: s }); }
+  function normalizeLegacyState(s) {
+    const originalIds = ['treasurer', 'marshal', 'doctor', 'engineer', 'envoy', 'governor'];
+    // Только полный исходный состав 0.4–0.5 мигрируется автоматически. Потеря
+    // произвольного персонажа в повреждённом файле не маскируется восстановлением.
+    if (Array.isArray(s.characters) && s.characters.length === originalIds.length && new Set(s.characters.map(p => p?.id)).size === originalIds.length && s.characters.every(p => originalIds.includes(p?.id))) {
+      for (const p of PEOPLE) if (!originalIds.includes(p.id)) s.characters.push({ id: p.id, trust: 50 });
+    }
+    if (!Object.hasOwn(s, 'conversations')) s.conversations = [];
+    if (Object.hasOwn(s, 'laws')) s.laws = LAW_DATA.normalize(s.laws);
+    if (!Object.hasOwn(s, 'ruler')) s.ruler = createRuler();
+    if (!Object.hasOwn(s, 'military')) s.military = MILITARY.create(s);
+    return s;
+  }
   function deserialize(raw) {
     if (typeof raw !== 'string' || raw.length > 1000000) fail('Файл сохранения слишком велик или имеет неверный формат.');
     let envelope;
     try { envelope = JSON.parse(raw); } catch { fail('Файл не является сохранением JSON.'); }
-    if (!envelope || envelope.format !== 'price-of-power' || envelope.version !== VERSION) fail('Это сохранение другой игры или несовместимой версии. Нужна версия 0.4.');
-    validateState(envelope.state);
-    return copy(envelope.state);
+    if (!envelope || envelope.format !== 'price-of-power' || envelope.version !== VERSION) fail('Это сохранение другой игры или несовместимой версии. Нужен формат сохранений 4.');
+    if (!envelope.state || typeof envelope.state !== 'object' || Array.isArray(envelope.state)) fail('Повреждённое сохранение: состояние кампании.');
+    const restored = normalizeLegacyState(copy(envelope.state));
+    validateState(restored);
+    return restored;
   }
-  return { VERSION, COUNTRIES: copy(COUNTRIES), COMMANDS: copy(COMMANDS), BUILDINGS: copy(BUILDINGS), LAWS: copy(LAWS), METRICS: copy(METRICS), INTENTS: copy(INTENTS), createGame, queueOrder, orderBlocker, chooseEvent, advanceMonth, acknowledgeChapter, resolveEncounter, getView, economy, decideNeighbor, serialize, deserialize, validateState, date };
+  return { VERSION, COUNTRIES: copy(COUNTRIES), COMMANDS: copy(COMMANDS), BUILDINGS: copy(BUILDINGS), LAWS: copy(LAWS), METRICS: copy(METRICS), INTENTS: copy(INTENTS), createGame, queueOrder, orderBlocker, chooseEvent, advanceMonth, acknowledgeChapter, resolveEncounter, talkToCharacter, workOvertime, restRuler, militaryQuote, launchMilitary, battleOrder, getView, economy, decideNeighbor, serialize, deserialize, validateState, date };
 });

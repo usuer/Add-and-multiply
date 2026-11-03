@@ -5,6 +5,7 @@ const G = require('../source/core');
 const { STORIES } = require('../source/stories');
 
 function council(s) {
+  while(G.getView(s).military?.battle) s=G.battleOrder(s,'guard');
   if (s.chapter && !s.chapter.acknowledged) s = G.acknowledgeChapter(s);
   if (s.pending) {
     const choices = G.getView(s).event.choices;
@@ -67,7 +68,7 @@ test('разведка и поле идут параллельно и завер
   s = turns(s, 1); assert.equal(s.player.farms, 1); assert.equal(s.orders.length, 0);
 });
 test('соседи действуют шесть месяцев без приказов игрока', () => {
-  const initial = G.createGame(); const s = turns(initial, 6); assert.equal(s.aiHistory.length, 18); assert.ok(s.neighbors.every(n => n.turns === 6)); assert.ok(s.neighbors.some((n,i) => n.gold !== initial.neighbors[i].gold)); assert.ok(new Set(s.aiHistory.map(h => h.action)).size >= 3);
+  const initial = G.createGame(); const s = turns(initial, 6); assert.equal(s.aiHistory.length, 18); assert.ok(s.neighbors.every(n => n.turns === 6)); assert.ok(s.neighbors.some((n,i) => n.gold !== initial.neighbors[i].gold)); assert.ok(new Set(s.aiHistory.map(h => h.action)).size >= 2);assert.equal(new Set(s.aiHistory.map(h => h.id)).size,3);
 });
 test('ИИ может направить набег против другой страны, а не игрока', () => {
   let s = council(G.createGame()); const n = s.neighbors.find(n => n.id === 'nor'); n.relations.val = -90; n.relation = 50; n.beliefs.val.army = 5; n.beliefs.val.defense = 0;
@@ -166,7 +167,7 @@ test('40 кампаний по 36 месяцев сохраняют инвари
 });
 test('все встречи сначала объясняют просьбу и скрывают награды и последствия', () => {
   for (const template of STORIES) {
-    const s=G.createGame();s.encounters[0].template=template.id;
+    const s=G.createGame();s.encounters[0].template=template.id;delete s.encounters[0].choiceOrder;
     const view=G.getView(s).encounters[0];
     assert.ok(view.request.length>35,`Просьба ${template.id}`);
     assert.equal(Object.hasOwn(view,'result'),false);
@@ -227,4 +228,166 @@ test('семейный конфликт проходит от непровере
   s=G.resolveEncounter(s,follow.id,'trial');const result=G.getView(s).encounters.find(v=>v.id===follow.id).result;
   assert.match(result.narrative,/Суд проверил записи аренды и распоряжение Рида/);assert.equal(result.changes.gold,12);assert.equal(result.changes.food,15);
   const restored=G.deserialize(G.serialize(s));assert.deepEqual(G.getView(restored).encounters.find(v=>v.id===follow.id).result,result);
+});
+test('десять персонажей имеют отдельные характеры и по две темы без раскрытого ответа', () => {
+  const view=G.getView(G.createGame());assert.equal(view.characters.length,10);
+  assert.equal(new Set(view.characters.map(p=>p.id)).size,10);
+  for(const person of view.characters){
+    for(const key of ['bio','temperament','values','blindSpot','personalStake'])assert.ok(person[key].length>30,`${person.id}/${key}`);
+    assert.ok(person.ties.length>=2);assert.equal(person.topics.length,2);assert.equal(person.bonus.includes('undefined'),false);
+    for(const topic of person.topics){assert.equal(topic.asked,false);assert.equal(Object.hasOwn(topic,'response'),false);}
+  }
+  assert.ok(STORIES.length>=21);assert.equal(view.conversationNotes.length,0);
+});
+test('бесплатный разговор доступен без денег, внимания и приказов и не даёт скрытых бонусов', () => {
+  const s=G.createGame();s.player.gold=0;s.ap=0;s.attention=0;
+  const player=structuredClone(s.player),characters=structuredClone(s.characters),rng=s.rng;
+  const after=G.talkToCharacter(s,'citizen','work');
+  assert.deepEqual(after.player,player);assert.deepEqual(after.characters,characters);assert.equal(after.rng,rng);assert.equal(after.ap,0);assert.equal(after.attention,0);
+  assert.equal(s.conversations.length,0);assert.equal(after.conversations.length,1);assert.equal(after.history[0].kind,'conversation');assert.deepEqual(after.history[0].changes,{});
+  const person=G.getView(after).characters.find(p=>p.id==='citizen');assert.equal(person.topics[0].asked,true);assert.ok(person.topics[0].response.length>200);assert.equal(Object.hasOwn(person.topics[1],'response'),false);
+  assert.equal(G.getView(after).conversationNotes[0].name,'Эна Рейн');assert.equal(G.validateState(after),true);
+});
+test('повтор темы перечитывает запись без повторного журнала и изменения состояния', () => {
+  const s=G.talkToCharacter(G.createGame(),'merchant','person');const raw=G.serialize(s);
+  const again=G.talkToCharacter(s,'merchant','person');assert.equal(G.serialize(again),raw);
+  assert.notEqual(again,s);assert.equal(again.conversations.length,1);
+});
+test('неизвестная тема или собеседник не меняют кампанию', () => {
+  const s=G.createGame(),raw=G.serialize(s);assert.throws(()=>G.talkToCharacter(s,'missing','work'),/Неизвестный/);assert.throws(()=>G.talkToCharacter(s,'elder','missing'),/Неизвестный/);assert.equal(G.serialize(s),raw);
+});
+test('разговор не открывает скрытые сведения соседей и не меняет будущую случайность', () => {
+  const initial=G.createGame();const a=turns(initial,2),b=turns(G.talkToCharacter(initial,'envoy','work'),2);
+  assert.deepEqual(a.player,b.player);assert.deepEqual(a.neighbors,b.neighbors);assert.equal(a.rng,b.rng);
+  const response=G.getView(b).characters.find(p=>p.id==='envoy').topics[0].response;assert.ok(response.includes('догадка'));for(const n of G.getView(b).neighbors)assert.equal(Object.hasOwn(n,'army'),false);
+});
+test('все двадцать записей разговора сохраняются без изменения игровых ресурсов', () => {
+  let s=G.createGame();const before=structuredClone(s.player),rng=s.rng;
+  for(const person of G.getView(s).characters)for(const topic of person.topics)s=G.talkToCharacter(s,person.id,topic.id);
+  assert.equal(s.conversations.length,20);assert.deepEqual(s.player,before);assert.equal(s.rng,rng);assert.equal(s.attention,2);
+  const loaded=G.deserialize(G.serialize(s));assert.deepEqual(loaded,s);assert.equal(G.getView(loaded).conversationNotes.length,20);assert.ok(G.getView(loaded).characters.every(p=>p.topics.every(t=>t.asked&&t.response)));
+});
+test('старое сохранение с шестью героями дополняется без потери доверия, ресурсов и очереди', () => {
+  let s=G.queueOrder(G.createGame(),'school');s.characters.find(p=>p.id==='treasurer').trust=73;
+  const originalIds=['treasurer','marshal','doctor','engineer','envoy','governor'];s.characters=s.characters.filter(p=>originalIds.includes(p.id));delete s.conversations;
+  const loaded=G.deserialize(JSON.stringify({format:'price-of-power',version:4,state:s}));
+  assert.equal(loaded.characters.length,10);assert.equal(loaded.characters.find(p=>p.id==='treasurer').trust,73);assert.deepEqual(loaded.player,s.player);assert.deepEqual(loaded.orders,s.orders);assert.deepEqual(loaded.history,s.history);assert.equal(loaded.rng,s.rng);assert.equal(loaded.nextId,s.nextId);assert.deepEqual(loaded.conversations,[]);
+  assert.deepEqual(s.characters.length,6);assert.equal(Object.hasOwn(s,'conversations'),false);G.validateState(loaded);
+});
+test('повреждённый состав и записи разговоров не маскируются миграцией', () => {
+  const mutations=[s=>s.characters.pop(),s=>{s.characters=s.characters.slice(0,6);s.characters[0].id='missing';},s=>s.conversations=null,s=>s.conversations=[{personId:'elder',topicId:'missing',month:0,response:'bad'}],s=>s.conversations=[{personId:'elder',topicId:'work',month:2,response:'bad'}]];
+  for(const mutate of mutations){const s=G.createGame();mutate(s);assert.throws(()=>G.deserialize(JSON.stringify({format:'price-of-power',version:4,state:s})));}
+  let s=G.talkToCharacter(G.createGame(),'elder','work');s.conversations.push({...s.conversations[0]});assert.throws(()=>G.deserialize(JSON.stringify({format:'price-of-power',version:4,state:s})),/разговоры/);
+});
+test('каждый новый персонаж появляется в работающей сцене с бесплатным вариантом', () => {
+  for(const template of STORIES.filter(t=>['merchant','citizen','captain','elder'].includes(t.person))){
+    let s=G.createGame();s.encounters=[{id:s.nextId++,template:template.id,created:0,resolved:false,origin:null}];const encounter=G.getView(s).encounters[0];
+    const choice=encounter.choices.find(c=>!c.disabled&&c.gold===0&&c.food===0);assert.ok(choice,template.id);assert.ok(encounter.request.length>40);const gold=s.player.gold;
+    s=G.resolveEncounter(s,encounter.id,choice.id);assert.ok(s.player.gold>=gold,`${template.id}: бесплатный выбор не должен списывать золото`);assert.ok(G.getView(s).encounters[0].result.narrative.length>100);G.validateState(s);
+  }
+});
+
+test('шесть областей законов готовятся без разовой платы и расходуют поручение', () => {
+  let s=G.createGame(); assert.equal(G.getView(s).lawOptions.length,6);
+  const before=s.player.gold; s=G.queueOrder(s,'law_justice_open');
+  assert.equal(s.player.gold,before);assert.equal(s.ap,1);assert.equal(s.orders[0].paid,0);assert.equal(s.orders[0].duration,1);
+  assert.ok(G.getView(s).commands.filter(c=>c.law).every(c=>c.gold===0));
+});
+test('ограничение вывоза сохраняет зерно, не урезая еду жителей и армии', () => {
+  const s=G.createGame(), market=G.economy(s);s.laws.grain='reserve';const reserve=G.economy(s);
+  assert.equal(market.exports,2);assert.equal(reserve.exports,0);assert.equal(market.consumption,reserve.consumption);
+  assert.equal(reserve.food-market.food,2);assert.equal(reserve.income-market.income,-3);
+});
+test('новые законы меняют фактические здоровье, порядок, производство и содержание', () => {
+  const base=G.createGame();
+  for(const [key,value] of [['health','municipal'],['justice','open'],['land','commons']]){
+    const changed=structuredClone(base);changed.laws[key]=value;
+    const a=turns(base,1),b=turns(changed,1);
+    if(key==='health'){assert.equal(b.player.health-a.player.health,2);assert.equal(b.player.gold-a.player.gold,-3);}
+    if(key==='justice'){assert.equal(b.player.stability-a.player.stability,1);assert.equal(b.player.gold-a.player.gold,-2);}
+    if(key==='land'){assert.equal(b.player.food-a.player.food,3);assert.equal(b.player.gold-a.player.gold,-3);assert.equal(b.player.stability-a.player.stability,1);}
+    G.validateState(b);
+  }
+});
+test('первая сверхурочная работа даёт дополнительную встречу без внезапной болезни', () => {
+  const original=G.createGame(), s=G.workOvertime(original);
+  assert.equal(s.attention,3);assert.equal(s.ruler.fatigue,18);assert.equal(s.ruler.health,100);assert.equal(G.getView(s).ruler.ill,false);
+  assert.deepEqual(s.player,original.player);assert.equal(s.ap,original.ap);assert.equal(s.rng,original.rng);assert.equal(original.ruler.fatigue,0);
+  G.validateState(s);
+});
+test('после обычного приёма можно продлить работу и принять третьего посетителя', () => {
+  let s=rich();for(const e of [...s.encounters].slice(0,2)){const c=G.getView(s).encounters.find(x=>x.id===e.id).choices.find(c=>!c.disabled);s=G.resolveEncounter(s,e.id,c.id);}
+  assert.equal(s.attention,0);const third=s.encounters.find(e=>!e.resolved);assert.ok(G.getView(s).encounters.find(e=>e.id===third.id).choices.every(c=>c.disabled));
+  s=G.workOvertime(s);const c=G.getView(s).encounters.find(e=>e.id===third.id).choices.find(c=>!c.disabled);assert.ok(c);s=G.resolveEncounter(s,third.id,c.id);assert.equal(s.attention,0);assert.ok(s.encounters.every(e=>e.resolved));
+});
+function overworked(seed='overtime') {
+  let s=G.createGame({seed});
+  for(let i=0;i<5&&!G.getView(s).ruler.ill;i++)s=G.workOvertime(s);
+  return s;
+}
+test('предупреждения появляются до болезни, а игнорирование может остановить приём', () => {
+  let s=G.createGame();s=G.workOvertime(s);s=G.workOvertime(s);assert.equal(s.ruler.fatigue,40);assert.match(G.getView(s).ruler.warning,/устал|отдохнуть/i);
+  s=G.workOvertime(s);assert.equal(s.ruler.fatigue,66);assert.match(G.getView(s).ruler.warning,/опасн|болезн/i);assert.equal(G.getView(s).ruler.ill,false);
+  for(let i=0;i<2&&!G.getView(s).ruler.ill;i++)s=G.workOvertime(s);
+  assert.equal(G.getView(s).ruler.ill,true);assert.equal(s.attention,0);assert.equal(s.ruler.illUntil,2);assert.ok(s.ruler.health<=45);assert.equal(G.getView(s).ruler.canOvertime,false);
+});
+test('во время болезни приём и новые разговоры закрыты, а прежние заметки можно перечитать', () => {
+  let s=G.createGame();const p=G.getView(s).characters[0],topic=p.topics[0],other=p.topics[1];s=G.talkToCharacter(s,p.id,topic.id);
+  for(let i=0;i<5&&!G.getView(s).ruler.ill;i++)s=G.workOvertime(s);
+  assert.throws(()=>G.workOvertime(s),/болен/);assert.throws(()=>G.talkToCharacter(s,p.id,other.id),/отдых|выздоровлен/);
+  const encounter=G.getView(s).encounters[0];assert.ok(encounter.choices.every(c=>c.disabled));assert.throws(()=>G.resolveEncounter(s,encounter.id,encounter.choices[0].id),/болен/);
+  assert.deepEqual(G.talkToCharacter(s,p.id,topic.id),s);assert.equal(G.getView(s).characters[0].topics[1].disabled,true);
+});
+test('отдых отнимает оставшийся приём, сохраняет государственные поручения и не фармится', () => {
+  let s=G.workOvertime(G.createGame());s=G.workOvertime(s);const ap=s.ap,player=structuredClone(s.player);s=G.restRuler(s);
+  assert.equal(s.attention,0);assert.equal(s.ap,ap);assert.deepEqual(s.player,player);assert.equal(s.ruler.fatigue,10);assert.throws(()=>G.restRuler(s),/уже/);assert.equal(G.getView(s).ruler.canRest,false);
+});
+test('болезнь не блокирует дела совета и завершается через два месяца отдыха', () => {
+  let s=overworked();assert.ok(s.pending);s=council(s);s=G.advanceMonth(s);assert.equal(G.getView(s).ruler.ill,true);assert.equal(s.attention,0);
+  s=G.advanceMonth(council(s));assert.equal(s.month,2);assert.equal(G.getView(s).ruler.ill,false);assert.equal(s.attention,2);assert.ok(s.history.some(h=>h.text.includes('выздоровел')));G.validateState(s);
+});
+test('переутомление воспроизводимо, переносится между месяцами и сохраняется', () => {
+  const a=overworked('same-ruler'),b=overworked('same-ruler');assert.equal(G.serialize(a),G.serialize(b));const restored=G.deserialize(G.serialize(a));assert.deepEqual(restored.ruler,a.ruler);assert.equal(G.serialize(turns(restored,2)),G.serialize(turns(a,2)));
+  const once=turns(G.workOvertime(G.createGame()),1);assert.equal(once.ruler.fatigue,6);assert.equal(once.ruler.overtimeThisMonth,0);
+});
+test('сохранения 0.5 дополняются законами и здоровьем правителя без изменения случайности', () => {
+  const s=G.createGame();s.characters=s.characters.slice(0,6);delete s.conversations;delete s.ruler;delete s.laws.health;delete s.laws.justice;delete s.laws.land;
+  const rng=s.rng,player=structuredClone(s.player);const restored=G.deserialize(JSON.stringify({format:'price-of-power',version:4,state:s}));
+  assert.equal(restored.rng,rng);assert.deepEqual(restored.player,player);assert.equal(restored.ruler.fatigue,0);assert.equal(restored.laws.health,'household');assert.equal(restored.characters.length,10);
+  const broken=G.createGame();broken.ruler.fatigue=-1;assert.throws(()=>G.deserialize(JSON.stringify({format:'price-of-power',version:4,state:broken})),/здоровье правителя/);
+});
+
+test('слабое княжество может стать целью самостоятельного давления после наблюдения', () => {
+  let s=turns(G.createGame({seed:'weak-frontier'}),3);s=council(s);s.player.army=8;require('../source/military').syncArmy(s);
+  const n=s.neighbors.find(n=>n.id==='nor');n.army=110;n.gold=100;n.relation=0;n.beliefs.player={army:6,defense:15,month:s.month};
+  assert.equal(G.decideNeighbor(n).target,'player');assert.equal(G.decideNeighbor(n).action,'raid');
+  const before=s.player.army;s=G.advanceMonth(s);assert.ok(s.military.enemyMarches.some(m=>m.attackerId==='nor'));assert.equal(s.player.army,before);assert.ok(s.military.enemyMarches.find(m=>m.attackerId==='nor').remaining>=2);
+});
+test('ИИ уважает сильную защиту, тёплые отношения и действующий договор', () => {
+  const n=G.createGame().neighbors.find(n=>n.id==='nor');n.turns=5;n.gold=100;n.army=110;n.relation=80;n.beliefs.player={army:5,defense:5,month:5};assert.notEqual(G.decideNeighbor(n).target,'player');
+  n.relation=0;n.pactUntil=10;assert.notEqual(G.decideNeighbor(n).target,'player');n.pactUntil=0;n.beliefs.player.defense=200;assert.notEqual(G.decideNeighbor(n).target,'player');
+});
+test('военная цель соседей растёт вслед за предполагаемой силой игрока в рамках бюджета', () => {
+  const n=G.createGame().neighbors.find(n=>n.id==='nor');n.army=125;n.gold=100;n.relation=80;n.beliefs.player={army:500,defense:100,month:0};assert.equal(G.decideNeighbor(n).action,'train');n.gold=5;assert.equal(G.decideNeighbor(n).action,'trade');
+});
+test('порядок новых решений воспроизводим и не делает левую карточку постоянной', () => {
+  const orders=new Set();for(let i=0;i<12;i++){const s=G.createGame({seed:`choice-${i}`});orders.add(s.pending.choiceOrder.join(','));assert.deepEqual(G.getView(s).event.choices.map(c=>c.id),s.pending.choiceOrder);for(const e of G.getView(s).encounters)assert.deepEqual(e.choices.map(c=>c.id),s.encounters.find(x=>x.id===e.id).choiceOrder);}
+  assert.ok(orders.size>=3);
+  const s=G.createGame(),raw=G.serialize(s);for(let i=0;i<10;i++)G.getView(s);assert.equal(G.serialize(s),raw);assert.equal(G.serialize(G.deserialize(raw)),raw);
+});
+test('старый порядок карточек сохраняется, а повреждённый явный порядок отклоняется', () => {
+  const s=G.createGame();delete s.pending.choiceOrder;for(const e of s.encounters)delete e.choiceOrder;
+  const loaded=G.deserialize(G.serialize(s));assert.deepEqual(G.getView(loaded).event.choices.map(c=>c.id),['investigate','mobilize','wait']);
+  loaded.pending.choiceOrder=['investigate','investigate','wait'];assert.throws(()=>G.serialize(loaded),/порядок решений/);
+});
+test('поход использует приказ и реальный провиант, снимая походные части с домашнего довольствия', () => {
+  const s=G.createGame(),before=G.serialize(s),q=G.militaryQuote(s,{target:'forest',mission:'expedition',supply:'normal'});assert.equal(q.canLaunch,true);assert.equal(q.duration,2);assert.equal(G.serialize(s),before);
+  const launched=G.launchMilitary(s,{target:'forest',mission:'expedition',supply:'normal'});assert.equal(launched.ap,1);assert.equal(launched.player.food,s.player.food-q.food);assert.equal(launched.military.marches.length,1);assert.equal(G.economy(launched).consumption,7);assert.ok(G.economy(s).consumption>G.economy(launched).consumption);G.validateState(launched);
+});
+test('военная экспедиция доходит до реального боя, который сохраняется и требует решения', () => {
+  let s=G.launchMilitary(G.createGame(),{target:'forest',mission:'expedition',supply:'normal'});s=turns(s,1);assert.equal(G.getView(s).military.battle,null);s=G.advanceMonth(council(s));assert.ok(G.getView(s).military.battle);assert.throws(()=>G.advanceMonth(s),/столкновение/);
+  const restored=G.deserialize(G.serialize(s));assert.deepEqual(restored.military,s.military);const start=s.player.army;s=G.battleOrder(s,'withdraw');assert.ok(s.player.army<start);assert.equal(s.military.lastBattle.outcome,'retreat');assert.ok(s.military.marches.some(m=>m.mission==='return'));G.validateState(s);
+});
+test('старые сохранения получают войска без изменения уже имеющейся армии и ресурсов', () => {
+  const s=G.createGame();delete s.military;const player=structuredClone(s.player),rng=s.rng;const loaded=G.deserialize(JSON.stringify({format:'price-of-power',version:4,state:s}));assert.deepEqual(loaded.player,player);assert.equal(loaded.rng,rng);assert.equal(loaded.military.units.reduce((n,u)=>n+u.strength,loaded.military.reserve),player.army);G.validateState(loaded);
 });
