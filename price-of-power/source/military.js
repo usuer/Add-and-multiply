@@ -226,12 +226,14 @@
       if(tactic==='advance'){attack=1.17;defend=.9;}
       if(tactic==='flank'){attack=terrain==='river'?.8:['forest','hill'].includes(terrain)?1.2:1.08;defend=.95;}
       if(tactic==='ranged'){attack=archers>0?(b.phase<2?1.22:1.05):.7;defend=1.08;}
-      const hostile=b.enemyPower*(.65+b.enemyMorale/200)*(1-b.enemyFatigue/170);
+      const hostile=b.enemyPower*(.65+b.enemyMorale/200)*(1-b.enemyFatigue/170),enemyMoraleBefore=b.enemyMorale;
       const enemyLoss=Math.min(b.enemyPower,Math.max(1,Math.round(power*.1*attack*(.8+random()*.4))));
       const ownLoss=takeLosses(s,b,Math.max(1,Math.round(hostile*.055/defend*(.8+random()*.4))));
       b.enemyPower-=enemyLoss;b.enemyLosses+=enemyLoss;b.losses+=ownLoss;b.enemyMorale=clamp(Math.round(b.enemyMorale-enemyLoss*1.2),0,100);b.enemyFatigue=clamp(b.enemyFatigue+6,0,100);
       for(const id of b.unitIds){const u=m.units.find(u=>u.id===id);u.fatigue=clamp(u.fatigue+(tactic==='flank'?10:5),0,100);u.morale=clamp(Math.round(u.morale-ownLoss*.65+(enemyLoss>ownLoss?2:0)),0,100);}
-      b.log.push(`${TACTICS.find(t=>t.id===tactic).name}: потеря силы наших войск ${ownLoss}, противника ${enemyLoss}.`);b.phase++;
+      const tacticName=TACTICS.find(t=>t.id===tactic).name,advantage=enemyLoss-ownLoss;
+      b.lastAction={tactic,tacticName,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position:b.phase===0?'Стороны сблизились, сохраняя отдельные линии строя.':b.phase===1?'Передовые части вошли в соприкосновение; резервы остаются позади.':'Бой дошёл до решающей схватки.'};
+      b.log.push(`${tacticName}: потеря силы наших войск ${ownLoss}, противника ${enemyLoss}.`);b.phase++;
       if(!b.unitIds.some(id=>m.units.find(u=>u.id===id).strength>0))result=finishBattle(s,b,'defeat');
       else if(b.enemyPower<=0||b.enemyMorale<22)result=finishBattle(s,b,'victory');
       else if(b.phase>=3)result=finishBattle(s,b,playerPower(s,b)>=b.enemyPower*.9?'victory':'defeat');
