@@ -25,6 +25,7 @@ test('карточки сохраняют правильный приказ, ц�
 });
 test('строительство и действующий уровень визуально различаются', () => {
   const v = view(), b = v.buildings.find(b => b.key === 'granaries');
+  v.player.granaries=0;
   assert.equal(D.projectState(v,b).status,'unbuilt');
   v.orders.push({type:b.command,remaining:2});
   assert.equal(D.projectState(v,b).status,'building');

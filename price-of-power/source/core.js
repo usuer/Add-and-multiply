@@ -15,6 +15,28 @@
     { id: 'mer', name: 'Мерсия', ruler: 'Совет торговых домов', trait: 'Прагматичная республика', goal: 'Прибыль от торговли', army: 43, gold: 125, aggression: 22, relation: 22 },
     { id: 'nor', name: 'Нордвик', ruler: 'Князь Рагнар', trait: 'Честолюбивый и воинственный', goal: 'Военное превосходство', army: 82, gold: 70, aggression: 76, relation: -12 },
   ];
+  const OFFICES=[
+    {id:'medicine',name:'Глава врачебной службы',purpose:'Отвечает за эпидемии, лечебницы и карантин.',candidates:[
+      {id:'lada',name:'Лада Мирская',experience:'Земский лекарь; знает деревни и доверяет профилактике.',connections:'Старосты и повитухи',benefit:'Здоровье +2/мес. во время эпидемии.',cost:'Требует открытых отчётов и не скрывает ошибки двора.'},
+      {id:'severin',name:'Северин Край',experience:'Придворный врач с учёбой за границей.',connections:'Знать и иностранные аптекари',benefit:'Эпидемии короче; содержание службы +2 монеты.',cost:'Плохо понимает бедные кварталы.'},
+      {id:'agafya',name:'Агафья Рудная',experience:'Жёсткий организатор карантинных застав.',connections:'Стража и монастырские приюты',benefit:'Потери населения от эпидемий ниже.',cost:'Карантин снижает стабильность на 1/мес. во время болезни.'},
+    ]},
+    {id:'army',name:'Воевода княжества',purpose:'Руководит обороной, призывом и снабжением армии.',candidates:[
+      {id:'boran',name:'Боран Вельский',experience:'Ветеран пограничных походов.',connections:'Дружина и старые офицеры',benefit:'Оборона +6.',cost:'Содержание армии +2 монеты/мес.'},
+      {id:'ratmir',name:'Ратмир Ольхов',experience:'Молодой сторонник строевой реформы.',connections:'Младшие командиры',benefit:'Обучение войск дешевле и эффективнее.',cost:'Старая дружина относится к нему настороженно.'},
+      {id:'yaropolk',name:'Ярополк Дан',experience:'Знатный землевладелец и переговорщик.',connections:'Боярское ополчение',benefit:'Стабильность +1 при ограниченном призыве.',cost:'Оборона слабее профессионального воеводы.'},
+    ]},
+    {id:'justice',name:'Глава суда и порядка',purpose:'Курирует суды, тюрьмы, стражу и расследования.',candidates:[
+      {id:'vera',name:'Вера Тихая',experience:'Судебный писец, известна точностью разбирательств.',connections:'Писцы и ремесленные братства',benefit:'Открытый суд даёт стабильность +1.',cost:'Расследования идут медленнее.'},
+      {id:'grom',name:'Гром Железный',experience:'Бывший начальник ворот.',connections:'Городская стража',benefit:'Незаконные группировки теряют больше влияния.',cost:'При суровых карах стабильность −1/мес.'},
+      {id:'milan',name:'Милан Речной',experience:'Посредник между купцами и кварталами.',connections:'Гильдия и речные перевозчики',benefit:'Доход +2/мес.',cost:'Контрабандисты медленнее теряют влияние.'},
+    ]},
+    {id:'works',name:'Распорядитель городских работ',purpose:'Управляет строителями, службами и рабочими повинностями.',candidates:[
+      {id:'toma',name:'Тома Каменный',experience:'Мастер мостов и крепостных стен.',connections:'Каменщики и инженеры',benefit:'Строительство дешевле на 8%.',cost:'Городские службы получают меньше внимания.'},
+      {id:'elena',name:'Елена Садовая',experience:'Управляла общинными работами.',connections:'Старосты и земские артели',benefit:'Здоровье +1 при организованной гражданской помощи.',cost:'Военные стройки не получают особого преимущества.'},
+      {id:'kord',name:'Корд Цеховой',experience:'Богатый хозяин мастерских.',connections:'Ремесленные братства',benefit:'Мастерские дают +1 товар.',cost:'Доход −1/мес. из-за льгот цехам.'},
+    ]},
+  ];
   const COMMANDS = [
     { id: 'scout', name: 'Отправить разведчика', category: 'Дипломатия', actor: 'agents', executor: 'Тайная канцелярия', duration: 2, gold: 14, target: true, description: 'Донесение о войске и намерениях. Агент может ошибиться или попасться.' },
     { id: 'envoy', name: 'Отправить посольство', category: 'Дипломатия', actor: 'envoys', executor: 'Посольский двор', duration: 2, gold: 12, target: true, description: 'Попытка снизить недоверие и договориться о торговле. Успех не гарантирован.' },
@@ -26,6 +48,18 @@
     { id: 'grain', name: 'Закупить зерно', category: 'Хозяйство', actor: 'merchants', executor: 'Купеческая гильдия', duration: 1, gold: 14, description: 'Зерно +28. Поставка поступит до месячного потребления.' },
     { id: 'school', name: 'Открыть школу', category: 'Образование', actor: 'scholars', executor: 'Учёный совет', duration: 3, gold: 18, description: 'Наука +1, дипломатия +1. Каждая ступень науки повышает базовый доход.' },
     { id: 'network', name: 'Обучить разведчиков', category: 'Образование', actor: 'agents', executor: 'Тайная канцелярия', duration: 3, gold: 15, description: 'Разведка +1. Более точные сведения и меньший риск поимки.' },
+    {id:'trade_goods',name:'Заключить сделку о товарах',category:'Дипломатия',actor:'merchants',executor:'Купеческая гильдия',duration:1,gold:3,target:true,description:'Продать до 10 товаров. Цена зависит от отношений, рынков и положения партнёра.'},
+    {id:'intimidate',name:'Потребовать торговую уступку',category:'Дипломатия',actor:'envoys',executor:'Посольский двор',duration:1,gold:5,target:true,description:'Сильная армия может добиться скидки, но отказ резко ухудшит отношения.'},
+    {id:'sabotage',name:'Подготовить диверсию',category:'Тайные дела',actor:'agents',executor:'Тайная канцелярия',duration:2,gold:18,target:true,description:'Ослабить оборону или хозяйство соседа. Успех зависит от разведки и специалистов; провал раскрывает участие.'},
+    {id:'bribe_source',name:'Подкупить источник',category:'Тайные дела',actor:'agents',executor:'Тайная канцелярия',duration:1,gold:12,target:true,description:'Купить более точное донесение у чиновника или купца соседнего государства.'},
+    {id:'recruit_expert',name:'Переманить специалиста',category:'Образование',actor:'envoys',executor:'Посольский двор',duration:2,gold:24,target:true,description:'Попытаться пригласить инженера, лекаря или разведчика. Отношения и престиж науки влияют на успех.'},
+    {id:'tech_agriculture',name:'Исследовать севооборот',category:'Технологии',actor:'scholars',executor:'Учёный совет',duration:3,gold:22,description:'Технология повышает урожай каждого уровня полей.'},
+    {id:'tech_engineering',name:'Исследовать каменное строительство',category:'Технологии',actor:'scholars',executor:'Учёный совет',duration:3,gold:28,description:'Технология укрепляет дороги, мосты и защиту от аварий.'},
+    {id:'tech_medicine',name:'Развить врачебное дело',category:'Технологии',actor:'scholars',executor:'Учёный совет',duration:3,gold:26,description:'Технология усиливает лечебницы и снижает ущерб эпидемий.'},
+    {id:'tech_military',name:'Создать полевой устав',category:'Технологии',actor:'scholars',executor:'Учёный совет',duration:3,gold:30,description:'Технология повышает опыт войск и качество походного снабжения.'},
+    {id:'crackdown',name:'Операция против подполья',category:'Правопорядок',actor:'civil',executor:'Городская стража',duration:1,gold:10,description:'Снизить влияние сильнейшей незаконной группировки. Жёсткая операция может задеть невиновных.'},
+    {id:'informants',name:'Внедрить осведомителей',category:'Тайные дела',actor:'agents',executor:'Тайная канцелярия',duration:2,gold:14,description:'Получать сведения из воровской и контрабандной среды, не вступая с ней в открытый союз.'},
+    {id:'underworld_deal',name:'Тайная сделка с контрабандистами',category:'Правопорядок',actor:'merchants',executor:'Доверенный казначея',duration:1,gold:4,description:'Получить дешёвые товары и сведения ценой роста влияния подполья.'},
   ];
   const BUILDINGS = [
     { command: 'farm', key: 'farms', name: 'Поля и усадьбы', symbol: 'field', effect: 'Производство зерна +5/мес.; при завершении зерно +12.', max: 5 },
@@ -36,6 +70,20 @@
     { command: 'school', key: 'schools', name: 'Земские школы', symbol: 'school', effect: 'Наука +1, дипломатия +1. Открывают путь к университету.', max: 3 },
     { command: 'clinic', key: 'clinics', name: 'Городские лечебницы', symbol: 'clinic', effect: 'Здоровье +2/мес. Содержание: 2 монеты/мес.', max: 3, gold: 28, duration: 3 },
     { command: 'university', key: 'universities', name: 'Университет', symbol: 'university', effect: 'Наука +2, разведка +1, доход +4/мес. Содержание: 3 монеты/мес. Нужны 2 школы и наука 4.', max: 2, gold: 55, duration: 4, requires: { schools: 2, science: 4 } },
+    { command:'houses',key:'houses',name:'Жилые кварталы',symbol:'houses',effect:'Вместимость населения и устойчивость; снижает эмиграцию при росте города.',max:5,gold:22,duration:3 },
+    { command:'smithy',key:'smithies',name:'Кузницы',symbol:'smithy',effect:'Железо превращается в изделия; оборона и снабжение войска получают поддержку.',max:3,gold:30,duration:3 },
+    { command:'lumberyard',key:'lumberyards',name:'Лесные дворы',symbol:'lumber',effect:'Древесина +4/мес. Нужна для жилья, мостов и ремонта после бедствий.',max:3,gold:20,duration:2 },
+    { command:'quarry',key:'quarries',name:'Каменоломни',symbol:'quarry',effect:'Камень +3/мес. Укрепляет дороги, стены и общественные здания.',max:3,gold:26,duration:3 },
+    { command:'mine',key:'mines',name:'Рудники',symbol:'mine',effect:'Железо +2/мес.; тяжёлая работа требует здоровья и порядка.',max:3,gold:34,duration:4 },
+    { command:'workshop',key:'workshops',name:'Ремесленные мастерские',symbol:'workshop',effect:'Товары +3/мес. Каждый уровень даёт ещё одну строительную бригаду.',max:3,gold:32,duration:3 },
+    { command:'market',key:'markets',name:'Торговые ряды',symbol:'market',effect:'Доход +3/мес.; товары можно выгоднее продавать соседям.',max:3,gold:25,duration:2 },
+    { command:'firewatch',key:'fireStations',name:'Пожарная стража',symbol:'fire',effect:'Снижает ущерб от городских пожаров и защищает жилые кварталы.',max:2,gold:24,duration:2 },
+    { command:'sanitation',key:'sanitation',name:'Канализация и очистка',symbol:'sanitation',effect:'Здоровье +1/мес.; снижает риск эпидемий и загрязнения воды.',max:3,gold:30,duration:3 },
+    { command:'court',key:'courts',name:'Городской суд',symbol:'court',effect:'Открытые службы порядка дают стабильность и помогают разбирать злоупотребления.',max:2,gold:28,duration:3 },
+    { command:'post',key:'postOffices',name:'Почтовая служба',symbol:'post',effect:'Дипломатия и разведка; донесения и просьбы быстрее доходят до двора.',max:2,gold:24,duration:2 },
+    { command:'barracks',key:'barracks',name:'Казармы и арсенал',symbol:'barracks',effect:'Оборона +4 и качество подготовки армии при завершении.',max:3,gold:36,duration:3 },
+    {command:'citywatch',key:'cityWatch',name:'Управление городской стражи',symbol:'watch',effect:'Профессиональные служащие патрулируют кварталы и расследуют преступления.',max:3,gold:32,duration:3},
+    {command:'prison',key:'prisons',name:'Городская тюрьма',symbol:'prison',effect:'Позволяет изолировать опасных преступников; требует содержания и судебного надзора.',max:2,gold:38,duration:4},
   ];
   for (const b of BUILDINGS) {
     let d = COMMANDS.find(c => c.id === b.command);
@@ -45,7 +93,7 @@
   const LAWS = LAW_DATA.LAWS;
   for (const law of LAWS) for (const option of law.options) COMMANDS.push({ id: `law_${law.key}_${option.value}`, name: option.name, category: 'Законы', actor: 'council', executor: 'Княжеская канцелярия', gold: 0, duration: 1, law: law.key, value: option.value, description: option.effect });
   const CAPACITY = { agents: 1, envoys: 1, military: 2, builders: 2, civil: 1, merchants: 1, scholars: 1, council: 1 };
-  const METRICS = { gold: 'Казна', food: 'Зерно', stability: 'Стабильность', army: 'Армия', defense: 'Оборона', health: 'Здоровье', population: 'Население', science: 'Наука', diplomacy: 'Дипломатия', intel: 'Разведка', farms: 'Поля', roads: 'Дороги', orchards: 'Сады', wells: 'Водопровод', granaries: 'Склады', schools: 'Школы', clinics: 'Лечебницы', universities: 'Университеты', trade: 'Договоры' };
+  const METRICS = { gold:'Казна',food:'Зерно',wood:'Древесина',stone:'Камень',iron:'Железо',goods:'Товары',stability:'Стабильность',army:'Армия',defense:'Оборона',health:'Здоровье',population:'Население',science:'Наука',diplomacy:'Дипломатия',intel:'Разведка',farms:'Поля',roads:'Дороги',orchards:'Сады',wells:'Водопровод',granaries:'Склады',schools:'Школы',clinics:'Лечебницы',universities:'Университеты',houses:'Жильё',smithies:'Кузницы',lumberyards:'Лесные дворы',quarries:'Каменоломни',mines:'Рудники',workshops:'Мастерские',markets:'Рынки',fireStations:'Пожарная стража',sanitation:'Канализация',courts:'Суды',postOffices:'Почта',barracks:'Казармы',cityWatch:'Городская стража',prisons:'Тюрьмы',trade:'Договоры' };
   const INTENTS = { trade: 'расширение торговли', train: 'набор и обучение войск', fortify: 'укрепление границы', raid: 'подготовка военного давления', recover: 'восстановление хозяйства', diplomacy: 'поиск соглашений' };
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
   const copy = value => JSON.parse(JSON.stringify(value));
@@ -68,7 +116,7 @@
   }
   function settle(s) {
     const p = s.player;
-    for (const key of ['gold', 'food', 'army']) p[key] = clamp(Math.round(p[key]), 0, 9999);
+    for (const key of ['gold','food','wood','stone','iron','goods','army']) p[key] = clamp(Math.round(p[key]), 0, 9999);
     p.defense = clamp(Math.round(p.defense), 0, 200);
     p.stability = clamp(Math.round(p.stability), 0, 100);
     p.health = clamp(Math.round(p.health), 0, 100);
@@ -92,9 +140,9 @@
     const p = s.player, policy = LAW_DATA.extraEconomy(s);
     const season = s.month % 12;
     const harvest = season >= 7 && season <= 9 ? 15 : season <= 1 || season === 11 ? 5 : 9;
-    const income = 17 + p.roads * 3 + p.trade * 3 + p.science + p.orchards + p.universities * 2 + ({ low: -4, balanced: 0, high: 7 })[s.laws.tax] - (s.laws.grain === 'reserve' ? 3 : 0) + (trusted(s, 'treasurer') ? 2 : 0) + policy.income;
-    const upkeep = 7 + Math.floor(p.army / 20) + p.clinics * 2 + p.universities * 3 + (s.laws.education === 'public' ? 4 : 0) - (trusted(s, 'marshal') ? 1 : 0) + policy.upkeep;
-    const production = harvest + p.farms * 5 + p.orchards * 3 + policy.production;
+    const income = 17 + p.roads * 3 + p.trade * 3 + p.science + p.orchards + p.universities * 2 + p.markets*3 + p.workshops*2 + ({ low: -4, balanced: 0, high: 7 })[s.laws.tax] - (s.laws.grain === 'reserve' ? 3 : 0) + (trusted(s, 'treasurer') ? 2 : 0) + (s.appointments?.justice==='milan'?2:0) - (s.appointments?.works==='kord'?1:0) + policy.income;
+    const upkeep = 7 + Math.floor(p.army / 20) + p.clinics * 2 + p.universities * 3 + p.fireStations + p.sanitation*2 + p.courts + p.postOffices + p.barracks + (s.laws.education === 'public' ? 4 : 0) - (trusted(s, 'marshal') ? 1 : 0) + policy.upkeep;
+    const production = harvest + p.farms * (5+(s.technologies?.includes('agriculture')?2:0)) + p.orchards * 3 + policy.production;
     const consumption = Math.max(3, 7 + Math.floor(MILITARY.homeStrength(s) / 18) - (p.rationUntil > s.month ? 4 : 0));
     const exports = s.laws.grain === 'market' ? 2 : 0;
     const losses = Math.max(0, Math.floor(p.food * 0.025) - p.granaries * 3);
@@ -146,10 +194,10 @@
     if (!['balanced', 'frontier', 'scarcity'].includes(scenario)) fail('Неизвестные условия кампании.');
     seed = String(seed).trim().slice(0, 80) || 'Арден-1248';
     const s = { version: VERSION, seed, scenario, rng: hash(seed), month: 0, nextId: 1, ap: 2, ended: false,
-      player: { gold: 110, food: 80, stability: 68, army: 55, defense: 35, health: 68, science: 2, diplomacy: 2, intel: 1, population: 100, farms: 0, roads: 0, orchards: 0, wells: 0, granaries: 0, schools: 0, clinics: 0, universities: 0, trade: 0, rationUntil: 0 },
+      player: { gold:110,food:80,wood:18,stone:12,iron:6,goods:8,stability:68,army:55,defense:35,health:68,science:2,diplomacy:2,intel:1,population:100,farms:1,roads:1,orchards:0,wells:1,granaries:1,schools:0,clinics:0,universities:0,houses:1,smithies:1,lumberyards:1,quarries:0,mines:0,workshops:1,markets:1,fireStations:0,sanitation:0,courts:0,postOffices:0,barracks:1,cityWatch:0,prisons:0,trade:0,rationUntil:0 },
       neighbors: [], orders: [], completed: [], reports: [], history: [], aiHistory: [], chains: [], cooldowns: { border: 0, grain: 0 }, pending: null,
       laws: { ...LAW_DATA.defaults }, metrics: [], lastTurn: null, chapter: null, initial: null, monthStart: null, monthStartId: 1,
-      ruler: createRuler(), attention: 2, characters: PEOPLE.map(p => ({ id: p.id, trust: 50 })), encounters: [], futureStories: [], storyMemory: {}, conversations: [] };
+      ruler:createRuler(),attention:2,characters:PEOPLE.map(p=>({id:p.id,trust:50})),encounters:[],futureStories:[],storyMemory:{},conversations:[],nextCrisis:3,epidemic:null,appointments:{medicine:'lada',army:'yaropolk',justice:'vera',works:'elena'},technologies:[],specialists:{builders:1,physicians:1,spies:1,diplomats:1,engineers:1},tradeTerms:{},factions:[{id:'guild',name:'Купеческая гильдия',sphere:'торговля и пошлины',illegal:false,influence:42,relation:5},{id:'artisans',name:'Ремесленные братства',sphere:'мастерские и рабочие',illegal:false,influence:36,relation:10},{id:'watch',name:'Старая городская стража',sphere:'ворота и квартальный порядок',illegal:false,influence:28,relation:0},{id:'smugglers',name:'Речные контрабандисты',sphere:'тайный ввоз и переправы',illegal:true,influence:24,relation:-5},{id:'thieves',name:'Воровская сеть Нижнего города',sphere:'кражи, скупщики и укрытия',illegal:true,influence:18,relation:-15}] };
     if (scenario === 'frontier') { s.player.army = 68; s.player.gold = 95; s.player.defense = 42; }
     if (scenario === 'scarcity') { s.player.food = 36; s.player.gold = 130; s.player.stability = 58; }
     s.military = MILITARY.create(s);
@@ -189,7 +237,9 @@
     if (s.ap < 1) return 'Лимит двух новых приказов на этот месяц исчерпан.';
     if (s.orders.length >= 6) return 'Одновременно можно вести шесть поручений.';
     if (s.player.gold < d.gold) return `Не хватает монет: нужно ${d.gold}.`;
-    if (s.orders.filter(o => definition(o.type).actor === d.actor).length >= CAPACITY[d.actor]) return `${d.executor}: все исполнители заняты.`;
+    if(d.law&&LAWS.find(law=>law.key===d.law)?.flexible)return '';
+    const capacity=(CAPACITY[d.actor]||1)+(d.actor==='builders'?s.player.workshops+Math.max(0,(s.specialists?.builders||1)-1):0);
+    if (s.orders.filter(o => definition(o.type).actor === d.actor).length >= capacity) return `${d.executor}: все исполнители заняты (${capacity}). Развивайте ремесленные мастерские, чтобы увеличить число строительных бригад.`;
     return '';
   }
   function commandDetails(s, id) {
@@ -199,6 +249,7 @@
       const b = BUILDINGS.find(b => b.key === d.building), level = s.player[b.key];
       d.gold = Math.round(base.gold * (1 + level * 0.5)); d.level = level; d.maxLevel = b.max;
       if (trusted(s, 'engineer')) d.gold = Math.floor(d.gold * 0.9);
+      if(s.appointments?.works==='toma')d.gold=Math.floor(d.gold*.92);
       if (level >= b.max) d.requirement = 'Достигнут максимальный уровень.';
       else if (s.orders.some(o => o.type === id)) d.requirement = 'Этот объект уже строится.';
       else if (b.requires && Object.entries(b.requires).some(([k, v]) => s.player[k] < v)) d.requirement = 'Нужны 2 школы и наука не ниже 4.';
@@ -208,36 +259,66 @@
       else if (s.orders.some(o => definition(o.type).law === d.law)) d.requirement = 'Изменение этого закона уже готовится.';
       else if (d.law === 'education' && d.value === 'public' && s.player.schools < 1) d.requirement = 'Сначала постройте земскую школу.';
     }
+    if(id.startsWith('tech_')){const tech=id.slice(5);if(s.technologies.includes(tech))d.requirement='Технология уже освоена.';else if(s.player.science<3)d.requirement='Нужна наука не ниже 3.';}
+    if(id==='trade_goods'&&s.player.goods<1)d.requirement='Нет товаров для продажи. Нужны ремесленные мастерские.';
+    if(id==='crackdown'&&s.player.cityWatch<1)d.requirement='Сначала создайте управление городской стражи.';
     return d;
   }
   function queueOrder(state, id, target = 'val') {
     const blocker = orderBlocker(state, id, target); if (blocker) fail(blocker);
     const s = copy(state), d = commandDetails(s, id);
     s.player.gold -= d.gold; s.ap--;
+    const lawDefinition=d.law&&LAWS.find(law=>law.key===d.law);
+    if(lawDefinition?.flexible){
+      const before=copy(s.player),previous=s.laws[d.law];
+      applyFlexibleLaw(s,d.law,d.value,previous);
+      log(s,`${d.name}: указ вступил в силу немедленно.`,`Распорядительные правила можно менять без месячного ожидания. ${d.description}`,'law',differences(before,s.player));
+      return s;
+    }
     s.orders.push({ id: s.nextId++, type: id, target: d.target ? target : null, remaining: d.duration, duration: d.duration, started: s.month, paid: d.gold });
     log(s, `${d.name}${d.target ? ': ' + country(target).name : ''}. Поручение принято.`, `${d.gold ? 'Казна −' + d.gold + '.' : 'Без разовой платы казне.'} Срок: ${d.duration} мес. Исполнитель: ${d.executor}.`, 'order', d.gold ? { gold: -d.gold } : {});
     return s;
+  }
+  function appointOfficial(state,officeId,candidateId){
+    if(state.ended)fail('Правление завершено.');
+    const office=OFFICES.find(o=>o.id===officeId),candidate=office?.candidates.find(c=>c.id===candidateId);
+    if(!office||!candidate)fail('Неизвестная должность или кандидат.');
+    if(state.appointments[officeId]===candidateId)fail('Этот человек уже занимает должность.');
+    if(state.ap<1)fail('Для назначения нужно одно государственное поручение.');
+    const s=copy(state),previous=office.candidates.find(c=>c.id===s.appointments[officeId]);s.appointments[officeId]=candidateId;s.ap--;
+    log(s,`${candidate.name} назначен: ${office.name.toLowerCase()}.`,`Сменён ${previous?.name||'временно исполняющий обязанности'}. Польза: ${candidate.benefit} Компромисс: ${candidate.cost}`,'appointment');
+    return s;
+  }
+  function applyFlexibleLaw(s,key,value,previous=s.laws[key]){
+    const defenseBonus={
+      conscription:{retinue:0,levy:8,total:20},
+      warEconomy:{civilian:0,mixed:5,militarized:14},
+      civilDuty:{voluntary:0,organized:4,compulsory:9},
+    };
+    if(defenseBonus[key])s.player.defense+=defenseBonus[key][value]-defenseBonus[key][previous];
+    s.laws[key]=value;
+    settle(s);
   }
   function completeOrder(s, o) {
     const p = s.player, n = s.neighbors.find(n => n.id === o.target), d = definition(o.type);
     const before = copy(p);
     let result = '';
-    if (d.law) { s.laws[d.law] = d.value; result = `Закон вступил в силу. ${d.description}`; }
+    if (d.law) { s.laws[d.law] = d.value;if(d.law==='identity'&&d.value==='register')p.intel++;result = `Закон вступил в силу. ${d.description}${d.law==='identity'&&d.value==='register'?' Реестры дали разведке +1.':''}`; }
     switch (o.type) {
       case 'scout': {
-        const risk = clamp(0.18 + n.aggression * 0.001 - p.intel * 0.025, 0.04, 0.3);
+        const risk = clamp(0.18 + n.aggression * 0.001 - p.intel * 0.025-(s.specialists.spies-1)*.02, 0.04, 0.3);
         if (random(s) < risk) { n.relation -= 8; result = 'Агент схвачен. Донесение не доставлено; отношения ухудшились.'; }
         else { issueReport(s, n, 'Тайная канцелярия', clamp(0.61 + p.intel * 0.045, 0.6, 0.93)); result = 'Получено новое донесение. Оценки могут быть ошибочными.'; }
         break;
       }
       case 'envoy':
-        if (random(s) < clamp(0.53 + p.diplomacy * 0.06 + n.relation / 400 + (trusted(s, 'envoy') ? 0.1 : 0), 0.2, 0.92)) {
+        if (random(s) < clamp(0.53 + p.diplomacy * 0.06 + n.relation / 400 + (trusted(s, 'envoy') ? 0.1 : 0)+(s.specialists.diplomats-1)*.03, 0.2, 0.95)) {
           n.relation += 18; result = 'Посольство снизило недоверие.';
           if (n.relation > 10 && n.pactUntil <= s.month) { n.pactUntil = s.month + 6; p.trade++; result += ' На 6 месяцев открыт торговый договор: доход +3/мес.'; }
         } else { n.relation -= 5; result = 'Условия отвергнуты. Недоверие выросло; потраченные средства не возвращены.'; }
         break;
       case 'patrol': p.defense += 7; s.neighbors.forEach(n => { n.relation -= 3; }); result = 'Оборона +7. Соседи насторожились из-за усиления застав.'; break;
-      case 'train': p.army += 10; result = 'Армия +10. Проверьте растущие расходы на содержание.'; break;
+      case 'train': p.army += s.appointments.army==='ratmir'?13:10; result = s.appointments.army==='ratmir'?'Реформа Ратмира ускорила обучение: армия +13.':'Армия +10. Проверьте растущие расходы на содержание.'; break;
       case 'farm': p.farms++; p.food += 12; result = 'Поля +1, зерно +12. Производство зерна +5/мес.'; break;
       case 'road': p.roads++; p.defense += 2; result = 'Дороги +1, оборона +2. Доход +3/мес.'; break;
       case 'aid': p.stability += 10; result = 'Стабильность +10. Земский совет доставил помощь жителям.'; break;
@@ -249,6 +330,32 @@
       case 'granary': p.granaries++; result = 'Склады +1. Потери от хранения уменьшены на 3/мес. (до нуля).'; break;
       case 'clinic': p.clinics++; result = 'Лечебницы +1. Здоровье +2/мес., содержание −2 монеты/мес.'; break;
       case 'university': p.universities++; p.science += 2; p.intel++; result = 'Университеты +1, наука +2, разведка +1. Доход +4/мес., содержание −3/мес.'; break;
+      case 'houses': p.houses++;p.stability+=2;result='Жилой квартал заселён. Вместимость города и стабильность выросли.';break;
+      case 'smithy': p.smithies++;p.defense+=2;result='Кузница начала работу. Оборона +2; железо можно превращать в товары.';break;
+      case 'lumberyard': p.lumberyards++;result='Лесной двор открыт. Древесина поступает каждый месяц.';break;
+      case 'quarry': p.quarries++;result='Каменоломня открыта. Камень поступает каждый месяц.';break;
+      case 'mine': p.mines++;p.health-=1;result='Рудник открыт. Железо поступает каждый месяц; тяжёлая работа требует надзора.';break;
+      case 'workshop': p.workshops++;result='Мастерские открыты. Производятся товары; доступна дополнительная строительная бригада.';break;
+      case 'market': p.markets++;result='Торговые ряды открыты. Доход +3/мес. и выше ценность товаров.';break;
+      case 'firewatch': p.fireStations++;result='Пожарная стража создана. Пожары наносят меньше ущерба.';break;
+      case 'sanitation': p.sanitation++;p.health+=3;result='Очистная служба работает. Здоровье +3 сейчас и +1/мес.';break;
+      case 'court': p.courts++;p.stability+=3;result='Городской суд открыт. Стабильность +3; злоупотребления разбираются быстрее.';break;
+      case 'post': p.postOffices++;p.diplomacy++;p.intel++;result='Почтовая служба открыта. Дипломатия и разведка +1.';break;
+      case 'barracks': p.barracks++;p.defense+=4;result='Казармы и арсенал готовы. Оборона +4.';break;
+      case 'citywatch':p.cityWatch++;p.stability+=2;result='Управление стражи открыто. Патрули и следователи начали постоянную службу.';break;
+      case 'prison':p.prisons++;result='Городская тюрьма открыта. Заключение теперь возможно без импровизированных подвалов.';break;
+      case 'trade_goods':{const amount=Math.min(10,p.goods),relationFactor=1+n.relation/200,terms=s.tradeTerms[n.id]||0,price=Math.max(1,Math.round((2+p.markets+terms)*relationFactor));p.goods-=amount;p.gold+=amount*price;n.gold=Math.max(0,n.gold-amount*price);result=`Продано ${amount} товаров по ${price} монет. Отношение партнёра и уровень рынков определили цену.`;break;}
+      case 'intimidate':{const advantage=p.army-(n.army+n.defense*.3),success=advantage>15&&random(s)<clamp(.45+advantage/180+p.diplomacy*.02,0.2,.9);if(success){s.tradeTerms[n.id]=2;n.relation-=8;result='Сосед уступил под военным давлением: следующие сделки получают выгодную цену, но доверие снизилось.';}else{n.relation-=18;n.aggression=clamp(n.aggression+8,0,100);result='Ультиматум отвергнут. Отношения ухудшились, сосед усилил военную настороженность.';}break;}
+      case 'sabotage':{const chance=clamp(.28+p.intel*.055+s.specialists.spies*.06-n.defense*.002,0.15,.86);if(random(s)<chance){const damage=5+p.intel;n.defense=Math.max(0,n.defense-damage);n.gold=Math.max(0,n.gold-8);result=`Диверсия удалась: оборона соседа ослаблена на ${damage}, часть снабжения потеряна.`;}else{n.relation-=22;n.aggression=clamp(n.aggression+12,0,100);result='Исполнителей раскрыли. Сосед обвиняет Арден и готовит ответные меры.';}break;}
+      case 'bribe_source':{issueReport(s,n,'Подкупленный чиновник',clamp(.72+p.intel*.035+s.specialists.spies*.03,.72,.96));result='Источник передал свежее донесение. Оно точнее обычных слухов, но всё ещё не является полной истиной.';break;}
+      case 'recruit_expert':{const success=random(s)<clamp(.3+p.science*.04+p.diplomacy*.035+n.relation/500,.15,.88);if(success){const types=['builders','physicians','spies','diplomats','engineers'],type=types[Math.floor(random(s)*types.length)];s.specialists[type]=Math.min(5,s.specialists[type]+1);n.relation-=5;result=`В Арден переехал опытный специалист: ${({builders:'мастер-строитель',physicians:'лекарь',spies:'разведчик',diplomats:'дипломат',engineers:'инженер'})[type]}. Уровень этой службы вырос.`;}else{n.relation-=3;result='Специалист отказался покидать родину. Соседний двор заметил попытку переманивания.';}break;}
+      case 'tech_agriculture':s.technologies.push('agriculture');result='Освоен севооборот: поля дают больше зерна каждый месяц.';break;
+      case 'tech_engineering':s.technologies.push('engineering');p.defense+=3;result='Освоено каменное строительство: оборона +3, аварии дорог и зданий менее разрушительны.';break;
+      case 'tech_medicine':s.technologies.push('medicine');p.health+=4;result='Развито врачебное дело: здоровье +4, лечебницы работают эффективнее.';break;
+      case 'tech_military':s.technologies.push('military');p.defense+=2;for(const u of s.military.units)u.experience=clamp(u.experience+8,0,100);result='Принят полевой устав: опыт всех отрядов +8, оборона +2.';break;
+      case 'crackdown':{const group=[...s.factions].filter(f=>f.illegal).sort((a,b)=>b.influence-a.influence)[0],strength=p.cityWatch*8+p.courts*4+s.specialists.spies*3+(s.appointments.justice==='grom'?8:0),success=random(s)<clamp(.42+strength/100,.35,.92);if(success){const drop=Math.min(group.influence,10+strength);group.influence-=drop;group.relation-=15;p.stability+=1;result=`Операция против «${group.name}» снизила влияние группировки на ${drop}. Изъятые записи переданы суду.`;}else{group.influence=Math.min(100,group.influence+6);p.stability-=4;result=`Операция против «${group.name}» провалилась: утечка сведений помогла главарям скрыться, жители жалуются на обыски.`;}break;}
+      case 'informants':{const group=s.factions.find(f=>f.id==='thieves');group.relation+=8;s.specialists.spies=Math.min(5,s.specialists.spies+1);p.intel++;result='В подполье появились осведомители. Разведка и уровень тайной службы выросли, но связь с преступной средой придётся скрывать.';break;}
+      case 'underworld_deal':{const group=s.factions.find(f=>f.id==='smugglers');group.influence=Math.min(100,group.influence+8);group.relation+=12;p.goods+=12;p.gold+=8;p.stability-=2;result='Контрабандисты доставили товары в обход пошлин. Казна и склады выиграли, но подполье стало сильнее.';break;}
     }
     settle(s);
     log(s, `${d.name}: ${result}`, `Завершено поручение, выданное в ${date(o.started).toLowerCase()}.`, o.type === 'scout' ? 'intel' : 'success', differences(before, p));
@@ -427,17 +534,35 @@
     p.food += flow.food;
     settle(s);
     log(s, `Месячный баланс: казна ${signed(p.gold - beforeEconomy.gold)}, зерно ${signed(p.food - beforeEconomy.food)}.`, `Налоги и торговля +${flow.income}, содержание −${flow.upkeep}; урожай +${flow.production}, еда жителей и армии −${flow.consumption}, вывоз −${flow.exports}, потери хранения −${flow.losses}. Завершённые приказы уже учтены.`, 'economy', differences(beforeEconomy, p));
+    const beforeIndustry=copy(p);
+    p.wood+=p.lumberyards*4;p.stone+=p.quarries*3;p.iron+=p.mines*2;
+    const ironUsed=Math.min(p.iron,p.smithies),woodUsed=Math.min(p.wood,p.workshops);p.iron-=ironUsed;p.wood-=woodUsed;
+    const goodsRate=s.laws.warEconomy==='militarized'?0:s.laws.warEconomy==='mixed'?1:3;
+    const laborBonus=s.laws.workday==='long'?p.workshops:s.laws.workday==='short'?-Math.min(p.workshops,1):0;
+    p.goods+=Math.max(0,p.workshops*goodsRate+ironUsed+laborBonus+(s.appointments.works==='kord'&&p.workshops?1:0));
+    settle(s);const industryChanges=differences(beforeIndustry,p);
+    if(Object.keys(industryChanges).length)log(s,'Мастерские и добывающие дворы завершили месячную работу.',`Лесные дворы дали ${p.lumberyards*4} древесины, каменоломни ${p.quarries*3} камня, рудники ${p.mines*2} железа. Кузницы и мастерские переработали доступное сырьё.`,'industry',industryChanges);
     const beforeLiving = copy(p), societyPolicy = LAW_DATA.monthlyEffects(s);
     if (unpaid) { p.stability -= 7; log(s, 'Казна не покрыла жалование. Недовольство гарнизона растёт.', 'Недостаток средств: стабильность −7.', 'danger'); }
     if (p.food < 15) { p.stability -= 9; p.army -= Math.min(p.army, 3); p.population -= 1; p.health -= 5; log(s, 'Нехватка зерна ударила по деревням и войскам.', 'Запас ниже 15: стабильность −9, армия −3, население −1 тыс., здоровье −5.', 'danger'); }
     else if (p.food > 45 && p.stability < 85) p.stability += 1;
     p.stability += ({ low: 2, balanced: 0, high: -3 })[s.laws.tax] + (s.laws.education === 'public' ? 1 : 0) + (trusted(s, 'governor') ? 1 : 0) + societyPolicy.stability;
-    p.health += p.wells + p.clinics * 2 + (trusted(s, 'doctor') ? 1 : 0) + societyPolicy.health;
+    if(s.appointments.justice==='vera'&&s.laws.justice==='open')p.stability++;
+    if(s.appointments.justice==='grom'&&s.laws.punishment==='harsh')p.stability--;
+    if(s.appointments.army==='yaropolk'&&s.laws.conscription==='levy')p.stability++;
+    p.health += p.wells + p.clinics * (2+(s.technologies.includes('medicine')?1:0)) + p.sanitation + (trusted(s, 'doctor') ? 1 : 0) + Math.max(0,s.specialists.physicians-1) + societyPolicy.health;
+    if(s.appointments.works==='elena'&&s.laws.civilDuty==='organized')p.health++;
+    const housing=85+p.houses*20;
+    if(p.population>housing){p.population--;p.stability-=3;log(s,'Семьи покидают переполненный Арден. Жильё и работа не успевают за населением.',`Вместимость жилья ${housing} тыс., население ${p.population+1} тыс.: эмиграция −1 тыс., стабильность −3.`,'migration',{});}
+    else if(p.stability<35&&s.month%2===0){p.population--;log(s,'Несколько семей уехали из княжества, опасаясь беспорядков и произвола.','Низкая стабильность вызвала эмиграцию −1 тыс. жителей.','migration',{});}
     if (s.month % 3 === 0 && p.health >= 70 && p.food > 30 && p.stability > 50) p.population++;
-    if (s.laws.education === 'public' && p.schools > 0 && s.month % 6 === 0) p.science++;
+    if (s.laws.education === 'public' && p.schools > 0 && s.month % 6 === 0) p.science+=s.laws.workingAge==='protected'?2:s.laws.workingAge==='early'?0:1;
     settle(s);
     const livingChanges = differences(beforeLiving, p);
     if (Object.keys(livingChanges).length) log(s, 'Жизнь княжества: жители, законы и городские службы.', 'Учтены питание, налоговый закон, образование, водопровод и лечебницы. Здоровое население при достатке растёт раз в квартал.', 'society', livingChanges);
+    runEpidemic(s);
+    if (s.month >= s.nextCrisis) runDomesticCrisis(s);
+    runCityInfluence(s);
     // Нельзя грабить уже отрицательные запасы: сначала нормализуем расчёт экономики.
     settle(s);
     if (!s.ended) { runNeighbors(s); logMilitary(s, MILITARY.advance(s, () => random(s))); }
@@ -449,6 +574,35 @@
     s.monthStart = copy(s.player); s.monthStartId = s.nextId;
     if ((s.month % 12 === 0 && !MILITARY.hasBattle(s)) || s.ended) s.chapter = makeChapter(s);
     return s;
+  }
+  function runDomesticCrisis(s) {
+    const p=s.player,roll=Math.floor(random(s)*5),before=copy(p);let text,reason;
+    if(roll===0){const protectedFood=p.granaries*12,loss=Math.min(p.food,Math.max(2,12-protectedFood));p.food-=loss;text=loss>2?'Крысы добрались до старых амбаров. Часть зимнего зерна испорчена.':'На амбарном дворе нашли крысиные ходы, но исправные зернохранилища спасли почти весь запас.';reason=`Потеряно ${loss} зерна. Каждый уровень зернохранилищ уменьшает ущерб.`;}
+    else if(roll===1){const guarded=p.wells+p.fireStations+p.sanitation+(s.laws.civilDuty==='organized'?1:s.laws.civilDuty==='compulsory'?2:0),loss=Math.max(1,7-guarded*2);p.health-=loss;p.stability-=Math.max(0,3-guarded);text=guarded?'Пожар в нижнем городе потушили водовозы и пожарная стража. Несколько дворов всё же пострадали.':'В нижнем городе разошёлся пожар. Без воды и городской службы огонь перескакивал с крыши на крышу.';reason=`Здоровье −${loss}. Колодцы, пожарная стража и организованные команды жителей снижают последствия.`;}
+    else if(roll===2){const protectedRoad=p.roads>0,loss=protectedRoad?2:9;p.gold-=Math.min(p.gold,loss);p.food-=Math.min(p.food,protectedRoad?1:6);p.stability-=protectedRoad?0:3;text=protectedRoad?'Весенний паводок повредил настил у переправы, но каменные работы удержали дорогу.':'Паводок размыл старый мост и отрезал деревни от рынка. Обозы встали, жители требуют ремонта.';reason=protectedRoad?'Дороги и мосты ограничили ущерб.':'Без действующих дорог потеряны монеты и провиант, стабильность снизилась.';}
+    else if(roll===3){const upkeep=p.defense>=40,loss=upkeep?3:10;p.gold-=Math.min(p.gold,loss);p.defense-=upkeep?0:2;text=upkeep?'После ливня кровельщики быстро закрыли течь в арсенале. Ремонт оказался небольшим.':'Крыша арсенала протекла: тетивы и часть доспехов пришлось срочно спасать и чинить.';reason=upkeep?'Укреплённый замок снизил цену ремонта.':'Слабое содержание замка стоило казне и двум пунктам обороны.';}
+    else{if(!s.epidemic){const names=['Красная горячка','Речная лихорадка','Сухой кашель'];s.epidemic={name:names[Math.floor(random(s)*names.length)],remaining:3,severity:2+Math.floor(random(s)*2)};text=`В нижнем городе выявлена болезнь: ${s.epidemic.name}. Лекари требуют наблюдения и готовят изоляторы.`;reason='Эпидемия продлится несколько месяцев. Лечебницы, санитария, врачи и выбранный глава службы определят потери.';}else{text='Лекари усилили надзор за уже идущей эпидемией.';reason='Новая болезнь не началась, пока продолжается прежняя.';}}
+    settle(s);log(s,text,reason,'crisis',differences(before,p));s.nextCrisis=s.month+2+Math.floor(random(s)*3);
+  }
+  function runEpidemic(s){
+    if(!s.epidemic)return;
+    const p=s.player,e=s.epidemic,before=copy(p),head=s.appointments.medicine;
+    const protection=p.clinics*2+p.sanitation+p.wells+Math.max(0,s.specialists.physicians-1)+(s.technologies.includes('medicine')?2:0);
+    const healthLoss=Math.max(1,e.severity*4-protection-(head==='lada'?2:0));
+    const populationLoss=Math.max(0,e.severity-1-Math.floor(protection/4)-(head==='agafya'?1:0));
+    p.health-=healthLoss;p.population-=populationLoss;p.stability-=head==='agafya'?1:Math.max(0,e.severity-2);
+    e.remaining-=head==='severin'&&e.remaining>1?2:1;
+    settle(s);log(s,`${e.name}: месяц эпидемии. Лекари обходят дома, службы изолируют очаги.`,`Здоровье −${healthLoss}${populationLoss?`, население −${populationLoss} тыс.`:''}. Защита служб: ${protection}. Решение главы врачебной службы учтено.`,'epidemic',differences(before,p));
+    if(e.remaining<=0){log(s,`${e.name} отступила. Ограничения снимают, лечебницы возвращаются к обычной работе.`,'Продолжительность и потери зависели от городской медицины, санитарии и руководителя службы.','epidemic');s.epidemic=null;}
+  }
+  function runCityInfluence(s){
+    const p=s.player,thieves=s.factions.find(f=>f.id==='thieves'),smugglers=s.factions.find(f=>f.id==='smugglers');
+    const control=p.cityWatch*7+p.courts*4+p.prisons*3+(s.laws.identity==='register'?7:0)+(s.laws.policing==='professional'?8:0)+(s.laws.punishment==='harsh'?5:s.laws.punishment==='imprisonment'?3:0);
+    thieves.influence=clamp(thieves.influence+(control<20?2:-1),0,100);smugglers.influence=clamp(smugglers.influence+(p.markets>1&&s.laws.grain==='reserve'?2:0)-(control>35?1:0),0,100);
+    if(random(s)<clamp((thieves.influence+smugglers.influence-control)/180,.03,.38)){
+      const before=copy(p),loss=Math.min(p.gold,3+Math.floor(thieves.influence/8));p.gold-=loss;const goods=Math.min(p.goods,Math.floor(smugglers.influence/15));p.goods-=goods;p.stability-=s.laws.punishment==='harsh'?1:2;settle(s);
+      log(s,'Ночью ограбили склады у речного рынка. Скупщики успели спрятать часть добычи.','Влияние подполья превысило возможности стражи. Документы, профессиональные патрули, суд и тюрьма снижают риск.','crime',differences(before,p));
+    }
   }
   function logMilitary(s, entries) {
     for (const e of entries) log(s, e.text, e.reason || '', e.kind || 'military', copy(e.changes || {}));
@@ -494,16 +648,25 @@
   }
   function refreshEncounters(s) {
     if (s.ended) { s.encounters = []; return; }
-    s.encounters = [];
-    const due = s.futureStories.filter(f => f.due <= s.month).slice(0, 2);
+    const retained=[];
+    for(const e of s.encounters){
+      if(e.resolved)continue;
+      const age=s.month-e.created;
+      if(age>=3){const t=STORIES.find(t=>t.id===e.template),before=copy(s.player);s.player.stability-=2;if(t.person==='governor'||t.person==='elder')s.player.food-=Math.min(s.player.food,4);else if(t.person==='marshal'||t.person==='captain')s.player.defense-=1;else s.player.gold-=Math.min(s.player.gold,3);const trust=s.characters.find(p=>p.id===t.person);if(trust)trust.trust=clamp(trust.trust-4,0,100);settle(s);log(s,`Просьба «${t.title}» осталась без ответа. ${t.person==='governor'||t.person==='elder'?'Жители решили, что двор их не слышит.':t.person==='marshal'||t.person==='captain'?'Служба на этом участке пришла в упадок.':'Проситель перестал ждать решения двора.'}`,'Три месяца без ответа: доверие просителя −4, стабильность −2 и предметные потери.','neglect',differences(before,s.player));}
+      else retained.push(e);
+    }
+    const limit=s.month===0?3:5,dueReady=s.futureStories.filter(f=>f.due<=s.month).slice(0,2);
+    s.encounters=retained.slice(-Math.max(0,limit-dueReady.length));
+    const slots=Math.max(0,limit-s.encounters.length);
+    const due = dueReady.slice(0,slots);
     for (const f of due) { s.encounters.push(newEncounter(s, f.template, f.origin)); s.futureStories.splice(s.futureStories.indexOf(f), 1); }
     const candidates = STORIES.filter(t => !t.followup && storyConditionsMet(s, t) && (s.storyMemory[t.id] === undefined || s.month - s.storyMemory[t.id] >= (t.cooldown || 6)) && (!t.when || (t.when.below !== undefined ? s.player[t.when.metric] < t.when.below : s.player[t.when.metric] > t.when.above)))
       .map(t => ({ t, score: random(s) + (s.storyMemory[t.id] === undefined ? 2 : 0) + (t.when ? 0.3 : 0) })).sort((a, b) => b.score - a.score);
-    for (const { t } of candidates.slice(0, 3 - s.encounters.length)) { s.storyMemory[t.id] = s.month; s.encounters.push(newEncounter(s, t.id)); }
+    for (const { t } of candidates.slice(0, Math.max(0,limit-s.encounters.length))) { s.storyMemory[t.id] = s.month; s.encounters.push(newEncounter(s, t.id)); }
   }
   function storyView(s, encounter) {
     const t = STORIES.find(t => t.id === encounter.template), person = PEOPLE.find(p => p.id === t.person), trust = s.characters.find(p => p.id === t.person).trust;
-    const view = { id: encounter.id, type: t.type, title: t.title, request: t.request, text: t.text, quote: t.quote, place: t.place, person: { ...copy(person), trust }, date: date(encounter.created), resolved: encounter.resolved, choice: encounter.choice || null, origin: encounter.origin,
+    const view = { id: encounter.id, type: t.type, title: t.title, request: t.request, text: t.text, quote: t.quote, place: t.place, person: { ...copy(person), trust }, date: date(encounter.created), waitingMonths: Math.max(0,s.month-encounter.created), urgency: !encounter.resolved && s.month-encounter.created>=2 ? 'Последний месяц до последствий' : !encounter.resolved && s.month-encounter.created>=1 ? 'Ожидает ответа второй месяц' : null, resolved: encounter.resolved, choice: encounter.choice || null, origin: encounter.origin,
       choices: (encounter.choiceOrder ? encounter.choiceOrder.map(id => t.choices.find(c => c.id === id)) : t.choices).map(c => ({ id: c.id, title: c.title, description: c.description, gold: c.gold, food: c.food,
         disabled: encounter.resolved || s.ended || isRulerIll(s) || s.attention < 1 || s.player.gold < c.gold || s.player.food < c.food || (c.future && s.futureStories.length >= 8) })) };
     if (encounter.resolved) {
@@ -574,7 +737,7 @@
       neighbors: COUNTRIES.map(c => { const n = s.neighbors.find(n => n.id === c.id); return { id: c.id, name: c.name, ruler: c.ruler, trait: c.trait, goal: c.goal,
         relations: relationLabel(n.relation),
         pactRemaining: Math.max(0, n.pactUntil - s.month), reports: s.reports.filter(r => r.target === c.id).slice(0, 3).map(r => ({ ...copy(r), age: s.month - r.observed, effectiveConfidence: Math.max(15, r.confidence - (s.month - r.observed) * 6), date: date(r.observed), intentLabel: INTENTS[r.intent] })) }; }),
-      commands: COMMANDS.map(d => commandDetails(s, d.id)), buildings: copy(BUILDINGS), lawOptions: copy(LAWS), laws: copy(s.laws), metrics: copy(s.metrics), lastTurn: copy(s.lastTurn), chapter: copy(s.chapter),
+      commands:COMMANDS.map(d=>commandDetails(s,d.id)),buildings:copy(BUILDINGS),lawOptions:copy(LAWS),laws:copy(s.laws),technologies:copy(s.technologies),specialists:copy(s.specialists),tradeTerms:copy(s.tradeTerms),factions:copy(s.factions),offices:OFFICES.map(o=>({...copy(o),appointed:s.appointments[o.id]})),epidemic:copy(s.epidemic),metrics:copy(s.metrics),lastTurn:copy(s.lastTurn),chapter:copy(s.chapter),
       military: MILITARY.view(s), ruler: rulerView(s), attention: s.attention, characters: s.characters.map(p => characterView(s, p)), encounters: s.encounters.map(e => storyView(s, e)), futureStories: s.futureStories.map(f => ({ title: `Ожидаются вести: ${STORIES.find(t => t.id === f.template).person === 'governor' ? 'западные деревни' : STORIES.find(t => t.id === f.template).person === 'marshal' ? 'пограничная застава' : 'порученная проверка'}`, dueIn: Math.max(0, f.due - s.month) })),
       conversationNotes: (s.conversations || []).map(c => ({ ...copy(c), name: PEOPLE.find(p => p.id === c.personId).name, title: TALKS[c.personId].find(t => t.id === c.topicId).title, date: date(c.month) })),
       chains: s.chains.map(c => ({ type: c.type, dueIn: Math.max(0, c.due - s.month) })) };
@@ -591,9 +754,15 @@
     check(text(s.seed, 80) && ['balanced', 'frontier', 'scarcity'].includes(s.scenario), 'условия кампании');
     check(number(s.month, 0, 1000000) && number(s.rng, 0, 4294967295) && number(s.nextId, 1, 1000000000) && number(s.ap, 0, 2) && typeof s.ended === 'boolean', 'ход и генератор случайностей');
     check(isObject(s.player), 'показатели княжества');
-    for (const key of ['gold', 'food', 'army']) check(number(s.player[key]), key);
+    check(list(s.technologies,4)&&new Set(s.technologies).size===s.technologies.length&&s.technologies.every(t=>['agriculture','engineering','medicine','military'].includes(t)),'технологии');
+    check(isObject(s.specialists)&&['builders','physicians','spies','diplomats','engineers'].every(k=>number(s.specialists[k],1,5)),'специалисты');
+    check(isObject(s.tradeTerms)&&Object.entries(s.tradeTerms).every(([k,v])=>country(k)&&number(v,0,3)),'торговые условия');
+    check(isObject(s.appointments)&&OFFICES.every(o=>o.candidates.some(c=>c.id===s.appointments[o.id])),'государственные назначения');
+    check(s.epidemic===null||(isObject(s.epidemic)&&text(s.epidemic.name,80)&&number(s.epidemic.remaining,1,3)&&number(s.epidemic.severity,1,4)),'эпидемия');
+    check(list(s.factions,5)&&s.factions.length===5&&new Set(s.factions.map(f=>f.id)).size===5&&s.factions.every(f=>isObject(f)&&text(f.name,100)&&text(f.sphere,100)&&typeof f.illegal==='boolean'&&number(f.influence,0,100)&&number(f.relation,-100,100)),'городские группы влияния');
+    for (const key of ['gold','food','wood','stone','iron','goods','army']) check(number(s.player[key]), key);
     for (const key of ['stability', 'population', 'defense', 'health']) check(number(s.player[key], 0, { stability: 100, population: 500, defense: 200, health: 100 }[key]), key);
-    for (const key of ['farms', 'roads', 'trade', 'science', 'intel', 'diplomacy', 'orchards', 'wells', 'granaries', 'schools', 'clinics', 'universities']) check(number(s.player[key], 0, 20), key);
+    for (const key of ['farms','roads','trade','science','intel','diplomacy','orchards','wells','granaries','schools','clinics','universities','houses','smithies','lumberyards','quarries','mines','workshops','markets','fireStations','sanitation','courts','postOffices','barracks','cityWatch','prisons']) check(number(s.player[key],0,20),key);
     check(number(s.player.rationUntil, 0, 1000010), 'нормирование');
     check(list(s.neighbors, 3) && s.neighbors.length === 3 && new Set(s.neighbors.map(n => n?.id)).size === 3, 'государства');
     for (const n of s.neighbors) {
@@ -615,7 +784,7 @@
     }
     for (const o of s.orders) check(o.remaining > 0, 'активное поручение');
     for (const o of s.completed) check(o.remaining === 0 && number(o.finished, o.started, s.month) && text(o.result), 'завершённое поручение');
-    for (const [actor, capacity] of Object.entries(CAPACITY)) check(s.orders.filter(o => definition(o.type).actor === actor).length <= capacity, 'исполнители');
+    for (const [actor, baseCapacity] of Object.entries(CAPACITY)) {const capacity=baseCapacity+(actor==='builders'?s.player.workshops:0);check(s.orders.filter(o=>definition(o.type).actor===actor).length<=capacity,'исполнители');}
     check(list(s.reports, 30) && list(s.history, 100) && list(s.aiHistory, 120) && list(s.chains, 2), 'журналы');
     for (const r of s.reports) check(isObject(r) && number(r.id, 1, s.nextId - 1) && country(r.target) && text(r.source, 80) && number(r.observed, 0, s.month) && number(r.delivered, r.observed, s.month) && number(r.confidence, 0, 100) && number(r.armyMin, 0, 20000) && number(r.armyMax, r.armyMin, 20000) && Object.hasOwn(INTENTS, r.intent), 'донесение');
     const validChanges = changes => isObject(changes) && Object.entries(changes).every(([k, v]) => Object.hasOwn(METRICS, k) && number(v, -9999, 9999));
@@ -636,7 +805,7 @@
     check(LAW_DATA.validate(s.laws), 'законы');
     check(MILITARY.validate(s.military, s), 'войска, походы и сражения');
     const validSnapshot = p => isObject(p) && Object.keys(METRICS).every(k => number(p[k])) && number(p.stability, 0, 100) && number(p.health, 0, 100) && number(p.rationUntil, 0, 1000010);
-    check(validSnapshot(s.initial) && validSnapshot(s.monthStart) && number(s.monthStartId, 1, s.nextId), 'начало правления и месяца');
+    check(validSnapshot(s.initial) && validSnapshot(s.monthStart) && number(s.monthStartId, 1, s.nextId) && number(s.nextCrisis, s.month, 1000010), 'начало правления, месяца и следующий хозяйственный риск');
     check(list(s.metrics, 121) && s.metrics.length > 0 && s.metrics.every((m, i) => isObject(m) && number(m.month, 0, s.month) && validSnapshot(m.values) && (i === 0 || m.month === s.metrics[i - 1].month + 1)) && s.metrics.at(-1).month === s.month, 'история показателей');
     if (s.lastTurn !== null) check(isObject(s.lastTurn) && s.lastTurn.month === s.month && validSnapshot(s.lastTurn.before) && validSnapshot(s.lastTurn.after) && validChanges(s.lastTurn.changes) && list(s.lastTurn.entries, 100) && s.lastTurn.entries.every(validEntry), 'отчёт за месяц');
     if (s.chapter !== null) check(isObject(s.chapter) && number(s.chapter.year, 1, 1000000) && number(s.chapter.month, 0, s.month) && text(s.chapter.title) && text(s.chapter.story) && number(s.chapter.buildings) && number(s.chapter.hostile, 0, 3) && typeof s.chapter.acknowledged === 'boolean' && typeof s.chapter.final === 'boolean' && validSnapshot(s.chapter.values) && validSnapshot(s.chapter.initial), 'итог главы');
@@ -644,7 +813,7 @@
     check(isObject(s.ruler) && number(s.ruler.fatigue, 0, 100) && number(s.ruler.health, 0, 100) && number(s.ruler.illUntil, 0, 1000010) && number(s.ruler.overtimeThisMonth, 0, 6) && typeof s.ruler.restedThisMonth === 'boolean' && (!isRulerIll(s) || s.attention === 0), 'здоровье правителя');
     const conversations = Object.hasOwn(s, 'conversations') ? s.conversations : [];
     check(list(conversations, PEOPLE.length * 2) && conversations.every(c => isObject(c) && PEOPLE.some(p => p.id === c.personId) && TALKS[c.personId]?.some(t => t.id === c.topicId) && number(c.month, 0, s.month) && text(c.response, 3000)) && new Set(conversations.map(c => `${c.personId}/${c.topicId}`)).size === conversations.length, 'разговоры и полученные сведения');
-    check(list(s.encounters, 3) && s.encounters.every(e => isObject(e) && number(e.id, 1, s.nextId - 1) && STORIES.some(t => t.id === e.template && (!e.resolved || t.choices.some(c => c.id === e.choice))) && number(e.created, 0, s.month) && typeof e.resolved === 'boolean' && (e.origin === null || number(e.origin, 0, s.month))), 'встречи');
+    check(list(s.encounters, 5) && s.encounters.every(e => isObject(e) && number(e.id, 1, s.nextId - 1) && STORIES.some(t => t.id === e.template && (!e.resolved || t.choices.some(c => c.id === e.choice))) && number(e.created, 0, s.month) && typeof e.resolved === 'boolean' && (e.origin === null || number(e.origin, 0, s.month))), 'встречи');
     for (const e of s.encounters) if (Object.hasOwn(e, 'choiceOrder')) { const ids = STORIES.find(t => t.id === e.template).choices.map(c => c.id); check(list(e.choiceOrder, ids.length) && e.choiceOrder.length === ids.length && new Set(e.choiceOrder).size === ids.length && e.choiceOrder.every(id => ids.includes(id)), 'порядок решений встречи'); }
     const stances = ['Доброжелательные', 'Враждебные', 'Напряжённые', 'Сдержанные'];
     for (const e of s.encounters) if (Object.hasOwn(e, 'result')) {
@@ -667,6 +836,16 @@
     if (Object.hasOwn(s, 'laws')) s.laws = LAW_DATA.normalize(s.laws);
     if (!Object.hasOwn(s, 'ruler')) s.ruler = createRuler();
     if (!Object.hasOwn(s, 'military')) s.military = MILITARY.create(s);
+    if (!Object.hasOwn(s, 'nextCrisis')) s.nextCrisis = s.month + 3;
+    if(!Object.hasOwn(s,'technologies'))s.technologies=[];
+    if(!Object.hasOwn(s,'specialists'))s.specialists={builders:1,physicians:1,spies:1,diplomats:1,engineers:1};
+    if(!Object.hasOwn(s,'tradeTerms'))s.tradeTerms={};
+    if(!Object.hasOwn(s,'appointments'))s.appointments={medicine:'lada',army:'yaropolk',justice:'vera',works:'elena'};
+    if(!Object.hasOwn(s,'epidemic'))s.epidemic=null;
+    if(!Object.hasOwn(s,'factions'))s.factions=[{id:'guild',name:'Купеческая гильдия',sphere:'торговля и пошлины',illegal:false,influence:42,relation:5},{id:'artisans',name:'Ремесленные братства',sphere:'мастерские и рабочие',illegal:false,influence:36,relation:10},{id:'watch',name:'Старая городская стража',sphere:'ворота и квартальный порядок',illegal:false,influence:28,relation:0},{id:'smugglers',name:'Речные контрабандисты',sphere:'тайный ввоз и переправы',illegal:true,influence:24,relation:-5},{id:'thieves',name:'Воровская сеть Нижнего города',sphere:'кражи, скупщики и укрытия',illegal:true,influence:18,relation:-15}];
+    const additions={wood:0,stone:0,iron:0,goods:0,houses:0,smithies:0,lumberyards:0,quarries:0,mines:0,workshops:0,markets:0,fireStations:0,sanitation:0,courts:0,postOffices:0,barracks:0,cityWatch:0,prisons:0};
+    const fill=p=>{if(!p||typeof p!=='object')return;for(const [key,value] of Object.entries(additions))if(!Object.hasOwn(p,key))p[key]=value;};
+    fill(s.player);fill(s.initial);fill(s.monthStart);for(const m of s.metrics||[])fill(m.values);if(s.lastTurn){fill(s.lastTurn.before);fill(s.lastTurn.after);}if(s.chapter){fill(s.chapter.values);fill(s.chapter.initial);}
     return s;
   }
   function deserialize(raw) {
@@ -679,5 +858,5 @@
     validateState(restored);
     return restored;
   }
-  return { VERSION, COUNTRIES: copy(COUNTRIES), COMMANDS: copy(COMMANDS), BUILDINGS: copy(BUILDINGS), LAWS: copy(LAWS), METRICS: copy(METRICS), INTENTS: copy(INTENTS), createGame, queueOrder, orderBlocker, chooseEvent, advanceMonth, acknowledgeChapter, resolveEncounter, talkToCharacter, workOvertime, restRuler, militaryQuote, launchMilitary, battleOrder, getView, economy, decideNeighbor, serialize, deserialize, validateState, date };
+  return { VERSION, COUNTRIES: copy(COUNTRIES), COMMANDS: copy(COMMANDS), BUILDINGS: copy(BUILDINGS), LAWS: copy(LAWS), OFFICES:copy(OFFICES), METRICS: copy(METRICS), INTENTS: copy(INTENTS), createGame, queueOrder, appointOfficial, orderBlocker, chooseEvent, advanceMonth, acknowledgeChapter, resolveEncounter, talkToCharacter, workOvertime, restRuler, militaryQuote, launchMilitary, battleOrder, getView, economy, decideNeighbor, serialize, deserialize, validateState, date };
 });

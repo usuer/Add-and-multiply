@@ -39,6 +39,7 @@ async function advance(page) {
   assert.equal(await page.locator('#next-month').isEnabled(),true,'month can progress');
   const oldDate=await page.locator('#date').innerText();await page.click('#next-month');
   await page.waitForFunction(previous=>document.querySelector('#date').textContent!==previous,oldDate);
+  await page.locator('#month-transition [data-action="close-month"]').click();
   await page.waitForFunction(()=>!document.documentElement.hasAttribute('aria-busy'));
 }
 
@@ -83,7 +84,7 @@ async function advance(page) {
       const payload=JSON.stringify({format:'price-of-power',version:4,state:old});
       await page.locator('#save-file').setInputFiles({name:'legacy-05.json',mimeType:'application/json',buffer:Buffer.from(payload)});
       await page.waitForFunction(()=>JSON.parse(localStorage.getItem('priceOfPower.v04.auto'))?.state.seed==='legacy-browser');
-      const after=await saved(page);assert.equal(after.characters.length,10);assert.equal(after.rng,rng);assert.deepEqual(after.player,player);assert.ok(after.ruler);assert.ok(after.military);assert.equal(Object.keys(after.laws).length,6);
+      const after=await saved(page);assert.equal(after.characters.length,10);assert.equal(after.rng,rng);assert.deepEqual(after.player,player);assert.ok(after.ruler);assert.ok(after.military);assert.equal(Object.keys(after.laws).length,14);
       await page.click('nav [data-tab="court"]');assert.equal(await page.locator('#characters .person-card').count(),10);
     });
 
@@ -119,15 +120,15 @@ async function advance(page) {
       assert.equal(await page.locator('#town [data-building-select]').count(),8);
       await page.waitForFunction(()=>{const img=document.querySelector('#town img');return img?.complete&&img.naturalWidth>1000;});
       const positions=await page.locator('#buildings .development-building-picture .development-art').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).backgroundPosition));
-      assert.equal(positions.length,8);assert.equal(new Set(positions).size,8);
+      assert.equal(positions.length,22);assert.ok(new Set(positions).size>=8);
       await page.locator('#town [data-building-select="granaries"]').click();assert.equal(await page.locator('#development-dialog').isVisible(),true);assert.match(await page.locator('#development-dialog').innerText(),/Зернохранилища/);
-      const before=await saved(page);await page.locator('#development-dialog [data-order="granary"]').click();assert.equal(await page.locator('#development-dialog').isVisible(),false);
-      const after=await saved(page);assert.equal(after.orders.length,1);assert.equal(after.orders[0].type,'granary');assert.equal(after.player.gold,before.player.gold-24);assert.match(await page.locator('#town [data-building-select="granaries"]').innerText(),/Строится|Строитель/);
+      const before=await saved(page),cost=G.getView(before).commands.find(c=>c.id==='granary').gold;await page.locator('#development-dialog [data-order="granary"]').click();assert.equal(await page.locator('#development-dialog').isVisible(),false);
+      const after=await saved(page);assert.equal(after.orders.length,1);assert.equal(after.orders[0].type,'granary');assert.equal(after.player.gold,before.player.gold-cost);assert.match(await page.locator('#town [data-building-select="granaries"]').innerText(),/Строится|Строитель|Улучшение/);
       await page.screenshot({path:path.join(artifacts,'development-map-v06.png'),fullPage:true});
     });
 
     await check('ограничение вывоза принимается без платы и не уменьшает еду жителей',async()=>{
-      await load(page,rich('grain-policy'));await page.click('nav [data-tab="development"]');assert.equal(await page.locator('#laws .law-card').count(),6);
+      await load(page,rich('grain-policy'));await page.click('nav [data-tab="development"]');assert.equal(await page.locator('#laws .law-card').count(),14);
       assert.match(await page.locator('#laws').innerText(),/Потребление жителей и армии не меняется|Жители и армия продолжают есть/);
       const before=await saved(page);await page.locator('#laws [data-order="law_grain_reserve"]').click();const queued=await saved(page);assert.equal(queued.player.gold,before.player.gold);assert.equal(queued.ap,before.ap-1);assert.equal(queued.orders[0].paid,0);
       await advance(page);const after=await saved(page);assert.equal(after.laws.grain,'reserve');
@@ -137,14 +138,14 @@ async function advance(page) {
 
     await check('новая санитарная политика реально меняет здоровье и содержание',async()=>{
       const start=rich('health-policy');const budget=G.economy(start);await load(page,start);await page.click('nav [data-tab="development"]');await page.locator('#laws [data-order="law_health_municipal"]').click();await advance(page);
-      const after=await saved(page);assert.equal(after.laws.health,'municipal');assert.equal(after.player.health,start.player.health+2);assert.equal(G.economy(after).upkeep,budget.upkeep+3);
+      const after=await saved(page);assert.equal(after.laws.health,'municipal');assert.equal(after.player.health,start.player.health+3);assert.equal(G.economy(after).upkeep,budget.upkeep+3);
     });
 
     await check('быстрое двойное нажатие завершает ровно один месяц и показывает переход',async()=>{
       await load(page,rich('double-turn'));await page.click('nav [data-tab="council"]');
       await page.locator('#council-event [data-choice="wait"]').click();const before=await saved(page);
       await page.locator('#next-month').dblclick({delay:30});assert.equal(await page.locator('#month-transition').isVisible(),true);
-      await page.waitForFunction(()=>!document.documentElement.hasAttribute('aria-busy'));
+      await page.locator('#month-transition [data-action="close-month"]').click();await page.waitForFunction(()=>!document.documentElement.hasAttribute('aria-busy'));
       const after=await saved(page);assert.equal(after.month,before.month+1);assert.equal(await page.locator('#month-transition').isVisible(),false);
     });
 

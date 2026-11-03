@@ -14,6 +14,7 @@
     schools: { title: 'Земская слобода', category: 'Знания', className: 'knowledge', x: 64, y: 72, atlas: 5 },
     clinics: { title: 'Лекарский двор', category: 'Городские службы', className: 'civic', x: 68, y: 36, atlas: 6 },
     universities: { title: 'Учёный квартал', category: 'Знания', className: 'knowledge', x: 84, y: 58, atlas: 7 },
+    houses:{title:'Жилые слободы',category:'Город и население',className:'civic',icon:'⌂'},smithies:{title:'Кузнечный двор',category:'Ремесло',className:'stores',icon:'⚒'},lumberyards:{title:'Лесная пристань',category:'Добыча',className:'land',icon:'♣'},quarries:{title:'Каменный овраг',category:'Добыча',className:'routes',icon:'◆'},mines:{title:'Рудная гора',category:'Добыча',className:'routes',icon:'⛏'},workshops:{title:'Ремесленный посад',category:'Производство',className:'stores',icon:'⚙'},markets:{title:'Большой торг',category:'Торговля',className:'stores',icon:'◉'},fireStations:{title:'Пожарный двор',category:'Городские службы',className:'civic',icon:'♨'},sanitation:{title:'Очистные каналы',category:'Городские службы',className:'civic',icon:'≈'},courts:{title:'Судная палата',category:'Управление',className:'knowledge',icon:'⚖'},postOffices:{title:'Ямская служба',category:'Связь',className:'routes',icon:'✉'},barracks:{title:'Военный посад',category:'Оборона',className:'stores',icon:'⚑'},cityWatch:{title:'Дом городской стражи',category:'Правопорядок',className:'civic',icon:'♜'},prisons:{title:'Тюремный двор',category:'Правопорядок',className:'stores',icon:'▦'},
   };
   const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   let latestView = null, selectedKey = null, zoom = 1, listening = false;
@@ -26,7 +27,7 @@
   }
   function illustration(key, extraClass = '', decorative = false) {
     const info = districtInfo(key);
-    return `<span class="development-art development-art--${esc(key)} ${esc(extraClass)}"${decorative ? ' aria-hidden="true"' : ` role="img" aria-label="${esc(info.title)} — вид постройки"`}></span>`;
+    return `<span class="development-art development-art--${esc(key)} ${esc(extraClass)}"${decorative ? ' aria-hidden="true"' : ` role="img" aria-label="${esc(info.title)} — вид постройки"`}>${info.icon?`<b class="development-civic-icon">${esc(info.icon)}</b>`:''}</span>`;
   }
   function buildingCard(v, d, b, blocker = '') {
     const info = districtInfo(b.key), project = projectState(v, b);
@@ -51,7 +52,7 @@
       <div class="development-map-viewport" tabindex="0" aria-label="Карта проектов Ардена. На небольшом экране карту можно прокручивать в стороны."><div class="development-map-board" style="width:${zoom * 100}%;min-width:${760 * zoom}px">
       <img class="development-landscape" src="assets/arden-city-map.png" alt="Город Арден с замком, речной переправой, дорогами и окрестными землями" width="1600" height="1000">
       <div class="development-map-vignette" aria-hidden="true"></div><div class="development-castle"><span>♜ Замок Ардена</span><small>Оборона княжества ${v.player.defense}</small></div>
-      ${v.buildings.map(b => {
+      ${v.buildings.filter(b=>['farms','orchards','roads','wells','granaries','schools','clinics','universities'].includes(b.key)).map(b => {
         const info = districtInfo(b.key), project = projectState(v, b);
         return `<button type="button" class="development-district development-district--${project.status}" data-building-select="${esc(b.key)}" style="left:${info.x}%;top:${info.y}%" aria-label="${esc(b.name)}. ${esc(project.label)}. Открыть сведения о проекте.">${illustration(b.key, 'development-district-art', true)}<span class="development-district-name">${esc(b.name)}</span><span class="development-district-status">${esc(project.label)}</span></button>`;
       }).join('')}<span class="development-compass" aria-hidden="true">С<br>◇</span></div></div>

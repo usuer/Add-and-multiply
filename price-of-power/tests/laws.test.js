@@ -6,13 +6,14 @@ const path = require('node:path');
 const vm = require('node:vm');
 const P = require('../source/laws');
 
-test('шесть областей закона сохраняют прежние идентификаторы', () => {
-  assert.equal(P.LAWS.length, 6);
+test('четырнадцать областей закона сохраняют прежние идентификаторы', () => {
+  assert.equal(P.LAWS.length, 14);
   const options = Object.fromEntries(P.LAWS.map(law => [law.key, law.options.map(option => option.value)]));
   assert.deepEqual(options.tax, ['low', 'balanced', 'high']);
   assert.deepEqual(options.grain, ['market', 'reserve']);
   assert.deepEqual(options.education, ['elite', 'public']);
-  assert.ok(options.health && options.justice && options.land);
+  assert.ok(options.health&&options.justice&&options.land&&options.identity&&options.policing&&options.punishment);
+  assert.ok(options.workday&&options.workingAge&&options.conscription&&options.warEconomy&&options.civilDuty);
 });
 
 test('принятие законов бесплатно, но требует месяца и работы канцелярии', () => {
@@ -108,6 +109,6 @@ test('модуль запускается как обычный браузерн
   const sandbox = vm.createContext({});
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../source/laws.js'), 'utf8'), sandbox);
   assert.ok(sandbox.PopLaws);
-  assert.equal(sandbox.PopLaws.LAWS.length, 6);
+  assert.equal(sandbox.PopLaws.LAWS.length, 14);
   assert.equal(sandbox.PopLaws.validate(sandbox.PopLaws.normalize()), true);
 });

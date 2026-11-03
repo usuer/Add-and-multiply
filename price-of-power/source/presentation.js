@@ -100,6 +100,11 @@
           else { introStep += action === 'intro-back' ? -1 : 1; renderIntro(); }
           return;
         }
+        if (action === 'close-month') {
+          e.preventDefault(); e.stopPropagation(); play('click');
+          closeDialog(byId('month-transition')); document.documentElement.removeAttribute('aria-busy');
+          const done=turnResolve;turnResolve=null;done?.(); return;
+        }
         if (action !== 'next' && !button.hasAttribute('data-battle-tactic')) play('click');
       }, true);
     }
@@ -118,7 +123,7 @@
     const views = [
       `<div class="prologue-picture">${panorama()}<div class="prologue-shade"></div></div><div class="prologue-copy"><span class="eyebrow">1248 ГОД · ВЫМЫШЛЕННАЯ СТРАНА НА ПЕРЕКРЁСТКЕ ДОРОГ</span><h1>Цена власти</h1><h2>Ваша летопись начинается в Ардене.</h2><p>Старый князь умер. Совет передал вам печать, казну и страну, которая слишком долго ждала решений. Здесь живут люди со своими надеждами. За рекой правят те, кто ничего вам не должен.</p><div class="prologue-facts"><span><b>${v.player.population} тыс.</b>жителей</span><span><b>${v.player.gold}</b>монет в казне</span><span><b>3</b>соседних государства</span></div></div>`,
       `<div class="prologue-people-backdrop">${panorama()}</div><div class="prologue-copy prologue-copy--people"><span class="eyebrow">ЛЮДИ, КОТОРЫЕ ВСТРЕТЯТ ВАС У ПРЕСТОЛА</span><h1>Они хотят разного.</h1><p>Выслушивайте просьбы, задавайте вопросы и проверяйте слухи. У каждого есть характер, близкие и собственный взгляд на справедливое решение. Верность нельзя купить одним удобным ответом.</p><div class="prologue-people">${['treasurer','marshal','doctor','governor'].map(id => {const p = people.find(p=>p.id===id); if (!p) return ''; return `<article><span class="portrait portrait--${esc(id)}" role="img" aria-label="${esc(p.name)}"></span><div><strong>${esc(p.name)}</strong><small>${esc(p.role)}</small><p>${esc(p.values || p.description)}</p></div></article>`;}).join('')}</div></div>`,
-      `<div class="prologue-picture prologue-battle-art battlefield"><div class="prologue-shade"></div></div><div class="prologue-copy"><span class="eyebrow">ПРАВЛЕНИЕ ПРОДОЛЖАЕТСЯ ЗА СТЕНАМИ ЗАМКА</span><h1>За каждым приказом — дорога.</h1><p>Собирайте сведения о соседях. Устраняйте угрозы на дорогах и берегите дружину: провиант, усталость и местность влияют на бой. Укрепляйте княжество и следите за последствиями своих решений.</p><div class="prologue-route" aria-label="Путь от решения к результату"><span>♜<b>Замок</b></span><i></i><span>⚑<b>Поход</b></span><i></i><span>⚔<b>Столкновение</b></span></div><p class="prologue-note">Первый год завершится своей главой. После неё история может продолжиться.</p></div>`,
+      `<div class="prologue-picture prologue-battle-art battlefield"><div class="prologue-shade"></div></div><div class="prologue-copy"><span class="eyebrow">КРАТКОЕ ОБУЧЕНИЕ · ПЕРВЫЙ МЕСЯЦ</span><h1>Сначала решите. Потом проверьте результат.</h1><p><b>1.</b> Откройте «Совет» и разберите срочное дело. <b>2.</b> На карте княжества выберите, кого посетить или что развивать. <b>3.</b> Перед походом отметьте нужные отряды и прочитайте подтверждение состава. <b>4.</b> Завершите месяц и закройте итог только после чтения.</p><div class="prologue-route" aria-label="Путь от решения к результату"><span>♜<b>Решение</b></span><i></i><span>⚑<b>Действие</b></span><i></i><span>≡<b>Итог</b></span></div><p class="prologue-note">Золотые подсказки объясняют следующий шаг. Все реальные последствия остаются в отчёте и хронике.</p></div>`,
     ];
     const dialog = ensureDialog('prologue-dialog', 'prologue-dialog', 'Вступление: ваше княжество и роль правителя');
     dialog.innerHTML = `<section class="prologue-slide prologue-slide--${introStep}" aria-live="polite">${views[introStep]}<header class="prologue-top"><span>АРДЕНСКАЯ ЛЕТОПИСЬ</span><button class="button quiet" data-action="intro-skip">Пропустить вступление</button></header><footer class="prologue-navigation"><div class="prologue-dots" aria-label="Экран ${introStep + 1} из 3">${[0,1,2].map(i=>`<span class="${i===introStep?'active':''}"></span>`).join('')}<small>${introStep + 1} / 3</small></div><div><button class="button prologue-back" data-action="intro-back" ${introStep === 0 ? 'disabled' : ''}>← Назад</button><button class="button primary" data-action="intro-next">${introStep === 2 ? 'Принять печать →' : 'Далее →'}</button></div></footer></section>`;
@@ -146,12 +151,12 @@
     const dialog = ensureDialog('month-transition', 'month-transition', 'Наступил следующий месяц');
     const before = previousView?.player || v.lastTurn?.before || v.player;
     const metrics = [['gold','Казна'],['food','Зерно'],['stability','Стабильность']];
-    dialog.innerHTML = `<div class="month-scene month-scene--finished"><span class="eyebrow">НАСТУПИЛ НОВЫЙ МЕСЯЦ</span><div class="month-seal" aria-hidden="true">♛</div><h2>${esc(v.date)}</h2><p>${v.military?.battle ? 'На рубежах идёт столкновение. Войско ждёт вашего приказа.' : v.ended ? 'Летописец записал последние решения этого правления.' : 'Прочитайте отчёт и узнайте, какие дела появились при дворе.'}</p><div class="month-deltas">${metrics.map(([key,title])=>{const delta=v.player[key]-before[key];return `<span><small>${title}</small><b class="${delta<0?'negative':'positive'}">${delta>0?'+':''}${delta}</b><em>${before[key]} → ${v.player[key]}</em></span>`;}).join('')}</div><small>Подробные причины остались в месячном отчёте.</small></div>`;
+    dialog.innerHTML = `<div class="month-scene month-scene--finished"><span class="eyebrow">НАСТУПИЛ НОВЫЙ МЕСЯЦ</span><div class="month-seal" aria-hidden="true">♛</div><h2>${esc(v.date)}</h2><p>${v.military?.battle ? 'На рубежах идёт столкновение. Войско ждёт вашего приказа.' : v.ended ? 'Летописец записал последние решения этого правления.' : 'Прочитайте отчёт и узнайте, какие дела появились при дворе.'}</p><div class="month-deltas">${metrics.map(([key,title])=>{const delta=v.player[key]-before[key];return `<span><small>${title}</small><b class="${delta<0?'negative':'positive'}">${delta>0?'+':''}${delta}</b><em>${before[key]} → ${v.player[key]}</em></span>`;}).join('')}</div><small>Подробные причины остались в месячном отчёте.</small><button class="button primary month-continue" data-action="close-month">Понятно, продолжить →</button></div>`;
     openDialog(dialog); play(v.ended ? 'warning' : 'success');
     return new Promise(resolve => {
       if (turnResolve) turnResolve();
       turnResolve = resolve;
-      turnTimer = setTimeout(() => { turnTimer = null; closeDialog(dialog); document.documentElement.removeAttribute('aria-busy'); const done=turnResolve;turnResolve=null;done?.(); }, reducedMotion() ? 300 : 850);
+      turnTimer = null;
     });
   }
   return { init, showIntro, play, toggleSound, soundEnabled, beginTurn, finishTurn, cancelTurn };

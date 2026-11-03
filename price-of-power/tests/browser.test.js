@@ -26,6 +26,7 @@ async function closeIntro(page, walk = false) {
 async function nextMonth(page) {
   const before=await page.locator('#date').innerText();await page.click('#next-month');
   await page.waitForFunction(previous=>document.querySelector('#date').textContent!==previous,before);
+  await page.locator('#month-transition [data-action="close-month"]').click();
   await page.waitForFunction(()=>!document.documentElement.hasAttribute('aria-busy'));
 }
 async function artworkLoaded(page) {
@@ -102,13 +103,13 @@ async function artworkLoaded(page) {
       assert.match(await page.locator('[data-choice="investigate"] small').innerText(),/8.*монет/);
     });
     await check('решение, разведка и стройка списывают средства и идут параллельно',async()=>{
-      await page.click('[data-choice="investigate"]');assert.equal(await page.locator('#council-result').isVisible(),true);assert.match(await page.locator('#council-result').innerText(),/Казна\s*[−-]8/);await page.click('nav [data-tab="orders"]');await page.selectOption('#order-target','mer');await page.click('#command-catalog [data-order="scout"]');await page.click('nav [data-tab="development"]');await page.click('#buildings [data-order="farm"]');assert.equal(await page.locator('[data-stat="gold"] .stat-value').innerText(),'72');await page.click('nav [data-tab="council"]');assert.equal(await page.locator('#active-orders .order').count(),2);assert.equal(await page.locator('#queue-count').innerText(),'2 / 6');
+      await page.click('[data-choice="investigate"]');assert.equal(await page.locator('#council-result').isVisible(),true);assert.match(await page.locator('#council-result').innerText(),/Казна\s*[−-]8/);await page.click('nav [data-tab="orders"]');await page.selectOption('#order-target','mer');await page.click('#command-catalog [data-order="scout"]');await page.click('nav [data-tab="development"]');await page.click('#buildings [data-order="farm"]');assert.equal(await page.locator('[data-stat="gold"] .stat-value').innerText(),'64');await page.click('nav [data-tab="council"]');assert.equal(await page.locator('#active-orders .order').count(),2);assert.equal(await page.locator('#queue-count').innerText(),'2 / 6');
     });
     await check('главный экран доступен повторно и не начинает кампанию заново',async()=>{
-      await page.click('nav [data-tab="home"]');assert.equal(await page.locator('#realm-home').isVisible(),true);assert.equal(await page.locator('[data-stat="gold"] .stat-value').innerText(),'72');assert.equal(await page.locator('#date').innerText(),'Январь 1248');await page.click('#enter-reign');assert.equal(await page.locator('#active-orders .order').count(),2);assert.equal(await page.locator('#queue-count').innerText(),'2 / 6');
+      await page.click('nav [data-tab="home"]');assert.equal(await page.locator('#realm-home').isVisible(),true);assert.equal(await page.locator('[data-stat="gold"] .stat-value').innerText(),'64');assert.equal(await page.locator('#date').innerText(),'Январь 1248');await page.click('#enter-reign');assert.equal(await page.locator('#active-orders .order').count(),2);assert.equal(await page.locator('#queue-count').innerText(),'2 / 6');
     });
     await check('завершение месяца показывает результат и причины изменения показателей',async()=>{
-      await nextMonth(page);assert.equal(await page.locator('#date').innerText(),'Февраль 1248');assert.equal(await page.locator('#monthly-report').isVisible(),true);assert.match(await page.locator('#monthly-report').innerText(),/110 →/);await page.locator('#monthly-report summary').click();assert.match(await page.locator('#monthly-report').innerText(),/Казна −16/);await page.locator('#monthly-report summary').click();
+      await nextMonth(page);assert.equal(await page.locator('#date').innerText(),'Февраль 1248');assert.equal(await page.locator('#monthly-report').isVisible(),true);assert.match(await page.locator('#monthly-report').innerText(),/110 →/);await page.locator('#monthly-report summary').click();assert.match(await page.locator('#monthly-report').innerText(),/Месячный баланс: казна \+17/);await page.locator('#monthly-report summary').click();
     });
     await check('ручное сохранение восстанавливает месяц и незавершённые поручения',async()=>{
       await page.click('.topbar [data-action="save"]');await nextMonth(page);assert.equal(await page.locator('#date').innerText(),'Март 1248');await page.click('.topbar [data-action="load"]');assert.equal(await page.locator('#date').innerText(),'Февраль 1248');assert.equal(await page.locator('#realm-home').isVisible(),true);assert.match(await page.locator('#enter-reign').innerText(),/Вернуться/);await page.click('#enter-reign');assert.equal(await page.locator('#active-orders .order').count(),2);
@@ -145,7 +146,7 @@ async function artworkLoaded(page) {
       await page.click('nav [data-tab="court"]');await page.locator(`#encounters [data-scene="${resolvedSceneId}"]`).click();assert.equal(await page.locator('#scene-result').innerText(),resolvedSceneText);assert.equal(await page.locator('#scene-dialog [data-story-choice]').count(),0);await page.click('[data-action="close-scene"]');
     });
     await check('стройка, законы и закрытый университет показаны с условиями',async()=>{
-      await page.click('nav [data-tab="development"]');assert.equal(await page.locator('#buildings .command-card').count(),8);assert.equal(await page.locator('#laws .law-card').count(),6);assert.equal(await page.locator('[data-order="university"]').isDisabled(),true);assert.match(await page.locator('#buildings').innerText(),/2 школы и наука/);await page.screenshot({path:path.join(artifacts,'development.png'),fullPage:true});
+      await page.click('nav [data-tab="development"]');assert.equal(await page.locator('#buildings .command-card').count(),22);assert.equal(await page.locator('#laws .law-card').count(),14);assert.equal(await page.locator('[data-order="university"]').isDisabled(),true);assert.match(await page.locator('#buildings').innerText(),/2 школы и наука/);await page.screenshot({path:path.join(artifacts,'development.png'),fullPage:true});
     });
     await check('12 месяцев дают развязку, после которой можно играть дальше',async()=>{
       await page.click('nav [data-tab="council"]');let chapterSeen=false;

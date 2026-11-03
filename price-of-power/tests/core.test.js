@@ -20,6 +20,7 @@ function play(seed, count = 36) {
   let s = G.createGame({seed});
   for (let i = 0; i < count && !s.ended; i++) {
     s = council(s);
+    if(s.ended) break;
     for (const id of ['farm', 'orchard', 'road', 'well', 'school', 'clinic', 'granary', 'university']) {
       const cost = G.getView(s).commands.find(c => c.id === id).gold;
       if (!G.orderBlocker(s, id, 'val') && s.player.gold > cost + 22) { s = G.queueOrder(s, id); break; }
@@ -28,6 +29,7 @@ function play(seed, count = 36) {
       const option = e.choices.find(c => !c.disabled && c.gold <= 6) || e.choices.find(c => !c.disabled);
       if (option && s.attention) s = G.resolveEncounter(s, e.id, option.id);
     }
+    if(s.ended) break;
     s = G.advanceMonth(s); G.validateState(s);
   }
   return s;
@@ -59,13 +61,13 @@ test('недостаток денег и занятый исполнитель �
   s = G.queueOrder(G.createGame(), 'scout', 'val'); assert.throws(() => G.queueOrder(s, 'network'), /заняты/);
 });
 test('стоимость вычитается сразу; лимит новых приказов равен двум', () => {
-  let s = G.createGame(); s = G.queueOrder(s, 'farm'); s = G.queueOrder(s, 'scout', 'mer'); assert.equal(s.player.gold, 80); assert.equal(s.ap, 0); assert.throws(() => G.queueOrder(s, 'aid'), /Лимит/);
+  let s = G.createGame();const before=s.player.gold,cost=G.getView(s).commands.find(c=>c.id==='farm').gold+14;s = G.queueOrder(s, 'farm'); s = G.queueOrder(s, 'scout', 'mer'); assert.equal(s.player.gold,before-cost); assert.equal(s.ap, 0); assert.throws(() => G.queueOrder(s, 'aid'), /Лимит/);
 });
 test('разведка и поле идут параллельно и завершаются в разные месяцы', () => {
   let s = council(G.createGame()); s = G.queueOrder(s, 'scout', 'mer'); s = G.queueOrder(s, 'farm');
   s = turns(s, 1); assert.deepEqual(s.orders.map(o => o.remaining), [1,2]);
-  s = turns(s, 1); assert.equal(s.orders.length, 1); assert.equal(s.completed[0].type, 'scout'); assert.equal(s.player.farms, 0);
-  s = turns(s, 1); assert.equal(s.player.farms, 1); assert.equal(s.orders.length, 0);
+  s = turns(s, 1); assert.equal(s.orders.length, 1); assert.equal(s.completed[0].type, 'scout'); assert.equal(s.player.farms,1);
+  s = turns(s, 1); assert.equal(s.player.farms,2); assert.equal(s.orders.length, 0);
 });
 test('соседи действуют шесть месяцев без приказов игрока', () => {
   const initial = G.createGame(); const s = turns(initial, 6); assert.equal(s.aiHistory.length, 18); assert.ok(s.neighbors.every(n => n.turns === 6)); assert.ok(s.neighbors.some((n,i) => n.gold !== initial.neighbors[i].gold)); assert.ok(new Set(s.aiHistory.map(h => h.action)).size >= 2);assert.equal(new Set(s.aiHistory.map(h => h.id)).size,3);
@@ -112,7 +114,7 @@ test('школы открывают университет, уровни дор�
   assert.equal(G.orderBlocker(s,'university'),'');s=G.queueOrder(s,'university');s=turns(s,4);assert.equal(s.player.universities,1);assert.equal(s.player.science,6);assert.equal(s.player.intel,2);
 });
 test('сады, колодцы, склады и лечебницы меняют действующие расчёты', () => {
-  let s=rich();const before=G.economy(s);s=G.queueOrder(s,'orchard');s=G.queueOrder(s,'well');s=turns(s,3);assert.equal(s.player.orchards,1);assert.equal(s.player.wells,1);assert.ok(s.player.health>68);
+  let s=rich();const before=G.economy(s),initialWells=s.player.wells;s=G.queueOrder(s,'orchard');s=G.queueOrder(s,'well');s=turns(s,3);assert.equal(s.player.orchards,1);assert.equal(s.player.wells,initialWells+1);assert.ok(s.player.health>68);
   const other=structuredClone(s);other.player.orchards=0;assert.equal(G.economy(s).production-G.economy(other).production,3);
   s=G.queueOrder(s,'granary');s=G.queueOrder(s,'clinic');s=turns(s,3);const without=structuredClone(s);without.player.granaries=0;without.player.clinics=0;assert.ok(G.economy(s).losses<=G.economy(without).losses);assert.equal(G.economy(s).upkeep-G.economy(without).upkeep,2);assert.ok(before.upkeep>0);
 });
@@ -141,13 +143,13 @@ test('не более двух личных дел; встречи не меша
   let s=G.createGame();s=G.queueOrder(s,'farm');for(const e of [...s.encounters].slice(0,2)){const c=G.getView(s).encounters.find(x=>x.id===e.id).choices.find(c=>!c.disabled);s=G.resolveEncounter(s,e.id,c.id);}assert.equal(s.attention,0);assert.equal(s.orders.length,1);const third=s.encounters.find(e=>!e.resolved);assert.throws(()=>G.resolveEncounter(s,third.id,STORIES.find(t=>t.id===third.template).choices[0].id),/внимания/);
 });
 test('высокое доверие даёт реальные административные преимущества', () => {
-  const s=G.createGame(),base=G.economy(s);s.characters.find(p=>p.id==='treasurer').trust=75;s.characters.find(p=>p.id==='marshal').trust=75;s.characters.find(p=>p.id==='engineer').trust=75;assert.equal(G.economy(s).income-base.income,2);assert.equal(G.economy(s).upkeep-base.upkeep,-1);assert.equal(G.getView(s).commands.find(c=>c.id==='farm').gold,14);
+  const s=G.createGame(),base=G.economy(s),full=G.getView(s).commands.find(c=>c.id==='farm').gold;s.characters.find(p=>p.id==='treasurer').trust=75;s.characters.find(p=>p.id==='marshal').trust=75;s.characters.find(p=>p.id==='engineer').trust=75;assert.equal(G.economy(s).income-base.income,2);assert.equal(G.economy(s).upkeep-base.upkeep,-1);assert.equal(G.getView(s).commands.find(c=>c.id==='farm').gold,Math.floor(full*.9));
 });
 test('к двенадцатому месяцу есть развязка, а после неё — второй год', () => {
-  let s=turns(rich(),12);assert.equal(s.ended,false);assert.equal(s.chapter.year,1);assert.ok(s.chapter.story.length>100);assert.equal(s.chapter.acknowledged,false);s=council(s);s=G.advanceMonth(s);assert.equal(s.month,13);assert.match(G.getView(s).date,/1249/);
+  let s=turns(rich(),12);while(G.getView(s).military?.battle)s=G.battleOrder(s,'guard');assert.equal(s.ended,false);assert.equal(s.chapter.year,1);assert.ok(s.chapter.story.length>100);assert.equal(s.chapter.acknowledged,false);s=council(s);s=G.advanceMonth(s);assert.equal(s.month,13);assert.match(G.getView(s).date,/1249/);
 });
 test('итоги и графики отражают реальные изменения каждого показателя', () => {
-  let s=G.queueOrder(council(G.createGame()),'farm');s=turns(s,3);assert.equal(s.metrics.length,4);assert.equal(s.metrics[3].values.farms,1);assert.equal(s.lastTurn.month,3);
+  let s=G.queueOrder(council(G.createGame()),'farm');s=turns(s,3);assert.equal(s.metrics.length,4);assert.equal(s.metrics[3].values.farms,2);assert.equal(s.lastTurn.month,3);
   for(const [k,v] of Object.entries(s.lastTurn.changes))assert.equal(v,s.lastTurn.after[k]-s.lastTurn.before[k]);
   for(const k of Object.keys(G.METRICS)){const sum=s.lastTurn.entries.reduce((sum,h)=>sum+(h.changes[k]||0),0);assert.equal(sum,s.lastTurn.changes[k]||0,`ledger ${k}`);}
 });
@@ -287,11 +289,13 @@ test('каждый новый персонаж появляется в рабо�
   }
 });
 
-test('шесть областей законов готовятся без разовой платы и расходуют поручение', () => {
-  let s=G.createGame(); assert.equal(G.getView(s).lawOptions.length,6);
+test('четырнадцать областей законов бесплатны, а гибкие правила меняются немедленно', () => {
+  let s=G.createGame(); assert.equal(G.getView(s).lawOptions.length,14);
   const before=s.player.gold; s=G.queueOrder(s,'law_justice_open');
   assert.equal(s.player.gold,before);assert.equal(s.ap,1);assert.equal(s.orders[0].paid,0);assert.equal(s.orders[0].duration,1);
   assert.ok(G.getView(s).commands.filter(c=>c.law).every(c=>c.gold===0));
+  s.ap=2;const defense=s.player.defense;s=G.queueOrder(s,'law_conscription_total');assert.equal(s.laws.conscription,'total');assert.equal(s.player.defense,defense+20);assert.equal(s.orders.length,1);
+  s=G.queueOrder(s,'law_conscription_retinue');assert.equal(s.player.defense,defense);
 });
 test('ограничение вывоза сохраняет зерно, не урезая еду жителей и армии', () => {
   const s=G.createGame(), market=G.economy(s);s.laws.grain='reserve';const reserve=G.economy(s);
@@ -304,10 +308,18 @@ test('новые законы меняют фактические здоровь
     const changed=structuredClone(base);changed.laws[key]=value;
     const a=turns(base,1),b=turns(changed,1);
     if(key==='health'){assert.equal(b.player.health-a.player.health,2);assert.equal(b.player.gold-a.player.gold,-3);}
-    if(key==='justice'){assert.equal(b.player.stability-a.player.stability,1);assert.equal(b.player.gold-a.player.gold,-2);}
+    if(key==='justice'){assert.equal(b.player.stability-a.player.stability,2);assert.equal(b.player.gold-a.player.gold,-2);}
     if(key==='land'){assert.equal(b.player.food-a.player.food,3);assert.equal(b.player.gold-a.player.gold,-3);assert.equal(b.player.stability-a.player.stability,1);}
     G.validateState(b);
   }
+});
+test('назначения дают осмысленный компромисс и сохраняются',()=>{
+  let s=G.createGame(),before=s.player.gold;s=G.appointOfficial(s,'justice','milan');assert.equal(s.appointments.justice,'milan');assert.equal(s.ap,1);assert.equal(G.economy(s).income,G.economy(G.createGame()).income+2);assert.equal(s.player.gold,before);G.validateState(s);
+  assert.throws(()=>G.appointOfficial(s,'justice','milan'),/уже занимает/);
+});
+test('эпидемия длится несколько месяцев, а службы и врач меняют потери',()=>{
+  const weak=G.createGame({seed:'epidemic'}),strong=structuredClone(weak);weak.epidemic={name:'Красная горячка',remaining:3,severity:3};strong.epidemic=structuredClone(weak.epidemic);strong.player.clinics=2;strong.player.sanitation=2;strong.specialists.physicians=3;
+  const a=turns(weak,1),b=turns(strong,1);assert.ok(a.epidemic&&a.epidemic.remaining===2);assert.ok(b.player.health>a.player.health);assert.ok(b.player.population>=a.player.population);assert.ok(a.history.some(h=>h.kind==='epidemic'));G.validateState(a);G.validateState(b);
 });
 test('первая сверхурочная работа даёт дополнительную встречу без внезапной болезни', () => {
   const original=G.createGame(), s=G.workOvertime(original);
