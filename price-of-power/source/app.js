@@ -7,7 +7,7 @@
   const signed = n => `${n > 0 ? '+' : ''}${n}`;
   const fmt = n => Number(n).toLocaleString('ru-RU');
   const MANUAL = 'priceOfPower.v04.manual', AUTO = 'priceOfPower.v04.auto';
-  const ui = { tab: 'home', filter: 'Все', target: 'val', metric: 'gold', range: 12, scene: null, chat: null, mapStarted: false, map:{scale:.45,x:0,y:0} };
+  const ui = { tab: 'home', filter: 'Все', target: 'val', metric: 'gold', range: 12, scene: null, chat: null, mapStarted: false, map:{scale:.7,x:0,y:0} };
   let state = G.createGame(), toastTimer, storageOkay = true, turnBusy = false, mapDrag = null;
   function toast(message, error = false) {
     const node = $('#status'); node.textContent = message; node.hidden = false; node.classList.toggle('error', error);
@@ -63,7 +63,7 @@
   }
   function applyMapTransform(){const map=$('.dominion-map');if(map){map.style.transform=`translate(${ui.map.x}px,${ui.map.y}px) scale(${ui.map.scale})`;map.classList.toggle('zoom-detail',ui.map.scale>=.75);map.classList.toggle('zoom-buildings',ui.map.scale>=1.15);map.setAttribute('data-zoom',String(ui.map.scale));}}
   function changeMapZoom(delta){ui.map.scale=Math.max(.32,Math.min(2.8,Math.round((ui.map.scale+delta)*10)/10));applyMapTransform();}
-  function resetMap(){ui.map={scale:.36,x:0,y:0};applyMapTransform();}
+  function resetMap(){ui.map={scale:.7,x:0,y:0};applyMapTransform();}
   function changesHTML(changes, before = null, after = null) {
     const items = Object.entries(changes);
     if (!items.length) return '<span class="muted">Числовые показатели не изменились.</span>';

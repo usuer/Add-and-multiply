@@ -115,7 +115,7 @@
     if (onIntroDone) onIntroDone();
   }
   function panorama() {
-    return '<img class="prologue-panorama" src="assets/arden-panorama.png" alt="Речная долина, город и замок Арденского княжества">';
+    return '<img class="prologue-panorama" src="assets/arden-panorama.webp" alt="Речная долина, город и замок Арденского княжества">';
   }
   function renderIntro() {
     if (!introView) return;

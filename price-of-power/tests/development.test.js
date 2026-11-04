@@ -10,7 +10,7 @@ test('карта показывает восемь разных проектов
   assert.equal((html.match(/data-building-select=/g) || []).length, 8);
   for (const key of ['farms','orchards','roads','wells','granaries','schools','clinics','universities']) assert.ok(html.includes(`development-art--${key}`));
   assert.match(html, /Замок Ардена/);
-  assert.match(html, /arden-city-map\.png/);
+  assert.match(html, /arden-city-map\.(?:png|webp)/);
 });
 test('карточки сохраняют правильный приказ, цену, ограничения и категории', () => {
   const v = view();
