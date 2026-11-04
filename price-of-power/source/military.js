@@ -18,11 +18,14 @@
   const MISSIONS = {patrol:'Патруль',expedition:'Поход против разбойников',defend:'Защита местности',return:'Возвращение в крепость'};
   const TYPES = {infantry:'Пехота',archers:'Стрелки',cavalry:'Конница'};
   const TACTICS = [
-    {id:'guard',name:'Удерживать строй',description:'Беречь людей, используя укрытия и оборонительную позицию.'},
-    {id:'advance',name:'Нажать по центру',description:'Наступать прямо, принимая более открытый бой.'},
-    {id:'flank',name:'Обойти с фланга',description:'Искать обход. В лесу и на высотах есть укрытия, у реки манёвр труднее.'},
-    {id:'ranged',name:'Поддержать стрелками',description:'Дать стрелкам время. Особенно полезно при сближении и наличии стрелковых отрядов.'},
-    {id:'withdraw',name:'Отступить организованно',description:'Прекратить бой и сохранить оставшихся. Преследование всё ещё может принести потери.'},
+    {id:'guard',name:'Сомкнуть щиты',description:'Пехота удерживает строй и прикрывает соседние части.',types:['infantry']},
+    {id:'advance',name:'Наступать строем',description:'Пехота движется вперёд единой линией и вступает в ближний бой.',types:['infantry']},
+    {id:'melee',name:'Вынуть мечи',description:'Стрелки отбиваются в ближнем бою. Это крайняя и опасная мера.',types:['archers']},
+    {id:'ranged',name:'Прицельный залп',description:'Лучники стреляют по выбранному вражескому отряду с текущей позиции.',types:['archers']},
+    {id:'fallback',name:'Отойти за пехоту',description:'Лучники разрывают ближний бой и ищут безопасную линию стрельбы.',types:['archers']},
+    {id:'flank',name:'Обход с фланга',description:'Конница обходит строй и выбирает уязвимую цель.',types:['cavalry']},
+    {id:'charge',name:'Конный наскок',description:'Конница быстро атакует выбранный отряд, рискуя попасть под встречный удар.',types:['cavalry']},
+    {id:'withdraw',name:'Отступить всей армией',description:'Прекратить бой и сохранить оставшихся. Преследование всё ещё может принести потери.',types:['infantry','archers','cavalry']},
   ];
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const copy=o=>JSON.parse(JSON.stringify(o));
@@ -213,7 +216,7 @@
   }
   function issueBattleOrder(s,tactic,random,unitId=null,targetId='enemy-main'){
     const m=s.military,b=m?.battle;if(!b)throw new Error('Сражение сейчас не идёт.');
-    if(!TACTICS.some(t=>t.id===tactic))throw new Error('Неизвестный боевой приказ.');
+    const tacticRule=TACTICS.find(t=>t.id===tactic);if(!tacticRule)throw new Error('Неизвестный боевой приказ.');
     const before=snap(s);let result;
     if(tactic==='withdraw'){
       const possible=b.unitIds.reduce((n,id)=>n+m.units.find(u=>u.id===id).strength,0);
@@ -221,6 +224,7 @@
     }else{
       const terrain=location(b.location).terrain,acting=unitId?m.units.find(u=>u.id===unitId&&b.unitIds.includes(u.id)&&u.strength>0):null;
       if(unitId&&!acting)throw new Error('Выбранный отряд не может выполнить приказ.');
+      if(acting&&!tacticRule.types.includes(acting.type))throw new Error('Этот отряд не умеет выполнять выбранный приказ.');
       const activeUnits=acting?[acting]:b.unitIds.map(id=>m.units.find(u=>u.id===id)),basePower=acting?acting.strength*(.65+acting.morale/200)*(1-acting.fatigue/160)*(1+acting.experience/250):playerPower(s,b);
       let power=basePower;
       const archers=b.unitIds.filter(id=>m.units.find(u=>u.id===id).type==='archers').reduce((n,id)=>n+m.units.find(u=>u.id===id).strength,0);
@@ -229,9 +233,13 @@
       if(tactic==='advance'){attack=1.17;defend=.9;}
       if(tactic==='flank'){attack=terrain==='river'?.8:['forest','hill'].includes(terrain)?1.2:1.08;defend=.95;}
       if(tactic==='ranged'){attack=archers>0?(b.phase<2?1.22:1.05):.7;defend=1.08;}
+      if(tactic==='melee'){attack=.78;defend=.62;}
+      if(tactic==='fallback'){attack=.55;defend=1.35;}
+      if(tactic==='charge'){attack=1.35;defend=.72;}
       if(acting){
-        if(acting.type==='archers'){if(tactic==='ranged'&&b.phase<1)attack*=1.45;else if(b.phase>=1){attack*=.42;defend*=.45;}}
+        if(acting.type==='archers'){if(tactic==='ranged'&&b.phase<1)attack*=1.45;else if(tactic==='melee'){attack*=.72;defend*=.7;}else if(tactic==='fallback'){defend*=1.25;}else if(b.phase>=1){attack*=.42;defend*=.45;}}
         if(acting.type==='cavalry'&&targetId==='enemy-ranged')attack*=1.45;
+        if(acting.type==='cavalry'&&tactic==='charge')attack*=targetId==='enemy-guard'?.72:1.15;
         if(acting.type==='infantry'&&tactic==='guard')defend*=1.25;
         if(targetId==='enemy-guard')attack*=.82;if(targetId==='enemy-reserve')attack*=.9;
       }
@@ -239,9 +247,10 @@
       const enemyLoss=Math.min(b.enemyPower,Math.max(1,Math.round(power*.1*attack*(.8+random()*.4))));
       let ownLoss;if(acting){const requested=Math.max(1,Math.round(hostile*.035/defend*(.8+random()*.4)*(acting.type==='archers'&&b.phase>=1?1.8:1)));ownLoss=Math.min(acting.strength,requested);acting.strength-=ownLoss;s.player.army=total(m);}else ownLoss=takeLosses(s,b,Math.max(1,Math.round(hostile*.055/defend*(.8+random()*.4))));
       b.enemyPower-=enemyLoss;b.enemyLosses+=enemyLoss;b.losses+=ownLoss;b.enemyMorale=clamp(Math.round(b.enemyMorale-enemyLoss*1.2),0,100);b.enemyFatigue=clamp(b.enemyFatigue+6,0,100);
-      for(const u of activeUnits){u.fatigue=clamp(u.fatigue+(tactic==='flank'?10:5),0,100);u.morale=clamp(Math.round(u.morale-ownLoss*.65+(enemyLoss>ownLoss?2:0)),0,100);}
+      for(const u of activeUnits){u.fatigue=clamp(u.fatigue+(['flank','charge'].includes(tactic)?10:tactic==='fallback'?7:5),0,100);u.morale=clamp(Math.round(u.morale-ownLoss*.65+(enemyLoss>ownLoss?2:0)),0,100);}
       const tacticName=TACTICS.find(t=>t.id===tactic).name,advantage=enemyLoss-ownLoss;
-      b.lastAction={tactic,tacticName,unitId:acting?.id||null,unitName:acting?.name||'Все отряды',targetId,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position:b.phase===0?'Стороны сблизились, сохраняя отдельные линии строя.':b.phase===1?'Передовые части вошли в соприкосновение; резервы остаются позади.':'Бой дошёл до решающей схватки.'};
+      const position=({guard:'Пехота сомкнула щиты и удерживает свою клетку.',advance:'Пехота перешла на следующую линию и вошла в соприкосновение.',ranged:'Лучники остались в дальней линии и выпустили залп по выбранной цели.',melee:'Лучники вынули мечи и приняли опасный ближний бой.',fallback:'Лучники отошли на одну линию за прикрытие пехоты.',flank:'Конница сместилась к краю поля и заходит во фланг.',charge:'Конница пересекла линию поля и ударила по выбранному строю.'})[tactic]||'Стороны сохранили отдельные линии строя.';
+      b.lastAction={tactic,tacticName,unitId:acting?.id||null,unitName:acting?.name||'Все отряды',targetId,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position};
       b.log.push(`${tacticName}: потеря силы наших войск ${ownLoss}, противника ${enemyLoss}.`);b.phase++;
       if(!b.unitIds.some(id=>m.units.find(u=>u.id===id).strength>0))result=finishBattle(s,b,'defeat');
       else if(b.enemyPower<=0||b.enemyMorale<22)result=finishBattle(s,b,'victory');

@@ -45,6 +45,7 @@
     if (!['home', 'council', 'orders', 'development', 'court', 'army', 'intel', 'history'].includes(tab)) return;
     if(tab!=='home')ui.mapStarted=true;
     ui.tab = tab;
+    const battleAlert=$('#military-alert');if(battleAlert)battleAlert.hidden=!G.getView(state).military?.battle||tab==='army';
     document.body.classList.toggle('map-interface',ui.mapStarted);
     for (const panel of document.querySelectorAll('[data-page]')) panel.hidden = ui.mapStarted ? (panel.dataset.page!=='home'&&panel.dataset.page!==tab) : panel.dataset.page!==tab;
     $('#map-panel-close')?.remove();
@@ -259,8 +260,8 @@
     if (ui.chat) renderChat(v);
     window.PopMilitaryUI.render(v, { quote: opts => G.militaryQuote(state, opts) });
     const battle = v.military?.battle;
-    $('#military-alert').hidden = !battle;
-    if (battle) $('#military-alert').innerHTML = `<span>На рубежах идёт бой: ${esc(battle.locationName)}. Выберите приказ или отступление.</span><button class="button secondary" data-tab="army">К войску →</button>`;
+    $('#military-alert').hidden = !battle || ui.tab === 'army';
+    if (battle) $('#military-alert').innerHTML = `<span>На рубежах идёт бой: ${esc(battle.locationName)}. Выберите приказ или отступление.</span><button class="button secondary" data-battle-focus>К полю боя →</button>`;
     if (battle) { $('#next-month').disabled = true; $('#turn-hint').textContent = 'Сначала завершите столкновение'; }
     setTab(ui.tab);
     if (storageOkay) $('#save-state').textContent = `Ключ мира: ${v.seed} · локальная кампания`;
@@ -281,6 +282,7 @@
     const b = event.target.closest('button, a[data-tab]'); if (!b || b.disabled) return;
     if(b.dataset.mapAction){if(b.dataset.mapAction==='in')changeMapZoom(.1);else if(b.dataset.mapAction==='out')changeMapZoom(-.1);else resetMap();return;}
     if(b.dataset.developmentView){setDevelopmentView(b.dataset.developmentView);return;}
+    if(b.hasAttribute('data-battle-focus')){$('#military-alert').hidden=true;setTab('army',true);setTimeout(()=>{const arena=$('#battle-area');arena?.scrollIntoView({block:'start',behavior:'auto'});arena?.classList.add('battle-focus');setTimeout(()=>arena?.classList.remove('battle-focus'),1600);},40);return;}
     if(b.dataset.mapBuilding){event.preventDefault();setDevelopmentView('buildings');setTab('development',true);setTimeout(()=>{const card=document.querySelector(`[data-order="${b.dataset.mapBuilding}"]`)?.closest('.command-card');card?.classList.add('map-focus');card?.scrollIntoView({block:'center'});setTimeout(()=>card?.classList.remove('map-focus'),1800);},60);return;}
     if (b.dataset.tab) { event.preventDefault();const repeated=b.closest('nav')&&ui.mapStarted&&ui.tab===b.dataset.tab&&b.dataset.tab!=='home';if(!repeated&&b.dataset.tab==='development')setDevelopmentView('buildings');setTab(repeated?'home':b.dataset.tab, true); return; }
     if (b.dataset.filter) { ui.filter = b.dataset.filter; renderOrders(G.getView(state)); return; }
