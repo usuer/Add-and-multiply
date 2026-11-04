@@ -128,7 +128,7 @@ async function advance(page) {
     });
 
     await check('ограничение вывоза принимается без платы и не уменьшает еду жителей',async()=>{
-      await load(page,rich('grain-policy'));await page.click('nav [data-tab="development"]');assert.equal(await page.locator('#laws .law-card').count(),14);
+      await load(page,rich('grain-policy'));await page.click('nav [data-tab="development"]');await page.click('[data-development-view="laws"]');assert.equal(await page.locator('#laws .law-card').count(),14);
       assert.match(await page.locator('#laws').innerText(),/Потребление жителей и армии не меняется|Жители и армия продолжают есть/);
       const before=await saved(page);await page.locator('#laws [data-order="law_grain_reserve"]').click();const queued=await saved(page);assert.equal(queued.player.gold,before.player.gold);assert.equal(queued.ap,before.ap-1);assert.equal(queued.orders[0].paid,0);
       await advance(page);const after=await saved(page);assert.equal(after.laws.grain,'reserve');
@@ -137,7 +137,7 @@ async function advance(page) {
     });
 
     await check('новая санитарная политика реально меняет здоровье и содержание',async()=>{
-      const start=rich('health-policy');const budget=G.economy(start);await load(page,start);await page.click('nav [data-tab="development"]');await page.locator('#laws [data-order="law_health_municipal"]').click();await advance(page);
+      const start=rich('health-policy');const budget=G.economy(start);await load(page,start);await page.click('nav [data-tab="development"]');await page.click('[data-development-view="laws"]');await page.locator('#laws [data-order="law_health_municipal"]').click();await advance(page);
       const after=await saved(page);assert.equal(after.laws.health,'municipal');assert.equal(after.player.health,start.player.health+3);assert.equal(G.economy(after).upkeep,budget.upkeep+3);
     });
 
