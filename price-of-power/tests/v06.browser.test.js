@@ -115,6 +115,13 @@ async function advance(page) {
       assert.equal(portraits.count,10);assert.equal(portraits.unique,10);assert.ok(portraits.embedded);assert.ok(portraits.dimensions.every(w=>w>500));
     });
 
+    await check('у каждого соседа доступны переговоры, торговля и тайные действия',async()=>{
+      await load(page,rich('diplomacy-browser'));await page.click('nav [data-tab="intel"]');
+      assert.equal(await page.locator('.diplomatic-action').count(),18);assert.equal(await page.locator('[data-order="sabotage"][data-order-target="val"]').count(),1);
+      const before=await saved(page);await page.locator('[data-order="trade_goods"][data-order-target="mer"]').click();const after=await saved(page);
+      assert.equal(after.orders.length,1);assert.equal(after.orders[0].type,'trade_goods');assert.equal(after.orders[0].target,'mer');assert.ok(after.player.gold<before.player.gold);
+    });
+
     await check('карта показывает восемь разных проектов и позволяет начать строительство',async()=>{
       await load(page,rich('map-browser'));await page.click('nav [data-tab="development"]');
       assert.equal(await page.locator('#town [data-building-select]').count(),8);
