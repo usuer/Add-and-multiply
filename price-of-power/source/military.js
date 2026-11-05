@@ -42,7 +42,6 @@
     if(terrain==='river'&&y>=44&&y<=60){if(x<44||x>64){attack*=.62;defend*=.75;label='Отряд вошёл в воду вне моста: строй и натиск нарушены.';}else{defend*=.92;label='Отряд сжат на мосту и не может развернуть широкий фронт.';}}
     if(terrain==='plain'){if(type==='cavalry'&&['charge','flank'].includes(tactic))attack*=1.18;if(type==='archers'&&tactic==='ranged')attack*=1.08;label='Открытая равнина даёт обзор стрелкам и разгон коннице.';}
     if(terrain==='fortress'&&y>=58){defend*=1.3;label='Стена и ворота дают защитникам прочное укрытие.';}
-    if(x<25&&y>68){defend*=1.08;label+=' Близость командного пункта помогает держать строй.';}
     if(x>78&&y>68){defend*=1.08;label+=' Обоз рядом поддерживает снабжение и стойкость.';}
     if(type==='cavalry'&&x>=55&&x<=78&&y>=49&&y<=66){attack*=.58;label+=' Колья не дают коннице развить полный натиск.';}
     return {attack,defend,label};
@@ -315,9 +314,9 @@
   }
   function hasBattle(s){return Boolean(s.military?.battle);}
   function battleFeatures(b,terrain){
-    const common=[{id:'command',kind:'command',label:'Командный пункт',x:12,y:79,effect:'Отсюда передают приказы.'},{id:'supply',kind:'cart',label:'Обоз и провиант',x:88,y:78,effect:'Потеря обоза ухудшает снабжение.'},{id:'stakes',kind:'stakes',label:'Колья и заграждения',x:67,y:57,effect:'Сдерживают конницу и обход.'},{id:'reserve',kind:'reserve',label:'Резерв',x:83,y:67,effect:'Вводится в решающей фазе.'}];
+    const common=[{id:'supply',kind:'cart',label:'Обоз и провиант',x:88,y:78,effect:'Стоящий рядом отряд лучше сохраняет стойкость.'},{id:'stakes',kind:'stakes',label:'Колья и заграждения',x:67,y:57,effect:'Конница рядом с кольями теряет силу натиска.'},{id:'reserve',kind:'reserve',label:'Зона резерва',x:83,y:67,effect:'Безопасное место для отряда, который пока не вводят в контакт.'}];
     const terrainObjects={forest:[{id:'trees-a',kind:'trees',label:'Густой лес',x:12,y:32,effect:'Скрывает обходные группы.'},{id:'trees-b',kind:'trees',label:'Лесная опушка',x:84,y:36,effect:'Мешает конному разгону.'}],hill:[{id:'hill',kind:'hill',label:'Господствующая высота',x:48,y:30,effect:'Стрелки сверху опаснее.'},{id:'rocks',kind:'rocks',label:'Каменная гряда',x:18,y:51,effect:'Укрытие от стрел.'}],river:[{id:'river',kind:'river',label:'Река',x:50,y:48,effect:'Переправа сужает строй.'},{id:'bridge',kind:'bridge',label:'Каменный мост',x:54,y:48,effect:'Ключевая точка столкновения.'}],plain:[{id:'farm',kind:'farm',label:'Край полей',x:16,y:42,effect:'Открытая линия обзора.'},{id:'ditch',kind:'ditch',label:'Дорожная канава',x:72,y:43,effect:'Ломает быстрый натиск.'}],fort:[{id:'wall',kind:'wall',label:'Крепостная стена',x:50,y:61,effect:'Защитники получают преимущество.'},{id:'tower-a',kind:'tower',label:'Западная башня',x:25,y:53,effect:'Стрелковая позиция.'},{id:'tower-b',kind:'tower',label:'Надвратная башня',x:75,y:53,effect:'Защищает ворота.'},{id:'gate',kind:'gate',label:'Главные ворота',x:50,y:66,effect:'Если ворота падут, враг войдёт в город.'}]};
-    const phase=b.phase||0,marks=phase?[{id:'arrows',kind:'arrows',label:'Залп стрел',x:42+phase*6,y:42,effect:'След последнего обмена ударами.'},{id:'wounded',kind:'wounded',label:'Перевязочный пункт',x:22,y:75,effect:'Сюда относят раненых.'}]:[];
+    const phase=b.phase||0,marks=phase?[{id:'arrows',kind:'arrows',label:'След залпа',x:42+phase*6,y:42,effect:'Здесь прошёл последний обмен стрелами.'}]:[];
     return [...common,...(terrainObjects[terrain]||terrainObjects.plain),...marks];
   }
   function view(s){
