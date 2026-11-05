@@ -625,6 +625,16 @@
     if (s.ended || (s.month > 0 && s.month % 12 === 0 && !MILITARY.hasBattle(s) && (!s.chapter || s.chapter.month !== s.month))) s.chapter = makeChapter(s);
     return s;
   }
+  function deployBattle(state, placements, confirm=false) {
+    if (state.ended) fail('Правление завершено.');
+    const s=copy(state);logMilitary(s,MILITARY.deployBattle(s,placements,confirm));return settle(s);
+  }
+  function battleOrders(state, orders) {
+    if (state.ended) fail('Правление завершено.');
+    const s=copy(state);logMilitary(s,MILITARY.issueBattleOrders(s,orders,()=>random(s)));settle(s);
+    if (s.ended || (s.month > 0 && s.month % 12 === 0 && !MILITARY.hasBattle(s) && (!s.chapter || s.chapter.month !== s.month))) s.chapter = makeChapter(s);
+    return s;
+  }
   function makeChapter(s) {
     const p = s.player, buildings = BUILDINGS.reduce((sum, b) => sum + p[b.key], 0), hostile = s.neighbors.filter(n => n.relation < -35).length;
     const title = s.ended ? 'Печать снята с вашей руки' : p.stability < 35 ? 'Трон пошатнулся, но устоял' : hostile >= 2 ? 'Мир на острие меча' : buildings >= 4 ? 'Княжество обрело опору' : 'Первый рубеж пройден';
@@ -858,5 +868,5 @@
     validateState(restored);
     return restored;
   }
-  return { VERSION, COUNTRIES: copy(COUNTRIES), COMMANDS: copy(COMMANDS), BUILDINGS: copy(BUILDINGS), LAWS: copy(LAWS), OFFICES:copy(OFFICES), METRICS: copy(METRICS), INTENTS: copy(INTENTS), createGame, queueOrder, appointOfficial, orderBlocker, chooseEvent, advanceMonth, acknowledgeChapter, resolveEncounter, talkToCharacter, workOvertime, restRuler, militaryQuote, launchMilitary, battleOrder, getView, economy, decideNeighbor, serialize, deserialize, validateState, date };
+  return { VERSION, COUNTRIES: copy(COUNTRIES), COMMANDS: copy(COMMANDS), BUILDINGS: copy(BUILDINGS), LAWS: copy(LAWS), OFFICES:copy(OFFICES), METRICS: copy(METRICS), INTENTS: copy(INTENTS), createGame, queueOrder, appointOfficial, orderBlocker, chooseEvent, advanceMonth, acknowledgeChapter, resolveEncounter, talkToCharacter, workOvertime, restRuler, militaryQuote, launchMilitary, deployBattle, battleOrder, battleOrders, getView, economy, decideNeighbor, serialize, deserialize, validateState, date };
 });

@@ -35,6 +35,18 @@
   const diff=(a,s)=>Object.fromEntries(Object.keys(a).filter(k=>a[k]!==s.player[k]).map(k=>[k,s.player[k]-a[k]]));
   const entry=(text,reason='',changes={})=>({text,reason,kind:'military',changes});
   const total=m=>m.reserve+m.units.reduce((sum,u)=>sum+u.strength,0);
+  function positionEffect(terrain,coord,type,tactic){
+    const x=coord?.x??50,y=coord?.y??75;let attack=1,defend=1,label='Открытая позиция без особого преимущества.';
+    if(terrain==='forest'&&(x<27||x>73)){defend*=1.18;label='Опушка скрывает строй и ослабляет стрелы противника.';if(type==='cavalry')attack*=.72;}
+    if(terrain==='hill'&&y<58){attack*=type==='archers'?1.28:1.1;defend*=1.1;label='Высота улучшает обзор, дальность стрельбы и защиту строя.';}
+    if(terrain==='river'&&y>=44&&y<=60){if(x<44||x>64){attack*=.62;defend*=.75;label='Отряд вошёл в воду вне моста: строй и натиск нарушены.';}else{defend*=.92;label='Отряд сжат на мосту и не может развернуть широкий фронт.';}}
+    if(terrain==='plain'){if(type==='cavalry'&&['charge','flank'].includes(tactic))attack*=1.18;if(type==='archers'&&tactic==='ranged')attack*=1.08;label='Открытая равнина даёт обзор стрелкам и разгон коннице.';}
+    if(terrain==='fortress'&&y>=58){defend*=1.3;label='Стена и ворота дают защитникам прочное укрытие.';}
+    if(x<25&&y>68){defend*=1.08;label+=' Близость командного пункта помогает держать строй.';}
+    if(x>78&&y>68){defend*=1.08;label+=' Обоз рядом поддерживает снабжение и стойкость.';}
+    if(type==='cavalry'&&x>=55&&x<=78&&y>=49&&y<=66){attack*=.58;label+=' Колья не дают коннице развить полный натиск.';}
+    return {attack,defend,label};
+  }
   const homeStrength=s=>s.military?s.military.reserve+s.military.units.filter(u=>u.status==='ready').reduce((n,u)=>n+u.strength,0):s.player.army;
   function returnSupplies(s,ids){let food=0;for(const id of ids){const u=s.military.units.find(u=>u.id===id);food+=u.food;u.food=0;}const actual=Math.min(food,9999-s.player.food);s.player.food+=actual;return actual;}
   function distance(from,to) {
@@ -106,7 +118,7 @@
   function beginBattle(s, spec) {
     const m=s.military;
     const battle={id:'battle-'+m.nextId++,location:spec.location,kind:spec.kind,attackerId:spec.attackerId || null,attackerName:spec.attackerName,
-      unitIds:[...spec.unitIds],defending:Boolean(spec.defending),phase:0,actedUnitIds:[],unitPositions:Object.fromEntries(spec.unitIds.map(id=>[id,0])),enemyPower:spec.power,initialEnemyPower:spec.power,enemyMorale:spec.morale??65,enemyFatigue:spec.fatigue??10,
+      unitIds:[...spec.unitIds],defending:Boolean(spec.defending),phase:0,deployed:false,actedUnitIds:[],unitPositions:Object.fromEntries(spec.unitIds.map(id=>[id,0])),unitCoords:Object.fromEntries(spec.unitIds.map((id,i)=>[id,{x:22+i*28,y:78-(i%2)*3}])),unitFormations:Object.fromEntries(spec.unitIds.map(id=>[id,2])),enemyPower:spec.power,initialEnemyPower:spec.power,enemyMorale:spec.morale??65,enemyFatigue:spec.fatigue??10,
       startedArmy:s.player.army,startPlayer:snap(s),weather:m.weather,losses:0,enemyLosses:0,log:[`Столкновение: ${location(spec.location).name}. ${TERRAIN[location(spec.location).terrain]}.` ]};
     for(const id of battle.unitIds)m.units.find(u=>u.id===id).status='battle';
     if(m.battle)m.pendingBattles.push(battle);else m.battle=battle;
@@ -247,6 +259,7 @@
         if(acting.type==='infantry'&&tactic==='guard')defend*=1.25;
         if(targetId==='enemy-guard')attack*=.82;if(targetId==='enemy-reserve')attack*=.9;
       }
+      const ground=positionEffect(terrain,b.unitCoords?.[acting?.id],acting?.type,tactic);attack*=ground.attack;defend*=ground.defend;
       const hostile=b.enemyPower*(.65+b.enemyMorale/200)*(1-b.enemyFatigue/170),enemyMoraleBefore=b.enemyMorale;
       const enemyLoss=Math.min(b.enemyPower,Math.max(1,Math.round(power*.1*attack*(.8+random()*.4))));
       let ownLoss;if(acting){const requested=Math.max(1,Math.round(hostile*.035/defend*(.8+random()*.4)*(acting.type==='archers'&&b.phase>=1?1.8:1)));ownLoss=Math.min(acting.strength,requested);acting.strength-=ownLoss;s.player.army=total(m);}else ownLoss=takeLosses(s,b,Math.max(1,Math.round(hostile*.055/defend*(.8+random()*.4))));
@@ -258,7 +271,7 @@
       if(acting){const movement=({advance:1,melee:1,fallback:-1,flank:.5,charge:1})[tactic]||0;b.unitPositions[acting.id]=clamp((b.unitPositions[acting.id]||0)+movement,0,2);}
       if(acting)b.actedUnitIds.push(acting.id);
       const alive=b.unitIds.filter(id=>m.units.find(u=>u.id===id).strength>0),roundComplete=!acting||alive.every(id=>b.actedUnitIds.includes(id));
-      b.lastAction={tactic,tacticName,unitId:acting?.id||null,unitName:acting?.name||'Все отряды',targetId,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position,enemyResponse,roundComplete};
+      b.lastAction={tactic,tacticName,unitId:acting?.id||null,unitName:acting?.name||'Все отряды',targetId,ownLoss,enemyLoss,enemyMoraleBefore,enemyMoraleAfter:b.enemyMorale,advantage,assessment:advantage>=3?'Наш приказ дал заметное преимущество.':advantage<=-3?'Противник выиграл этот обмен ударами.':'Обмен оказался примерно равным.',position,terrainEffect:ground.label,enemyResponse,roundComplete};
       b.log.push(`${acting?.name||'Все отряды'} — ${tacticName}: наши потери ${ownLoss}, потери противника ${enemyLoss}. ${enemyResponse}`);
       if(roundComplete){b.phase++;b.actedUnitIds=[];}
       if(!b.unitIds.some(id=>m.units.find(u=>u.id===id).strength>0))result=finishBattle(s,b,'defeat');
@@ -267,6 +280,38 @@
       else result=b.log[b.log.length-1];
     }
     return [entry(result,`Местность: ${TERRAIN[location(b.location).terrain]}. Учитывались численность, опыт, дух, усталость, снабжение, погода и приказ.`,diff(before,s))];
+  }
+  function deployBattle(s,placements,confirm=false){
+    const b=s.military?.battle;if(!b)throw new Error('Сражение сейчас не идёт.');
+    if(b.deployed)throw new Error('Расстановка уже завершена.');
+    if(!Array.isArray(placements)||!placements.length)throw new Error('Не указана расстановка войск.');
+    b.unitCoords=b.unitCoords||{};b.unitFormations=b.unitFormations||{};
+    for(const p of placements){
+      if(!b.unitIds.includes(p.unitId))throw new Error('Неизвестный отряд в расстановке.');
+      const x=Number(p.x),y=Number(p.y),rows=Number(p.rows);
+      if(!Number.isFinite(x)||!Number.isFinite(y)||x<10||x>90||y<62||y>88)throw new Error('Отряд можно ставить только в своей зоне расстановки.');
+      if(![1,2,3].includes(rows))throw new Error('Строй может занимать один, два или три ряда.');
+      b.unitCoords[p.unitId]={x:Math.round(x),y:Math.round(y)};b.unitFormations[p.unitId]=rows;
+    }
+    if(confirm){
+      if(!b.unitIds.every(id=>b.unitCoords[id]&&[1,2,3].includes(b.unitFormations[id])))throw new Error('Расставьте все отряды перед началом боя.');
+      b.deployed=true;b.log.push('Воевода утвердил исходную расстановку. Войска ждут общего плана раунда.');
+    }
+    return [entry(confirm?'Расстановка утверждена.':'Позиция отряда изменена.','До начала боя перемещение в своей зоне не расходует боевой раунд.')];
+  }
+  function issueBattleOrders(s,orders,random){
+    const b=s.military?.battle;if(!b)throw new Error('Сражение сейчас не идёт.');
+    if(!b.deployed)throw new Error('Сначала подтвердите исходную расстановку.');
+    const alive=b.unitIds.filter(id=>s.military.units.find(u=>u.id===id)?.strength>0);
+    if(!Array.isArray(orders)||orders.length!==alive.length||new Set(orders.map(o=>o.unitId)).size!==alive.length||!alive.every(id=>orders.some(o=>o.unitId===id)))throw new Error('Отдайте по одному приказу каждому боеспособному отряду.');
+    const entries=[];
+    for(const order of orders){
+      if(!s.military.battle)break;
+      const coord=b.unitCoords?.[order.unitId]||{x:50,y:75},x=clamp(Math.round(Number(order.x) || coord.x),10,90),y=clamp(Math.round(Number(order.y) || coord.y),38,88);
+      b.unitCoords[order.unitId]={x,y};
+      entries.push(...issueBattleOrder(s,order.tactic,random,order.unitId,order.targetId));
+    }
+    return entries;
   }
   function hasBattle(s){return Boolean(s.military?.battle);}
   function battleFeatures(b,terrain){
@@ -308,5 +353,5 @@
     if(m.lastBattle!==null){const b=m.lastBattle;if(!obj(b)||!str(b.id)||!location(b.location)||!str(b.locationName)||!str(b.attackerName)||!['bandits','invasion','rebellion'].includes(b.kind)||!['victory','defeat','retreat'].includes(b.outcome)||!str(b.title)||!str(b.text)||!num(b.month,0,s.month)||!num(b.losses)||!num(b.enemyLosses)||!num(b.loot)||!obj(b.changes)||!Object.entries(b.changes).every(([k,v])=>['gold','food','army','stability'].includes(k)&&num(v,-9999,9999))||!arr(b.log,12)||!b.log.every(str))return false;}
     return true;
   }
-  return {LOCATIONS:copy(LOCATIONS),TERRAIN:copy(TERRAIN),TACTICS:copy(TACTICS),create,syncArmy,homeStrength,quote,launch,advance,issueBattleOrder,scheduleEnemyRaid,view,validate,hasBattle};
+  return {LOCATIONS:copy(LOCATIONS),TERRAIN:copy(TERRAIN),TACTICS:copy(TACTICS),create,syncArmy,homeStrength,quote,launch,advance,deployBattle,issueBattleOrder,issueBattleOrders,scheduleEnemyRaid,view,validate,hasBattle};
 });

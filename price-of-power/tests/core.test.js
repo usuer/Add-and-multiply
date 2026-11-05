@@ -27,7 +27,8 @@ function play(seed, count = 36) {
     }
     for (const e of G.getView(s).encounters.slice(0, 2)) {
       const option = e.choices.find(c => !c.disabled && c.gold <= 6) || e.choices.find(c => !c.disabled);
-      if (option && s.attention) s = G.resolveEncounter(s, e.id, option.id);
+      if (option && s.attention && !s.ended) s = G.resolveEncounter(s, e.id, option.id);
+      if (s.ended) break;
     }
     if(s.ended) break;
     s = G.advanceMonth(s); G.validateState(s);

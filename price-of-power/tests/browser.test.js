@@ -158,7 +158,7 @@ async function artworkLoaded(page) {
           assert.match(await page.locator('#chapter-content').innerText(),/ГЛАВА 1/);await page.screenshot({path:path.join(artifacts,'year-ending.png'),fullPage:true});chapterSeen=true;await page.click('#continue-chapter');
         }
         const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('priceOfPower.v04.auto')).state);const now=stored.month;if(now>=13)break;
-        if(stored.military?.battle){await page.click('nav [data-tab="army"]');await page.click('[data-battle-tactic="withdraw"]');await page.click('nav [data-tab="council"]');continue;}
+        if(stored.military?.battle){await page.click('nav [data-tab="army"]');if(await page.locator('[data-battle-deploy]').count())await page.click('[data-battle-deploy]');for(const id of stored.military.battle.unitIds){const token=page.locator(`.player-token[data-battle-unit="${id}"]`);if(await token.count()){await token.click();await page.click('[data-battle-tactic="withdraw"]');}}await page.click('[data-battle-execute]');await page.click('nav [data-tab="council"]');continue;}
         const choices=page.locator('#council-event [data-choice]:not([disabled])');
         if(await choices.count()){
           let chosen=false;for(const id of ['investigate','talk','fields','import','ration']){const option=page.locator(`#council-event [data-choice="${id}"]:not([disabled])`);if(await option.count()){await option.click();chosen=true;break;}}if(!chosen)await choices.first().click();
