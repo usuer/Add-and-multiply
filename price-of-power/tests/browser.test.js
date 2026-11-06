@@ -94,7 +94,7 @@ async function artworkLoaded(page) {
       }
       assert.match(await page.locator('#attention').innerText(),/Осталось личных дел: 2/);assert.equal(await page.locator('[data-stat="gold"] .stat-value').innerText(),'110');
       await page.locator('#save-file').setInputFiles({name:'start.json',mimeType:'application/json',buffer:Buffer.from(G.serialize(originalState))});
-      await page.waitForFunction(seed=>JSON.parse(localStorage.getItem('priceOfPower.v04.auto')).state.seed===seed,originalState.seed);
+      await page.waitForFunction(seed=>{try{const raw=localStorage.getItem('priceOfPower.v04.auto');return Boolean(raw&&JSON.parse(raw)?.state?.seed===seed);}catch{return false;}},originalState.seed);
       await page.click('nav [data-tab="council"]');
     });
     await check('совет не предсказывает числовые награды до выбора',async()=>{
