@@ -148,7 +148,7 @@
     else if (v.player.gold < 30) advice = 'Казна близка к истощению. Не начинайте всё сразу: развитие и содержание служб должны опираться на доход.';
     $('#adviser').innerHTML = `<span class="eyebrow">КАЗНАЧЕЙ МИРЕНА ВЕЛЬ</span><p>«${esc(advice)}»</p><div class="influence-panel"><span class="eyebrow">КТО ВЛИЯЕТ НА ГОРОД</span>${v.factions.map(f=>`<article class="influence-row ${f.illegal?'illegal':''}"><div><strong>${esc(f.name)}</strong><small>${esc(f.sphere)}</small></div><span>влияние <b>${f.influence}</b></span></article>`).join('')}<button class="text-button" data-tab="orders">Действия против подполья и сделки →</button></div>`;
     $('.appointments-board')?.remove();
-    $('#adviser').insertAdjacentHTML('afterend',`<section class="appointments-board"><div class="section-heading"><div><span class="eyebrow">ЛЮДИ НА КЛЮЧЕВЫХ ДОЛЖНОСТЯХ</span><h2>Кадровые решения</h2></div><span>${v.epidemic?`⚠ ${esc(v.epidemic.name)} · ещё ${v.epidemic.remaining} мес.`:'Назначение расходует 1 поручение'}</span></div>${v.offices.map(o=>`<article class="office-card"><h3>${esc(o.name)}</h3><p>${esc(o.purpose)}</p><div class="office-candidates">${o.candidates.map(c=>`<div class="candidate ${o.appointed===c.id?'appointed':''}"><strong>${esc(c.name)}</strong><small>${esc(c.experience)}</small><span>Связи: ${esc(c.connections)}</span><p class="candidate-plus">+ ${esc(c.benefit)}</p><p class="candidate-minus">− ${esc(c.cost)}</p><button class="button secondary" data-appoint-office="${o.id}" data-appoint-candidate="${c.id}" ${o.appointed===c.id?'disabled':''}>${o.appointed===c.id?'Занимает должность':'Назначить'}</button></div>`).join('')}</div></article>`).join('')}</section>`);
+    $('#adviser').insertAdjacentHTML('afterend',`<details class="appointments-board"><summary><span><b>Кадровые решения</b><small>${v.epidemic?`⚠ ${esc(v.epidemic.name)} · ещё ${v.epidemic.remaining} мес.`:'Наместники, служащие и специалисты'}</small></span><em>Открыть назначения</em></summary><div class="appointments-content">${v.offices.map(o=>`<article class="office-card"><h3>${esc(o.name)}</h3><p>${esc(o.purpose)}</p><div class="office-candidates">${o.candidates.map(c=>`<div class="candidate ${o.appointed===c.id?'appointed':''}"><strong>${esc(c.name)}</strong><small>${esc(c.experience)}</small><span>Связи: ${esc(c.connections)}</span><p class="candidate-plus">+ ${esc(c.benefit)}</p><p class="candidate-minus">− ${esc(c.cost)}</p><button class="button secondary" data-appoint-office="${o.id}" data-appoint-candidate="${c.id}" ${o.appointed===c.id?'disabled':''}>${o.appointed===c.id?'Занимает должность':'Назначить'}</button></div>`).join('')}</div></article>`).join('')}</div></details>`);
     const report = $('#monthly-report'); report.hidden = !v.lastTurn;
     if (v.lastTurn) report.innerHTML = `<div class="section-heading"><h2>Итоги: ${esc(G.date(v.lastTurn.month - 1))}</h2><button class="text-button" data-tab="history">История показателей →</button></div>${changesHTML(v.lastTurn.changes, v.lastTurn.before, v.lastTurn.after)}<details><summary>Почему изменились показатели · ${v.lastTurn.entries.length} записей</summary>${v.lastTurn.entries.map(h => `<div class="turn-entry"><p>${esc(h.text)}</p>${changesHTML(h.changes)}<span>${esc(h.reason)}</span></div>`).join('')}</details>`;
   }
@@ -165,12 +165,12 @@
     $('#development-ap').textContent = `Новых приказов: ${v.ap} / 2`;
     $('#command-catalog').innerHTML = v.commands.filter(d => !d.building && !d.law && (ui.filter === 'Все' || d.category === ui.filter)).map(d => commandCard(v, d)).join('');
     $('#buildings').innerHTML = v.buildings.map(b => commandCard(v, v.commands.find(d => d.id === b.command), b)).join('');
-    $('#policy-budget').innerHTML = `<h3>Что происходит с зерном и казной</h3><p>Зерно: производство <strong>+${v.economy.production}</strong>, пища жителей и войска <strong>−${v.economy.consumption}</strong>, торговый вывоз <strong>−${v.economy.exports || 0}</strong>, потери хранения <strong>−${v.economy.losses}</strong>. Баланс <strong>${signed(v.economy.food)}/мес.</strong></p><p>Казна: поступления <strong>+${v.economy.income}</strong>, содержание войска, служб и действующих законов <strong>−${v.economy.upkeep}</strong>. Баланс <strong>${signed(v.economy.gold)}/мес.</strong> Принятие указа не требует отдельной платы.</p>`;
+    $('#policy-budget').innerHTML = `<details><summary><span>Баланс сейчас</span><b>Казна ${signed(v.economy.gold)} · зерно ${signed(v.economy.food)} / мес.</b></summary><div><p>Зерно: производство <strong>+${v.economy.production}</strong>, потребление <strong>−${v.economy.consumption}</strong>, вывоз <strong>−${v.economy.exports || 0}</strong>, потери <strong>−${v.economy.losses}</strong>.</p><p>Казна: поступления <strong>+${v.economy.income}</strong>, содержание <strong>−${v.economy.upkeep}</strong>. Указы не требуют отдельной платы.</p></div></details>`;
     const incoming=v.military?.enemyMarches?.length||0;
-    $('#laws').innerHTML = `<aside class="policy-alert ${incoming?'danger':''}"><strong>${incoming?'Военная угроза у границ':'Чрезвычайного положения нет'}</strong><p>${incoming?'Можно немедленно ввести призыв, перевести мастерские на военные заказы и организовать помощь жителей. После мира каждый режим можно так же быстро отменить.':'Трудовые и военные правила можно менять сразу. Мирный режим сохраняет хозяйство; мобилизация оправдана при реальной угрозе.'}</p></aside>`+v.lawOptions.map(law => `<article class="law-card ${law.flexible?'law-flexible':''}"><span class="eyebrow">${law.flexible?'МЕНЯЕТСЯ НЕМЕДЛЕННО':'ДЕЙСТВУЮЩИЙ УКЛАД'}</span><h2>${esc(law.name)}</h2><p class="law-explanation">${esc(law.explanation || '')}</p>${law.options.map(o => {
+    $('#laws').innerHTML = `<aside class="policy-alert ${incoming?'danger':''}"><strong>${incoming?'Военная угроза у границ':'Чрезвычайного положения нет'}</strong><p>${incoming?'Можно немедленно ввести призыв, перевести мастерские на военные заказы и организовать помощь жителей. После мира каждый режим можно так же быстро отменить.':'Трудовые и военные правила можно менять сразу. Мирный режим сохраняет хозяйство; мобилизация оправдана при реальной угрозе.'}</p></aside>`+v.lawOptions.map(law => `<details class="law-card ${law.flexible?'law-flexible':''}"><summary><span><small>${law.flexible?'МОЖНО ИЗМЕНИТЬ СРАЗУ':'ТРЕБУЕТ УКАЗА'}</small><b>${esc(law.name)}</b></span><em>${esc(law.options.find(o=>v.laws[law.key]===o.value)?.name || 'Выбрать правило')}</em></summary><div class="law-card-body"><p class="law-explanation">${esc(law.explanation || '')}</p>${law.options.map(o => {
       const active = v.laws[law.key] === o.value, d = v.commands.find(d => d.id === `law_${law.key}_${o.value}`), blocker = G.orderBlocker(state, d.id, ui.target);
       return `<div class="law-option"><strong>${esc(o.name)}</strong>${active ? ' <span class="badge">Действует</span>' : ''}<p>${esc(o.effect)}</p><button class="button secondary" data-order="${d.id}" ${blocker ? 'disabled' : ''}>${active ? 'Закон действует' : blocker ? esc(blocker) : law.flexible?'Изменить сейчас · без платы':'Подготовить указ · без сбора'}</button></div>`;
-    }).join('')}</article>`).join('');
+    }).join('')}</div></details>`).join('');
     renderTown(v);
   }
   function renderReport(r) {
@@ -180,7 +180,7 @@
     $('#neighbors').innerHTML = v.neighbors.map(n => {
       const blocker = G.orderBlocker(state, 'scout', n.id);
       const actions=['envoy','trade_goods','intimidate','bribe_source','sabotage','recruit_expert'].map(id=>{const d=v.commands.find(c=>c.id===id),reason=G.orderBlocker(state,id,n.id);return `<button class="diplomatic-action" data-order="${id}" data-order-target="${n.id}" ${reason?'disabled':''}><span>${esc(d.name)}</span><small>${d.gold} монет · ${d.duration} мес.</small>${reason?`<em>${esc(reason)}</em>`:''}</button>`;}).join('');
-      return `<article class="intel-card"><div class="country-heading"><span class="eyebrow">${esc(n.ruler)}</span><h2>${esc(n.name)}</h2><p>${esc(n.trait)}</p><span class="relation-label">${esc(n.relations)}</span>${n.pactRemaining ? `<p>Договор: ещё ${n.pactRemaining} мес.</p>` : ''}</div><div class="intel-body"><p class="goal">Известный интерес: ${esc(n.goal)}</p>${n.reports[0] ? renderReport(n.reports[0]) : '<p class="muted">Свежих сведений нет.</p>'}${n.reports.length > 1 ? `<details class="old-reports"><summary>Предыдущие сведения</summary>${n.reports.slice(1).map(renderReport).join('')}</details>` : ''}<button class="button secondary" data-scout="${n.id}" ${blocker ? 'disabled' : ''}>Разведка · 14 монет · 2 мес.</button><p class="command-blocker">${esc(blocker || 'Агент может попасться. Сведения могут оказаться ошибочными.')}</p><details class="diplomatic-actions" open><summary>Переговоры и тайные действия</summary><div>${actions}</div><p>Цена сделки зависит от отношений, рынков и силы сторон. Ультиматум или раскрытая диверсия могут приблизить войну.</p></details></div></article>`;
+      return `<article class="intel-card"><div class="country-heading"><span class="eyebrow">${esc(n.ruler)}</span><h2>${esc(n.name)}</h2><p>${esc(n.trait)}</p><span class="relation-label">${esc(n.relations)}</span>${n.pactRemaining ? `<p>Договор: ещё ${n.pactRemaining} мес.</p>` : ''}</div><div class="intel-body"><p class="goal">Известный интерес: ${esc(n.goal)}</p>${n.reports[0] ? renderReport(n.reports[0]) : '<p class="muted">Свежих сведений нет.</p>'}${n.reports.length > 1 ? `<details class="old-reports"><summary>Предыдущие сведения</summary>${n.reports.slice(1).map(renderReport).join('')}</details>` : ''}<button class="button secondary" data-scout="${n.id}" ${blocker ? 'disabled' : ''}>Разведка · 14 монет · 2 мес.</button><p class="command-blocker">${esc(blocker || 'Риск провала и ложных сведений.')}</p><details class="diplomatic-actions"><summary>Переговоры и тайные действия · 6</summary><div>${actions}</div><p>Цена зависит от отношений и силы сторон. Провал может приблизить войну.</p></details></div></article>`;
     }).join('');
     for (const n of v.neighbors) {
       const marker = document.querySelector(`[data-map-country="${n.id}"]`);
@@ -239,9 +239,29 @@
     $('#metric-chart').innerHTML = `<div class="chart-description">${esc(G.METRICS[key])}: ${fmt(values[0])} → ${fmt(values.at(-1))} <small>(${signed(values.at(-1) - values[0])})</small></div><svg class="chart" viewBox="0 0 ${width} 275" role="group" aria-label="График: ${esc(G.METRICS[key])}">${[0,1,2,3].map(i => {const y = top + i / 3 * (bottom - top); return `<path d="M${left} ${y}H${right}" stroke="#45553c" stroke-width="1"/><text x="${left - 10}" y="${y + 4}" text-anchor="end">${Math.round(max - i / 3 * (max - min))}</text>`;}).join('')}${data.length > 1 ? `<path d="${path} L${right} ${bottom} L${left} ${bottom}Z" fill="#bdaf6c" opacity=".07"/><path d="${path}" stroke="#d8ba79" stroke-width="2.5" fill="none"/>` : ''}${points.map(([x,y],i) => `<circle cx="${x}" cy="${y}" r="${data.length > 24 ? 2.5 : 4}" tabindex="0" aria-label="${esc(G.date(data[i].month))}: ${values[i]}"><title>${esc(G.date(data[i].month))}: ${esc(G.METRICS[key])} ${values[i]}</title></circle>`).join('')}${labels.map(i => `<text x="${point(data[i], i)[0]}" y="260" text-anchor="${i === 0 && data.length > 1 ? 'start' : i === data.length - 1 && data.length > 1 ? 'end' : 'middle'}">${esc(G.date(data[i].month))}</text>`).join('')}</svg>${data.length === 1 ? '<p class="muted">Пока есть только начальная точка. Первый результат появится после завершения месяца.</p>' : ''}`;
   }
   function renderHistory(v) {
-    $('#history').innerHTML = v.history.map(h => `<article class="history-item ${esc(h.kind)}"><span class="history-date">${esc(G.date(h.month))}</span><p class="history-text">${esc(h.text)}</p>${Object.keys(h.changes).length ? changesHTML(h.changes) : ''}<p class="history-reason">${esc(h.reason)}</p></article>`).join('');
+    const item = h => `<article class="history-item ${esc(h.kind)}"><span class="history-date">${esc(G.date(h.month))}</span><p class="history-text">${esc(h.text)}</p>${Object.keys(h.changes).length ? changesHTML(h.changes) : ''}<p class="history-reason">${esc(h.reason)}</p></article>`;
+    const recent = v.history.slice(0, 18), archive = v.history.slice(18);
+    $('#history').innerHTML = recent.map(item).join('') + (archive.length ? `<details class="history-archive"><summary>Показать более ранние записи · ${archive.length}</summary>${archive.map(item).join('')}</details>` : '');
     $('#chapter-button').hidden = !v.chapter;
     renderChart(v);
+  }
+  function renderPageCoach() {
+    const guides = {
+      council: [['1','Прочитайте дело'],['2','Выберите приказ'],['3','Узнайте итог']],
+      orders: [['1','Выберите сферу'],['2','Проверьте цену'],['3','Отдайте приказ']],
+      development: [['1','Откройте стройки или законы'],['2','Выберите объект'],['3','Следите за эффектом']],
+      court: [['1','Выберите человека'],['2','Выслушайте просьбу'],['3','Ответьте']],
+      army: [['1','Выберите поход или бой'],['2','Укажите отряды'],['3','Подтвердите общий план']],
+      intel: [['1','Выберите соседа'],['2','Проверьте сведения'],['3','Начните действие']],
+      history: [['1','Выберите показатель'],['2','Сравните период'],['3','Откройте нужную запись']]
+    };
+    document.querySelectorAll('.page-coach').forEach(node => node.remove());
+    const steps = guides[ui.tab], page = document.querySelector(`[data-page="${ui.tab}"]`);
+    if (!steps || !page) return;
+    const guide = document.createElement('aside'); guide.className = 'page-coach'; guide.setAttribute('aria-label','Как действовать в разделе');
+    guide.innerHTML = `<strong>Как действовать</strong>${steps.map(([n,label])=>`<span><b>${n}</b>${label}</span>`).join('')}`;
+    const heading = page.querySelector(':scope > .page-heading');
+    if (heading) heading.insertAdjacentElement('afterend', guide); else page.prepend(guide);
   }
   function renderChapter(v) {
     const c = v.chapter; if (!c) return;
@@ -264,7 +284,7 @@
     $('#military-alert').hidden = !battle || ui.tab === 'army';
     if (battle) $('#military-alert').innerHTML = `<span>На рубежах идёт бой: ${esc(battle.locationName)}. Выберите приказ или отступление.</span><button class="button secondary" data-battle-focus>К полю боя →</button>`;
     if (battle) { $('#next-month').disabled = true; $('#turn-hint').textContent = 'Сначала завершите столкновение'; }
-    setTab(ui.tab);
+    renderPageCoach(); setTab(ui.tab);
     if (storageOkay) $('#save-state').textContent = `Ключ мира: ${v.seed} · локальная кампания`;
     if (v.chapter && !v.chapter.acknowledged && !v.military?.battle && !turnBusy && !$('#chapter-dialog').open) {
       for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();

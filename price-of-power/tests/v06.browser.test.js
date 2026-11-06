@@ -118,6 +118,7 @@ async function advance(page) {
     await check('у каждого соседа доступны переговоры, торговля и тайные действия',async()=>{
       await load(page,rich('diplomacy-browser'));await page.click('nav [data-tab="intel"]');
       assert.equal(await page.locator('.diplomatic-action').count(),18);assert.equal(await page.locator('[data-order="sabotage"][data-order-target="val"]').count(),1);
+      await page.locator('[data-order="trade_goods"][data-order-target="mer"]').locator('xpath=ancestor::details').locator('summary').click();
       const before=await saved(page);await page.locator('[data-order="trade_goods"][data-order-target="mer"]').click();const after=await saved(page);
       assert.equal(after.orders.length,1);assert.equal(after.orders[0].type,'trade_goods');assert.equal(after.orders[0].target,'mer');assert.ok(after.player.gold<before.player.gold);
     });
@@ -136,15 +137,15 @@ async function advance(page) {
 
     await check('ограничение вывоза принимается без платы и не уменьшает еду жителей',async()=>{
       await load(page,rich('grain-policy'));await page.click('nav [data-tab="development"]');await page.click('[data-development-view="laws"]');assert.equal(await page.locator('#laws .law-card').count(),14);
-      assert.match(await page.locator('#laws').innerText(),/Потребление жителей и армии не меняется|Жители и армия продолжают есть/);
-      const before=await saved(page);await page.locator('#laws [data-order="law_grain_reserve"]').click();const queued=await saved(page);assert.equal(queued.player.gold,before.player.gold);assert.equal(queued.ap,before.ap-1);assert.equal(queued.orders[0].paid,0);
+      const grainLaw=page.locator('#laws [data-order="law_grain_reserve"]');await grainLaw.locator('xpath=ancestor::details').locator('summary').click();assert.match(await page.locator('#laws').innerText(),/Потребление жителей и армии не меняется|Жители и армия продолжают есть/);
+      const before=await saved(page);await grainLaw.click();const queued=await saved(page);assert.equal(queued.player.gold,before.player.gold);assert.equal(queued.ap,before.ap-1);assert.equal(queued.orders[0].paid,0);
       await advance(page);const after=await saved(page);assert.equal(after.laws.grain,'reserve');
       const market=structuredClone(after);market.laws.grain='market';const actual=G.economy(after),comparison=G.economy(market);
       assert.equal(actual.consumption,comparison.consumption);assert.equal(actual.exports,0);assert.equal(comparison.exports,2);assert.equal(actual.income,comparison.income-3);assert.equal(actual.food,comparison.food+2);assert.match(await page.locator('#policy-budget').innerText(),/вывоз/i);
     });
 
     await check('новая санитарная политика реально меняет здоровье и содержание',async()=>{
-      const start=rich('health-policy');const budget=G.economy(start);await load(page,start);await page.click('nav [data-tab="development"]');await page.click('[data-development-view="laws"]');await page.locator('#laws [data-order="law_health_municipal"]').click();await advance(page);
+      const start=rich('health-policy');const budget=G.economy(start);await load(page,start);await page.click('nav [data-tab="development"]');await page.click('[data-development-view="laws"]');const healthLaw=page.locator('#laws [data-order="law_health_municipal"]');await healthLaw.locator('xpath=ancestor::details').locator('summary').click();await healthLaw.click();await advance(page);
       const after=await saved(page);assert.equal(after.laws.health,'municipal');assert.equal(after.player.health,start.player.health+3);assert.equal(G.economy(after).upkeep,budget.upkeep+3);
     });
 
