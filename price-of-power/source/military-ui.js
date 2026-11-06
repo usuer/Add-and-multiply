@@ -11,7 +11,7 @@
   const symbols = { capital: '♜', forest: '♧', west: '⌂', north: '△', ford: '≈', east: '◇' };
   const fallbackPosition = { capital: [76, 40], forest: [23, 24], west: [20, 69], north: [55, 14], ford: [50, 66], east: [83, 78] };
   let current = null, quoteFn = null, provinceQuoteFn = null, battleDrag = null;
-  const ui = { target: 'forest', mission: 'expedition', supply: 'normal', selected: null, provinceTarget:'forest', provinceProject:'watch', battleUnit:null, battleTarget:'enemy-main',battleId:null,battlePlans:{},battleFeature:null,battleHelp:true };
+  const ui = { target: 'forest', mission: 'expedition', supply: 'normal', selected: null, provinceTarget:'forest', provinceProject:'watch', battleUnit:null, battleTarget:'enemy-main',battleId:null,battlePlans:{},battleFeature:null,battleHelp:true,animatedRound:null };
   const provinceWorks = {
     watch:{name:'Дозорные посты',description:'Сдерживают рост разбойников и недовольства в этой местности.'},
     depot:{name:'Провиантские склады',description:'Поддерживают снабжение стоящих здесь отрядов.'},
@@ -160,6 +160,47 @@
     const b=current?.military?.battle;if(!b||!ui.battleUnit)return;
     const p=planned(ui.battleUnit);p.x=Math.max(10,Math.min(90,p.x+dx));p.y=Math.max(b.deployed?38:62,Math.min(88,p.y+dy));render(current,callbacks());
   }
+  function tokenFor(field, attribute, id) {
+    return [...field.querySelectorAll(`[${attribute}]`)].find(node => node.dataset[attribute.replace(/^data-/, '').replace(/-([a-z])/g,(_,c)=>c.toUpperCase())] === id);
+  }
+  function projectile(field, from, to, delay, index) {
+    const fieldBox=field.getBoundingClientRect(),a=from.getBoundingClientRect(),b=to.getBoundingClientRect();
+    const x=a.left+a.width/2-fieldBox.left+(index-3)*4,y=a.top+a.height*.38-fieldBox.top+(index%2)*5;
+    const dx=b.left+b.width/2-fieldBox.left-x+(index-3)*5,dy=b.top+b.height*.42-fieldBox.top-y+(index%3-1)*7;
+    const arrow=document.createElement('i'),arc=34+Math.abs(index-3)*3,angle=(vx,vy)=>Math.atan2(vy,vx)*180/Math.PI;arrow.className='battle-projectile';arrow.style.left=`${x}px`;arrow.style.top=`${y}px`;field.append(arrow);
+    const flight=arrow.animate([{transform:`translate(0,0) rotate(${angle(dx,dy-arc*2)}deg)`,opacity:0},{opacity:1,offset:.08},{transform:`translate(${dx*.5}px,${dy*.5-arc}px) rotate(${angle(dx,dy)}deg)`,opacity:1,offset:.5},{transform:`translate(${dx}px,${dy}px) rotate(${angle(dx,dy+arc*2)}deg)`,opacity:1,offset:.88},{transform:`translate(${dx}px,${dy}px) rotate(${angle(dx,dy+arc*2)}deg)`,opacity:0}],{duration:920,delay,fill:'forwards',easing:'linear'});
+    flight.finished.catch(()=>{}).finally(()=>arrow.remove());
+  }
+  function impact(field, token, delay, ranged) {
+    const box=token.getBoundingClientRect(),root=field.getBoundingClientRect(),burst=document.createElement('i');burst.className=`battle-impact ${ranged?'arrow-impact':'steel-impact'}`;burst.style.left=`${box.left+box.width/2-root.left}px`;burst.style.top=`${box.top+box.height*.45-root.top}px`;burst.innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i>';field.append(burst);
+    const animation=burst.animate([{transform:'translate(-50%,-50%) scale(.25)',opacity:0},{transform:'translate(-50%,-50%) scale(1)',opacity:1,offset:.3},{transform:'translate(-50%,-50%) scale(1.45)',opacity:0}],{duration:620,delay,fill:'forwards',easing:'cubic-bezier(.15,.8,.25,1)'});animation.finished.catch(()=>{}).finally(()=>burst.remove());
+  }
+  function lossMarker(field, token, value, delay, enemy=false) {
+    if(!value)return;const box=token.getBoundingClientRect(),root=field.getBoundingClientRect(),mark=document.createElement('b');
+    mark.className=`battle-loss ${enemy?'enemy-loss':'own-loss'}`;mark.textContent=`−${number(value)}`;mark.style.left=`${box.left+box.width/2-root.left}px`;mark.style.top=`${box.top+box.height*.25-root.top}px`;field.append(mark);
+    const effect=mark.animate([{transform:'translate(-50%,8px) scale(.7)',opacity:0},{transform:'translate(-50%,-8px) scale(1.15)',opacity:1,offset:.25},{transform:'translate(-50%,-42px) scale(1)',opacity:0}],{duration:1050,delay,fill:'forwards',easing:'ease-out'});effect.finished.catch(()=>{}).finally(()=>mark.remove());
+  }
+  function clash(field, actor, target, action, start) {
+    const a=actor.getBoundingClientRect(),b=target.getBoundingClientRect(),dx=(b.left+b.width/2)-(a.left+a.width/2),dy=(b.top+b.height/2)-(a.top+a.height/2),ranged=action.tactic==='ranged';
+    actor.classList.add(ranged?'anim-volley':'anim-charge');target.classList.add('anim-defend');
+    if(ranged){for(let i=0;i<7;i++)projectile(field,actor,target,start+i*65,i);}
+    else {
+      actor.animate([{transform:'translate(-50%,-50%)'},{transform:`translate(calc(-50% + ${dx*.68}px),calc(-50% + ${dy*.68}px))`,offset:.46},{transform:`translate(calc(-50% + ${dx*.61}px),calc(-50% + ${dy*.61}px))`,offset:.7},{transform:'translate(-50%,-50%)'}],{duration:1450,delay:start,fill:'none',easing:'cubic-bezier(.2,.75,.2,1)'});
+      target.animate([{transform:'translate(-50%,-50%)'},{transform:'translate(-50%,-50%)',offset:.42},{transform:`translate(calc(-50% + ${-dx*.12}px),calc(-50% + ${-dy*.12}px))`,offset:.6},{transform:'translate(-50%,-50%)'}],{duration:1450,delay:start,fill:'none',easing:'ease-out'});
+    }
+    const hitAt=start+(ranged?820:620),attackers=[...actor.querySelectorAll('.painted-fighter')],defenders=[...target.querySelectorAll('.painted-fighter')];impact(field,target,hitAt,ranged);
+    attackers.forEach((fighter,i)=>fighter.animate(ranged?[{transform:'translate(-50%,-50%) rotate(-4deg)'},{transform:'translate(-50%,-58%) rotate(8deg)'},{transform:'translate(-50%,-50%)'}]:[{transform:'translate(-50%,-50%)'},{transform:`translate(${i%2?'-35%':'-60%'},-68%) rotate(${i%2?18:-16}deg)`},{transform:'translate(-50%,-50%)'}],{duration:ranged?520:520,delay:start+(i%3)*55,easing:'ease-in-out'}));
+    defenders.slice(0,Math.max(2,Math.min(5,Math.ceil(number(action.enemyLoss)/2)))).forEach((fighter,i)=>fighter.animate([{transform:'translate(-50%,-50%) rotate(180deg)',filter:'brightness(1)'},{transform:`translate(${i%2?'-25%':'-75%'},-35%) rotate(${215+i*9}deg)`,filter:'brightness(1.7) sepia(1)',offset:.38},{transform:`translate(${i%2?'-25%':'-75%'},20%) rotate(${250+i*8}deg)`,filter:'brightness(.55)',opacity:.35}],{duration:900,delay:hitAt+i*45,fill:'forwards',easing:'ease-out'}));
+    lossMarker(field,target,action.enemyLoss,hitAt,true);lossMarker(field,actor,action.ownLoss,hitAt+260,false);
+    setTimeout(()=>{actor.classList.remove('anim-volley','anim-charge');target.classList.remove('anim-defend');},start+1550);
+  }
+  function playBattleSequence(b) {
+    if(!b)return;const actions=b.lastRoundActions?.length?b.lastRoundActions:(b.lastAction?[b.lastAction]:[]);if(!actions.length)return;
+    const key=`${b.id}:${b.phase}:${actions.map(a=>`${a.unitId}:${a.tactic}:${a.enemyLoss}:${a.ownLoss}`).join('|')}`;if(ui.animatedRound===key)return;ui.animatedRound=key;
+    const field=document.querySelector('#battle-area .battlefield');if(!field)return;field.classList.add('battle-animating');const status=document.createElement('div');status.className='battle-animation-status';status.innerHTML='<i></i><span>Выполняется общий план раунда</span>';field.append(status);
+    actions.forEach((action,i)=>{const actor=tokenFor(field,'data-battle-unit',action.unitId),target=tokenFor(field,'data-battle-enemy',action.targetId);if(actor&&target)clash(field,actor,target,action,260+i*1650);});
+    setTimeout(()=>{field?.classList.remove('battle-animating');status.remove();},Math.max(1800,actions.length*1650+500));
+  }
   function render(v, options = {}) {
     if (typeof document === 'undefined') return;
     const target = document.getElementById('military-content'); if (!target) return;
@@ -174,6 +215,7 @@
     target.innerHTML = `<div class="military-intro"><p>Поход требует времени и провианта. Отряды могут устать ещё до встречи с противником. Усиливайте опасные рубежи, следите за дорогами и выбирайте, где принять бой.</p><span class="badge">${esc(weatherName(m.weather))}</span></div><section id="military-summary" class="military-summary"><div><small>ВСЕГО СИЛЫ</small><strong>${number(m.summary?.totalStrength ?? v.player.army)}</strong></div><div><small>ГОТОВО К ПОХОДУ</small><strong>${number(m.summary?.readyStrength)}</strong></div><div><small>ОБОРОНА СТОЛИЦЫ</small><strong>${number(v.player.defense)}</strong></div><div><small>ТРЕВОЖНЫЕ МЕСТА</small><strong>${number(m.summary?.banditSites) + number(m.summary?.unrestSites)}</strong></div></section><section class="campaign-card"><div class="section-heading"><div><span class="eyebrow">ДОРОГИ, ЛЕСА И ПЕРЕПРАВЫ</span><h2>Карта рубежей</h2></div><span class="muted">Выберите местность</span></div>${mapHTML(m)}${locationHTML(m)}<p class="campaign-map-note">На узком экране карту можно прокручивать в стороны. Сила войска — условный показатель, не число людей.</p></section><section class="military-castle"><div><span class="eyebrow">СЕРДЦЕ КНЯЖЕСТВА</span><h2>Замок Ардена</h2><p>Укрепления: ${number(v.player.defense)} · находящиеся в столице отряды: ${number(capitalStrength)} силы.</p><p>Стены помогают обороне столицы. Воевода не сможет одновременно выставить один отряд у ворот и отправить его к далёкой заставе.</p></div></section><div class="page-heading"><div><span class="eyebrow">ЛЮДИ ПОД ВАШИМ ЗНАМЕНЕМ</span><h2>Дружина и отряды</h2></div><span class="muted">Резерв: ${number(m.reserve)}</span></div><section id="military-units" class="military-units">${m.units.map(unitHTML).join('')}</section><div class="military-planning"><form id="military-orders"><span class="eyebrow">ПРИКАЗ ВОЕВОДЕ</span><h2>Подготовить поход</h2><div class="military-form-fields"><label>Местность<select id="military-target" ${ui.mission==='return'?'disabled':''}>${m.locations.map(l=>`<option value="${esc(l.id)}" ${ui.target===l.id?'selected':''}>${esc(l.name)} · ${esc(l.terrainLabel)}</option>`).join('')}</select></label><label>Задача<select id="military-mission">${Object.entries(missionNames).map(([id,name])=>`<option value="${id}" ${ui.mission===id?'selected':''}>${name}</option>`).join('')}</select></label><label>Провиант<select id="military-supply">${Object.entries(supplyNames).map(([id,name])=>`<option value="${id}" ${ui.supply===id?'selected':''}>${name}</option>`).join('')}</select></label></div><div id="military-quote" aria-live="polite"></div><button type="submit" class="button primary" id="military-launch">Отдать приказ о выступлении →</button></form><section id="military-marches"><span class="eyebrow">ВЕСТИ С ДОРОГ</span><h2>Походы и приближение угроз</h2>${marchesHTML(m)}</section></div>${battleHTML(m)}${resultHTML(m.lastBattle)}`;
     if(provinceQuoteFn)target.querySelector('.military-castle').insertAdjacentHTML('beforebegin',provinceHTML(v));
     updateQuote();updateProvinceQuote();
+    playBattleSequence(m.battle);
   }
   if (typeof document !== 'undefined') {
     document.addEventListener('pointerdown',event=>{
