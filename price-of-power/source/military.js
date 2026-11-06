@@ -303,13 +303,15 @@
     if(!b.deployed)throw new Error('Сначала подтвердите исходную расстановку.');
     const alive=b.unitIds.filter(id=>s.military.units.find(u=>u.id===id)?.strength>0);
     if(!Array.isArray(orders)||orders.length!==alive.length||new Set(orders.map(o=>o.unitId)).size!==alive.length||!alive.every(id=>orders.some(o=>o.unitId===id)))throw new Error('Отдайте по одному приказу каждому боеспособному отряду.');
-    const entries=[];
+    const entries=[],roundActions=[];
     for(const order of orders){
       if(!s.military.battle)break;
       const coord=b.unitCoords?.[order.unitId]||{x:50,y:75},x=clamp(Math.round(Number(order.x) || coord.x),10,90),y=clamp(Math.round(Number(order.y) || coord.y),38,88);
       b.unitCoords[order.unitId]={x,y};
       entries.push(...issueBattleOrder(s,order.tactic,random,order.unitId,order.targetId));
+      if(b.lastAction)roundActions.push(copy(b.lastAction));
     }
+    if(s.military.battle)s.military.battle.lastRoundActions=roundActions;
     return entries;
   }
   function hasBattle(s){return Boolean(s.military?.battle);}
