@@ -290,7 +290,7 @@
       const x=Number(p.x),y=Number(p.y),rows=Number(p.rows);
       if(!Number.isFinite(x)||!Number.isFinite(y)||x<14||x>86||y<64||y>78)throw new Error('Отряд можно ставить только в двух нижних рядах зоны расстановки.');
       if(![1,2,3].includes(rows))throw new Error('Строй может занимать один, два или три ряда.');
-      b.unitCoords[p.unitId]={x:clamp(14+Math.round((x-14)/9)*9,14,86),y:clamp(22+Math.round((y-22)/14)*14,64,78)};b.unitFormations[p.unitId]=rows;
+      b.unitCoords[p.unitId]={x:clamp(18+Math.round((x-18)/8)*8,18,82),y:clamp(22+Math.round((y-22)/14)*14,64,78)};b.unitFormations[p.unitId]=rows;
     }
     if(confirm){
       if(!b.unitIds.every(id=>b.unitCoords[id]&&[1,2,3].includes(b.unitFormations[id])))throw new Error('Расставьте все отряды перед началом боя.');
@@ -306,7 +306,7 @@
     const entries=[],roundActions=[];
     for(const order of orders){
       if(!s.military.battle)break;
-      const coord=b.unitCoords?.[order.unitId]||{x:50,y:78},rawX=Number(order.x),rawY=Number(order.y),x=clamp(14+Math.round(((Number.isFinite(rawX)?rawX:coord.x)-14)/9)*9,14,86),y=clamp(22+Math.round(((Number.isFinite(rawY)?rawY:coord.y)-22)/14)*14,22,78);
+      const coord=b.unitCoords?.[order.unitId]||{x:50,y:78},rawX=Number(order.x),rawY=Number(order.y),x=clamp(18+Math.round(((Number.isFinite(rawX)?rawX:coord.x)-18)/8)*8,18,82),y=clamp(22+Math.round(((Number.isFinite(rawY)?rawY:coord.y)-22)/14)*14,22,78);
       b.unitCoords[order.unitId]={x,y};
       entries.push(...issueBattleOrder(s,order.tactic,random,order.unitId,order.targetId));
       if(b.lastAction)roundActions.push(copy(b.lastAction));
