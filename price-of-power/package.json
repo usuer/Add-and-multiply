@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node tests/laws.test.js && node tests/development.test.js && node tests/military.test.js && node tests/core.test.js",
     "build": "node scripts/build.js",
-    "test:browser": "node tests/browser.test.js && node tests/v06.browser.test.js"
+    "test:browser": "node tests/browser.test.js && node tests/v06.browser.test.js",
+    "test:visual": "node tests/visual-audit.browser.test.js"
   },
   "engines": { "node": ">=20" }
 }
