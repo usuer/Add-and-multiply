@@ -22,7 +22,11 @@ async function inspect(page,label){
     const unnamed=[...document.querySelectorAll('button,a[href]')].filter(visible).filter(n=>!(n.textContent||'').trim()&&!n.getAttribute('aria-label')&&!n.getAttribute('title')).map(n=>n.outerHTML.slice(0,100));
     const unlabeled=[...document.querySelectorAll('input:not([type="hidden"]),select,textarea')].filter(visible).filter(n=>!n.closest('label')&&!n.getAttribute('aria-label')&&!n.getAttribute('aria-labelledby')).map(n=>n.id||n.outerHTML.slice(0,80));
     const ids=[...document.querySelectorAll('[id]')].map(n=>n.id),duplicates=[...new Set(ids.filter((id,i)=>ids.indexOf(id)!==i))];
-    return {docOverflow,clipped:clipped.slice(0,20),badButtons:badButtons.slice(0,20),unnamed,unlabeled,duplicates};
+    const activePanel=[...document.querySelectorAll('[data-page]')].find(n=>getComputedStyle(n).display!=='none');
+    const activeHeadingVisible=!activePanel||activePanel.dataset.page==='home'||[...activePanel.querySelectorAll('h1,h2')].some(visible);
+    const sidebar=document.querySelector('.sidebar')?.getBoundingClientRect();
+    const mobileSidebarCompact=innerWidth>760||!sidebar||sidebar.height<80;
+    return {docOverflow,clipped:clipped.slice(0,20),badButtons:badButtons.slice(0,20),unnamed,unlabeled,duplicates,activeHeadingVisible,mobileSidebarCompact};
   });
   assert.equal(result.docOverflow,false,`${label}: horizontal document overflow`);
   assert.deepEqual(result.clipped,[],`${label}: clipped text ${JSON.stringify(result.clipped)}`);
@@ -30,6 +34,8 @@ async function inspect(page,label){
   assert.deepEqual(result.unnamed,[],`${label}: unnamed controls ${JSON.stringify(result.unnamed)}`);
   assert.deepEqual(result.unlabeled,[],`${label}: unlabeled fields ${JSON.stringify(result.unlabeled)}`);
   assert.deepEqual(result.duplicates,[],`${label}: duplicate ids ${JSON.stringify(result.duplicates)}`);
+  assert.equal(result.activeHeadingVisible,true,`${label}: active page heading is hidden or covered`);
+  assert.equal(result.mobileSidebarCompact,true,`${label}: mobile navigation covers the page`);
   await page.screenshot({path:path.join(artifacts,`${label}.png`)});
 }
 
