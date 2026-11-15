@@ -122,3 +122,47 @@ body.map-interface [data-page="court"] .person-card p{font-size:12px;-webkit-lin
   [data-development-section="laws"] .law-card{flex-basis:300px}
   .military-unit{padding-right:90px!important}.military-unit:after{width:82px;height:150px;opacity:.76}
 }
+
+/* Layout integrity: every decision occupies its own row at compact widths. */
+@media(max-width:1250px){
+  .council-card .choice{display:grid;grid-template-columns:26px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:10px;row-gap:5px;align-items:start}
+  .council-card .choice-index{grid-column:1;grid-row:1/4}
+  .council-card .choice strong{grid-column:2;grid-row:1;min-width:0;overflow-wrap:anywhere}
+  .council-card .choice-description{grid-column:2;grid-row:2;min-width:0;overflow-wrap:anywhere}
+  .council-card .choice small{grid-column:2;grid-row:3;margin:2px 0 0;padding:0;text-align:left}
+}
+
+/* A battle alert gets reserved space instead of floating over the current page. */
+body.map-interface:has(#military-alert:not([hidden])) [data-page]:not([data-page="home"]):not([data-page="army"]){padding-top:112px}
+body.map-interface #military-alert{top:91px;right:22px;left:auto;width:min(360px,calc(100vw - 118px));padding:12px 13px;border-radius:10px;background:#542f25f5;box-shadow:0 12px 28px #0009}
+body.map-interface #military-alert span{font-size:11px;line-height:1.45}
+body.map-interface #military-alert .button{flex:0 0 auto;padding:7px 9px;white-space:nowrap}
+
+/* Battle HUD: no stacked sticky layers, no controls escaping to the right. */
+.military-view-tabs{position:sticky!important;top:0!important;z-index:40;background:#102019!important;backdrop-filter:none!important;box-shadow:0 8px 18px #0008}
+.battle-turn-submit{position:sticky!important;top:62px!important;z-index:39;margin:0;background:#1b2d22!important;box-shadow:0 8px 18px #0008}
+.field-command-palette{width:min(940px,calc(100% - 28px));display:grid;grid-template-columns:210px minmax(0,1fr) auto;gap:10px 14px;align-items:center}
+.field-command-palette>div:first-child{min-width:0}.field-command-palette>span{margin:0}
+.field-tactics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));min-width:0;overflow:visible}
+.field-tactics .button{min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere}
+body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stats{display:none!important}
+
+@media(max-width:760px){
+  body.map-interface:has(#military-alert:not([hidden])) [data-page]:not([data-page="home"]):not([data-page="army"]){padding-top:132px}
+  body.map-interface #military-alert{top:94px;right:12px;left:12px;width:auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px}
+  body.map-interface [data-page]:not([data-page="home"]){padding-bottom:140px;scroll-padding-bottom:90px}
+  .field-command-palette{grid-template-columns:minmax(0,1fr) auto;width:calc(100% - 12px)}
+  .field-tactics{grid-column:1/-1;grid-template-columns:repeat(3,minmax(128px,1fr));overflow-x:auto;padding-bottom:2px}
+  .field-tactics .button{min-width:128px}
+}
+
+/* Browser print/PDF has its own flow; fixed game HUD must not cover the page. */
+@media print{
+  body{background:#102019!important}.sidebar,#stats,.map-controls,.topbar-actions,.map-panel-close{display:none!important}
+  body:has([data-page]:not([data-page="home"]):not([hidden])) #realm-home{display:none!important}
+  body.map-interface{overflow:visible!important}body.map-interface .topbar{position:static!important;height:auto!important;padding:12px 20px!important}
+  body.map-interface [data-page]:not([data-page="home"]){position:static!important;width:100%!important;min-height:auto!important;overflow:visible!important;padding:24px!important;border:0!important;box-shadow:none!important}
+  body.map-interface #military-alert{position:static!important;width:auto!important;margin:12px 24px!important}
+  .military-view-tabs,.battle-turn-submit{position:static!important}.footer{display:none!important}
+  .council-card,.choices{break-inside:auto!important}.council-card .choices{display:block!important}.council-card .choice{display:block!important;break-inside:avoid;margin:9px 0}.council-card .choice>*{display:block!important;margin:4px 0!important}
+}

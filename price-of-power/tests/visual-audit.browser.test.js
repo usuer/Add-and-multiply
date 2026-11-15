@@ -26,7 +26,9 @@ async function inspect(page,label){
     const activeHeadingVisible=!activePanel||activePanel.dataset.page==='home'||[...activePanel.querySelectorAll('h1,h2')].some(visible);
     const sidebar=document.querySelector('.sidebar')?.getBoundingClientRect();
     const mobileSidebarCompact=innerWidth>760||!sidebar||sidebar.height<80;
-    return {docOverflow,clipped:clipped.slice(0,20),badButtons:badButtons.slice(0,20),unnamed,unlabeled,duplicates,activeHeadingVisible,mobileSidebarCompact};
+    const intersects=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
+    const choiceTextOverlaps=[...document.querySelectorAll('.council-card .choice')].filter(visible).some(choice=>{const title=choice.querySelector('strong'),description=choice.querySelector('.choice-description');return title&&description&&intersects(title.getBoundingClientRect(),description.getBoundingClientRect());});
+    return {docOverflow,clipped:clipped.slice(0,20),badButtons:badButtons.slice(0,20),unnamed,unlabeled,duplicates,activeHeadingVisible,mobileSidebarCompact,choiceTextOverlaps};
   });
   assert.equal(result.docOverflow,false,`${label}: horizontal document overflow`);
   assert.deepEqual(result.clipped,[],`${label}: clipped text ${JSON.stringify(result.clipped)}`);
@@ -36,6 +38,7 @@ async function inspect(page,label){
   assert.deepEqual(result.duplicates,[],`${label}: duplicate ids ${JSON.stringify(result.duplicates)}`);
   assert.equal(result.activeHeadingVisible,true,`${label}: active page heading is hidden or covered`);
   assert.equal(result.mobileSidebarCompact,true,`${label}: mobile navigation covers the page`);
+  assert.equal(result.choiceTextOverlaps,false,`${label}: council choice title overlaps its description`);
   await page.screenshot({path:path.join(artifacts,`${label}.png`)});
 }
 
