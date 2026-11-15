@@ -43,3 +43,82 @@ dialog{border-radius:15px;border-color:#65775d;box-shadow:var(--shadow)}dialog::
 @media(max-width:760px){html{font-size:15px}body.map-interface .topbar{height:88px;padding:9px 10px}.topbar-actions [data-action="save"],.topbar-actions [data-action="load"],.topbar-actions [data-action="sound"]{display:none}body.map-interface .topbar-actions .button[data-action="new"]{display:block;min-height:34px;padding:6px 8px;font-size:0}body.map-interface .topbar-actions .button[data-action="new"]:after{content:'Новая';font-size:9px}body.map-interface .turn-control{margin:0}body.map-interface .turn-control .button{min-height:40px;font-size:11px;padding:8px 10px}body.map-interface .date{font-size:20px}body.map-interface .sidebar{left:8px;right:auto;top:auto!important;bottom:8px;width:calc(100vw - 16px);height:53px!important;min-height:0;max-height:53px;border-radius:13px;padding:5px;display:block}body.map-interface .sidebar nav{display:flex;flex-direction:row;align-items:center;justify-content:space-around;gap:2px;height:41px;overflow:hidden}body.map-interface .nav-item{width:41px;height:41px;flex:0 0 41px}body.map-interface [data-page]:not([data-page="home"]){top:88px;bottom:69px;width:100vw;padding:17px 14px 92px;border:0}body.map-interface .home-map-heading{left:10px;right:10px;top:96px;width:auto}.home-hotspot{width:105px}.page-heading{margin:12px 0 16px}h1{font-size:28px}.intro{font-size:13px}.council-card>:not(.council-scene){margin-left:17px;margin-right:17px}.council-card h2{font-size:27px}.border-scene{height:190px}.border-army{transform:scale(.8)}.operations{display:block;padding:16px}.choices{grid-template-columns:1fr}.choice{display:block}.choice-index{display:block;margin-bottom:5px}.choice-description{margin-top:5px}.choice small{display:block;margin-top:8px}.audience-tile{flex-basis:285px!important;min-height:280px}.person-card{flex-basis:250px!important}.audience-stage{display:block!important;background:#e5dcc5!important}.audience-portrait-wrap{width:100%!important;max-height:42vh}.audience-scroll{padding:25px 18px 90px!important}#command-catalog{display:flex!important;overflow-x:auto;gap:12px}#command-catalog .command-card{flex:0 0 280px}.law-grid{grid-template-columns:1fr}.intel-card{display:block}.chart{min-height:220px}.development-tabs{display:flex;width:100%}.development-tabs button{flex:1}.military-nav{overflow:auto}.military-nav button{flex:0 0 auto;padding-inline:14px}}
 @media(max-width:400px){body.map-interface .topbar .eyebrow{font-size:6px}.home-hotspot{transform:translate(-50%,-50%) scale(.9)}.home-hotspot:hover{transform:translate(-50%,-50%) scale(.94)}.border-bank{width:41%}.border-bank b{font-size:11px}.border-army{transform:scale(.68)}.bank-arden{left:1%}.bank-foreign{right:1%}.scene-weather{max-width:190px}.page-heading>.badge{font-size:9px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+
+/* Art pass: buildings use the high-resolution production atlas without stretching. */
+.development-art,.home-hotspot:before{background-image:url('assets/buildings-atlas-premium.webp')}
+.development-building-picture{aspect-ratio:16/10!important;background:#17261d}
+.development-building-picture>.development-art{background-size:400% 200%;filter:saturate(.9) contrast(1.03)}
+.development-building-picture:after{background:linear-gradient(0deg,#07120de6 0,transparent 48%)}
+#buildings .development-building{flex-basis:350px;box-shadow:0 18px 42px #0007}
+.development-building-copy{padding:19px 20px}.development-building h2{font-size:24px}.development-building .command-description{min-height:0}
+
+/* Court cards are portrait compositions, never narrow face strips. */
+body.map-interface [data-page="court"] .audience-gallery{display:flex!important;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:5px 4px 22px!important}
+body.map-interface [data-page="court"] .audience-tile{flex:0 0 340px!important;scroll-snap-align:start;min-height:555px;background:#14271d!important}
+body.map-interface [data-page="court"] .audience-open{display:grid;grid-template-columns:1fr;grid-template-rows:340px minmax(0,1fr);min-height:555px;height:100%}
+body.map-interface [data-page="court"] .audience-open>.portrait{width:100%;height:340px;min-height:340px;aspect-ratio:1;border-radius:14px 14px 0 0;box-shadow:inset 0 -35px 32px #0c1914a6}
+body.map-interface [data-page="court"] .audience-tile-copy{padding:20px 24px 22px;min-height:215px}
+body.map-interface [data-page="court"] .audience-tile-copy strong{font-size:27px}
+body.map-interface [data-page="court"] .audience-tile-copy>span{font-size:13px!important;-webkit-line-clamp:3!important}
+body.map-interface [data-page="court"] .audience-arrow{right:18px;top:auto;bottom:18px}
+body.map-interface [data-page="court"] .people-grid{display:flex!important;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 3px 22px!important}
+body.map-interface [data-page="court"] .person-card{display:block;flex:0 0 270px!important;min-height:470px;scroll-snap-align:start}
+body.map-interface [data-page="court"] .person-card>.portrait{display:block;width:100%;height:270px!important;min-height:270px;aspect-ratio:1;border-radius:14px 14px 0 0;box-shadow:inset 0 -30px 26px #0b181299}
+body.map-interface [data-page="court"] .person-card>div{padding:18px 19px}
+body.map-interface [data-page="court"] .person-card h3{font-size:24px}
+body.map-interface [data-page="court"] .person-card p{font-size:12px;-webkit-line-clamp:3}
+
+/* Diplomacy receives a visual identity per realm instead of three form-like blocks. */
+.intel-card{position:relative;background:#112119!important}
+.intel-card .country-heading{position:relative;min-height:190px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;background-image:linear-gradient(180deg,#07110b12 18%,#07110be8 100%),url('assets/realms-triptych.webp');background-size:300% 100%;background-repeat:no-repeat;border:0}
+.intel-card:nth-child(1) .country-heading{background-position:0 50%}.intel-card:nth-child(2) .country-heading{background-position:50% 50%}.intel-card:nth-child(3) .country-heading{background-position:100% 50%}
+.country-heading .eyebrow,.country-heading h2,.country-heading p,.country-heading .relation-label{position:relative;z-index:1;text-shadow:0 2px 8px #000}
+.country-heading h2{font-size:32px;color:#fff1ca}.country-heading p{color:#d8dfd3}.relation-label{align-self:flex-start;background:#112018d9;border-radius:99px;padding:5px 10px}
+.intel-body{background:linear-gradient(145deg,#182c21,#102019)}
+.report{padding:15px;border:1px solid #304a38;border-radius:10px;background:#0e1e17}
+.diplomatic-actions{border:0;padding-top:8px}.diplomatic-actions>summary{padding:11px 13px;border:1px solid #3f5944;border-radius:9px;background:#1b3024}
+
+/* Management screens read as game boards, not stacked browser forms. */
+[data-page="orders"] .intro,[data-page="intel"] .intro,[data-page="court"]>.intro{max-width:760px;font-size:14px}
+#command-catalog{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:16px;padding:5px 3px 24px}
+#command-catalog .command-card{position:relative;flex:0 0 330px;min-height:330px;overflow:hidden;scroll-snap-align:start;padding:24px;background:radial-gradient(circle at 100% 0,#60754c33,transparent 36%),linear-gradient(145deg,#203629,#12241b)!important}
+#command-catalog .command-card:before{content:'◆';display:grid;place-items:center;width:44px;height:44px;margin-bottom:17px;border:1px solid #b9a26388;border-radius:50%;background:#2c4633;color:#e3c979;font-size:17px;box-shadow:0 7px 18px #0005}
+#command-catalog .command-card h2{font-size:26px}.orders-toolbar{background:transparent;border:0;padding:0}.orders-toolbar .filters{padding:5px;border:1px solid var(--line);border-radius:11px;background:#0d1c16}.target-label{padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:#102019}
+.law-grid{align-items:start}.law-card{background:radial-gradient(circle at 100% 0,#6f65412e,transparent 32%),linear-gradient(145deg,#1d3125,#112019)!important}.law-card>summary{min-height:76px}.law-card>summary:before{content:'§';display:grid;place-items:center;flex:0 0 38px;height:38px;margin-right:4px;border:1px solid #9f8d5d;border-radius:50%;color:#e0c579;font:22px var(--serif)}
+
+/* A desk of decrees replaces the long wall of browser-like fields. */
+[data-development-section="laws"] .law-grid{display:flex;align-items:flex-start;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:5px 3px 24px}
+[data-development-section="laws"] .law-card{flex:0 0 350px;scroll-snap-align:start;min-height:132px;box-shadow:0 14px 34px #0005!important}
+[data-development-section="laws"] .law-card[open]{min-height:420px}
+[data-development-section="laws"] .law-card>summary{padding-bottom:2px}
+[data-development-section="laws"] .law-card[open]>summary{padding-bottom:15px}
+[data-development-section="laws"] .law-card[open] .law-explanation{display:block!important;overflow:visible!important;-webkit-line-clamp:unset!important}
+[data-development-section="laws"] .law-explanation{display:block!important;max-height:none!important;overflow:visible!important;-webkit-line-clamp:unset!important;-webkit-box-orient:initial!important}
+
+/* Army cards identify the formation visually instead of relying on tiny symbols. */
+.military-unit{position:relative;overflow:hidden;min-height:245px;padding-right:105px!important}
+.military-unit:after{content:'';position:absolute;right:8px;bottom:8px;width:100px;height:178px;background-position:center bottom;background-size:contain;background-repeat:no-repeat;filter:drop-shadow(0 10px 8px #0009);opacity:.86;pointer-events:none}
+.military-unit:nth-child(1):after{background-image:url('assets/unit-infantry-friendly.webp')}
+.military-unit:nth-child(2):after{background-image:url('assets/unit-archer-friendly.webp')}
+.military-unit:nth-child(3):after{background-image:url('assets/unit-cavalry-friendly.webp')}
+.military-unit>*{position:relative;z-index:1}.military-unit .unit-bars{max-width:calc(100% - 4px)}
+
+/* Chronicle is a state ledger rather than a generic analytics widget. */
+[data-page="history"] .chart-card{position:relative;overflow:hidden;padding:28px;background:radial-gradient(circle at 85% 0,#9b814329,transparent 36%),linear-gradient(145deg,#1b3024,#0f2018)!important;border-color:#596c52!important}
+[data-page="history"] .chart-card:before{content:'ЛЕТОПИСЬ АРДЕНА';position:absolute;right:26px;bottom:18px;color:#d8bd7614;font:42px var(--serif);letter-spacing:5px;pointer-events:none}
+[data-page="history"] .chart-card .section-heading,[data-page="history"] #metric-chart,[data-page="history"] .chart-card>p{position:relative;z-index:1}
+[data-page="history"] .timeline{padding:22px 24px 1px;border:1px solid var(--line);border-left:3px solid #a58e56;border-radius:12px;background:linear-gradient(145deg,#172a20,#102019)}
+
+@media(max-width:760px){
+  .development-building-picture{aspect-ratio:4/3!important}
+  #buildings .development-building{flex-basis:300px}
+  body.map-interface [data-page="court"] .audience-tile{flex-basis:300px!important;min-height:515px}
+  body.map-interface [data-page="court"] .audience-open{grid-template-rows:300px minmax(0,1fr);min-height:515px}
+  body.map-interface [data-page="court"] .audience-open>.portrait{height:300px;min-height:300px}
+  body.map-interface [data-page="court"] .person-card{flex-basis:255px!important;min-height:455px}
+  body.map-interface [data-page="court"] .person-card>.portrait{height:255px!important;min-height:255px}
+  .intel-card .country-heading{min-height:210px}
+  #command-catalog .command-card{flex-basis:290px;min-height:315px}
+  [data-development-section="laws"] .law-card{flex-basis:300px}
+  .military-unit{padding-right:90px!important}.military-unit:after{width:82px;height:150px;opacity:.76}
+}
