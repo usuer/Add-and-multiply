@@ -9,6 +9,17 @@ const root=path.resolve(__dirname,'..'),artifacts=path.join(root,'artifacts','vi
 fs.mkdirSync(artifacts,{recursive:true});
 
 function rich(){const s=G.createGame({seed:'full-visual-audit'});for(const v of [s.player,s.initial,s.monthStart,s.metrics[0].values]){v.gold=1500;v.food=300;}return s;}
+function resolveCouncil(s){
+  if(s.chapter&&!s.chapter.acknowledged)s=G.acknowledgeChapter(s);
+  if(s.pending){const choice=G.getView(s).event.choices.find(c=>!c.disabled);s=G.chooseEvent(s,choice.id);}
+  return s;
+}
+function battleReady(){
+  let s=resolveCouncil(rich());s=G.launchMilitary(s,{target:'forest',mission:'expedition',supply:'full'});
+  for(let i=0;i<6&&!G.getView(s).military.battle;i++){s=resolveCouncil(s);s=G.advanceMonth(s);}
+  assert.ok(G.getView(s).military.battle,'visual audit must reach a real battle');return s;
+}
+function councilCase(kind){const s=rich();s.pending={kind,target:null,created:s.month};return s;}
 async function closeIntro(page){const d=page.locator('#prologue-dialog');if(await d.count()&&await d.isVisible())await d.locator('[data-action="intro-skip"]').click();}
 async function load(page,state){await page.locator('#save-file').setInputFiles({name:'audit.json',mimeType:'application/json',buffer:Buffer.from(G.serialize(state))});await page.waitForFunction(seed=>JSON.parse(localStorage.getItem('priceOfPower.v04.auto'))?.state.seed===seed,state.seed);if(await page.locator('#enter-reign').isVisible())await page.locator('#enter-reign').click();}
 async function openTab(page,id){const panel=page.locator(`[data-page="${id}"]`);if(!await panel.isVisible())await page.locator(`nav [data-tab="${id}"]`).click();assert.equal(await panel.isVisible(),true,`${id} visible`);}
@@ -51,10 +62,14 @@ async function inspect(page,label){
     await page.goto(`http://127.0.0.1:${server.address().port}/dist/price-of-power.html`);await closeIntro(page);await load(page,rich());
     await openTab(page,'home');await inspect(page,'desktop-home');
     await openTab(page,'council');await inspect(page,'desktop-council');const councilChoice=page.locator('#council-event [data-choice]:not([disabled])').first();if(await councilChoice.count()){await councilChoice.click();await page.locator('#next-month').click();await page.locator('#month-transition [data-action="close-month"]').click();await page.waitForFunction(()=>!document.documentElement.hasAttribute('aria-busy'));await openTab(page,'council');await inspect(page,'desktop-council-with-month-report');}
+    for(const kind of ['infrastructure','health','crime','labor','migration','innovation']){await load(page,councilCase(kind));await openTab(page,'council');await inspect(page,`desktop-council-${kind}`);}
+    await load(page,rich());
     for(const tab of ['orders','intel','history']){await openTab(page,tab);await inspect(page,`desktop-${tab}`);}
     await openTab(page,'development');await inspect(page,'desktop-development-buildings');const building=page.locator('#town [data-building-select]').first();if(await building.count()){await building.click();await inspect(page,'desktop-development-dialog');await page.locator('#development-dialog [data-development-close]').first().click();}await page.locator('#buildings').scrollIntoViewIfNeeded();await inspect(page,'desktop-development-catalog');await page.locator('[data-development-view="laws"]').click();await inspect(page,'desktop-development-laws');
     await openTab(page,'court');await inspect(page,'desktop-court');const scene=page.locator('#encounters [data-scene]').first();if(await scene.count()){await scene.click();await inspect(page,'desktop-audience');await page.locator('[data-action="close-scene"]').first().click();}
-    await openTab(page,'army');for(const view of ['map','troops','battle']){await page.locator(`[data-military-view="${view}"]`).click();await inspect(page,`desktop-army-${view}`);}
+    await openTab(page,'army');for(const view of ['map','troops']){await page.locator(`[data-military-view="${view}"]`).click();await inspect(page,`desktop-army-${view}`);}
+    await load(page,battleReady());await openTab(page,'army');await page.locator('[data-military-view="battle"]').click();
+    assert.equal(await page.locator('.player-token').count(),3,'battle audit sees all player units');assert.equal(await page.locator('.enemy-token').count(),5,'battle audit sees all enemy units');await inspect(page,'desktop-army-battle');
     await page.setViewportSize({width:1024,height:768});
     for(const tab of ['home','council','development','court','army','intel','orders','history']){await openTab(page,tab);await inspect(page,`tablet-${tab}`);}
     await page.setViewportSize({width:768,height:900});
@@ -62,6 +77,6 @@ async function inspect(page,label){
     await page.setViewportSize({width:390,height:844});
     for(const tab of ['home','council','development','court','army','intel','history']){await openTab(page,tab);await inspect(page,`mobile-${tab}`);}
     await page.setViewportSize({width:360,height:740});await openTab(page,'council');await inspect(page,'small-phone-council');await openTab(page,'court');await inspect(page,'small-phone-court');
-    assert.deepEqual(errors,[]);console.log('PASS full visual audit: 44 screens across desktop, tablet and mobile');
+    assert.deepEqual(errors,[]);console.log('PASS full visual audit: 50 screens across desktop, tablet and mobile');
   }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

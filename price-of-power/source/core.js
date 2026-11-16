@@ -442,6 +442,12 @@
     const anxious = s.neighbors.filter(n => n.relation < -20).sort((a, b) => a.relation - b.relation)[0];
     if (anxious && s.cooldowns.border <= s.month && !s.chains.some(c => c.type === 'border')) {
       s.pending = { kind: 'border', target: anxious.id, secret: random(s) < 0.5 ? 'bandits' : 'soldiers', created: s.month }; setCouncilChoiceOrder(s);
+      return;
+    }
+    if (s.month >= 2 && s.month % 3 === 2) {
+      const pool = ['infrastructure', 'health', 'crime', 'labor', 'migration', 'innovation'];
+      s.pending = { kind: pool[Math.floor(random(s) * pool.length)], target: null, created: s.month };
+      setCouncilChoiceOrder(s);
     }
   }
   function rawEventView(s) {
@@ -461,10 +467,17 @@
       text: 'Запасы зерна опустились ниже 60. Старосты просят помощи деревням, купцы предлагают привозное зерно. Отказ от любых мер тоже имеет последствия.',
       cause: `Сейчас в запасе ${s.player.food}; месячный баланс ${signed(economy(s).food)}. Нехватка пищи подрывает стабильность.`,
       choices: [choice('relief', 'Открыть княжеские амбары', 'Отдать часть запасов деревням, обратившимся за помощью.', 0, 12), choice('import', 'Оплатить обозы', 'Заказать продовольствие у купцов.', 14), choice('ration', 'Ввести нормирование', 'Установить общий порядок выдачи зерна из запасов.')] };
-    return { ...common, title: 'После голодной зимы', category: 'Цена хлеба · II',
+    if (e.kind === 'grain_followup') return { ...common, title: 'После голодной зимы', category: 'Цена хлеба · II',
       text: ({ relief: 'Деревни помнят, что амбары открыли вовремя. Теперь земледельцы просят вложиться в следующий урожай.', import: 'Привозное зерно помогло, но сделало деревни зависимыми от купеческих обозов. Пора выбрать долгосрочную меру.', ration: 'Нормирование растянуло запасы, однако тяжело далось жителям. Совет предлагает перейти к восстановлению.' })[e.approach],
       cause: `Последствие продовольственного решения в ${date(e.origin).toLowerCase()}. Разовая помощь не заменяет производство.`,
       choices: [choice('fields', 'Помочь деревням с посевом', 'Выделить средства на общие работы и следующий урожай.', 12), choice('fair', 'Распределить помощь поровну', 'Собрать оставшуюся помощь и передать её деревням на равных условиях.'), choice('levy', 'Потребовать новый сбор', 'Поручить сборщикам получить средства с деревень.')] };
+    if (e.kind === 'infrastructure') return { ...common, title: s.player.roads >= 2 ? 'Трещина в каменной переправе' : 'Весенний тракт провалился', category: 'Дороги и сообщения', text: 'Старосты сообщают: путь к двум деревням размывает вода. Обозы пока проходят, но следующий ливень может закрыть дорогу.', cause: `Дороги: ${s.player.roads}. Древесина: ${s.player.wood}. Совет спорит между срочным ремонтом, общей повинностью и временным объездом.`, choices: [choice('repair', 'Нанять мостовую артель', 'Сразу укрепить настил и опасный берег.', 10), choice('communal', 'Собрать общинные работы', 'Деревни дадут людей, двор — имеющиеся материалы.'), choice('detour', 'Открыть временный объезд', 'Сохранить казну, приняв задержки и порчу части грузов.')] };
+    if (e.kind === 'health') return { ...common, title: s.player.health < 60 ? 'Лихорадка в нижнем городе' : 'Вода с горьким привкусом', category: 'Здоровье жителей', text: 'Лекари нашли несколько дворов с одинаковыми признаками болезни. Источник ещё не установлен, слухи уже расходятся по рынку.', cause: `Здоровье: ${s.player.health}. Лечебницы: ${s.player.clinics}; санитарные службы: ${s.player.sanitation}. Неверная мера может вызвать панику или дать болезни время.`, choices: [choice('healers', 'Открыть врачебные дворы', 'Оплатить осмотр квартала и чистую воду.', 11), choice('quarantine', 'Ограничить движение', 'Временно закрыть подозрительные дворы и рынки.'), choice('observe', 'Начать открытое наблюдение', 'Поручить лекарям вести списки заболевших без закрытия квартала.')] };
+    if (e.kind === 'crime') return { ...common, title: s.player.cityWatch ? 'Стража просит новые полномочия' : 'Ночная кража на большом торгу', category: 'Право и порядок', text: 'После дерзкой кражи купцы требуют немедленных арестов. Свидетели противоречат друг другу, а стража называет человека без доказательств.', cause: `Городская стража: ${s.player.cityWatch}; суды: ${s.player.courts}. Быстрый показательный ответ и надёжное расследование — не одно и то же.`, choices: [choice('inquiry', 'Провести открытое дознание', 'Выслушать свидетелей и проверить учёт скупщиков.'), choice('informant', 'Оплатить тайного свидетеля', 'Купить сведения в среде перекупщиков.', 7), choice('raids', 'Разрешить ночные облавы', 'Дать страже свободу действий ради быстрого результата.')] };
+    if (e.kind === 'labor') return { ...common, title: s.player.army > 75 ? 'Кого оставить у станков' : 'Мастера требуют нового распорядка', category: 'Труд и повинности', text: 'Мастерские не успевают исполнить заказы. Цех предлагает продлить рабочий день; семьи работников требуют выходного после ярмарки.', cause: `Мастерские: ${s.player.workshops}; товары: ${s.player.goods}. Производство, здоровье и согласие жителей тянут решение в разные стороны.`, choices: [choice('bonuses', 'Заплатить за срочную работу', 'Сохранить добровольный порядок и доплатить мастерам.', 10), choice('normal', 'Сохранить обычный день', 'Не менять распорядок и принять задержку заказов.'), choice('extended', 'Временно продлить смены', 'Получить больше изделий ценой усталости и недовольства.')] };
+    if (e.kind === 'migration') return { ...common, title: s.player.population > 110 ? 'Из Ардена уезжают мастера' : 'Семьи у городских ворот', category: 'Население и жильё', text: 'У ворот ждут семьи ремесленников. Они просят место для жилья и право вступить в цех; горожане опасаются конкуренции и роста цен.', cause: `Население: ${s.player.population} тыс.; жилые кварталы: ${s.player.houses}. Новые руки полезны, если город способен их принять.`, choices: [choice('housing', 'Подготовить новые дворы', 'Помочь с жильём и мастерскими за счёт казны.', 12), choice('sponsor', 'Поручить приём общинам', 'Разместить семьи через землячества и цехи.'), choice('refuse', 'Закрыть ворота для переселенцев', 'Не увеличивать нагрузку на городские службы.')] };
+    if (e.kind === 'innovation') return { ...common, title: s.player.universities ? 'Спор учёных о новом механизме' : 'Чертёж водяного колеса', category: 'Знания и ремесло', text: 'Странствующий мастер показывает чертёж механизма для мельниц. Цеховые старшины называют его замысел дорогой выдумкой.', cause: `Наука: ${s.player.science}; школы: ${s.player.schools}; мастерские: ${s.player.workshops}. Испытание рискованно, но отказ тоже имеет цену.`, choices: [choice('prototype', 'Оплатить опытный механизм', 'Построить один образец и проверить его в работе.', 9), choice('review', 'Созвать мастеров на испытание', 'Проверить расчёты силами местных ремесленников.'), choice('decline', 'Отложить предложение', 'Не отвлекать людей и материалы от текущих работ.')] };
+    fail('Неизвестное событие совета.');
   }
   function eventView(s) {
     const view = rawEventView(s); if (!view) return null;
@@ -493,11 +506,35 @@
       if (choiceId === 'import') p.food += 28;
       if (choiceId === 'ration') { p.stability -= 6; p.rationUntil = s.month + 3; }
       s.chains.push({ type: 'grain', target: null, approach: choiceId, due: s.month + 3, origin: s.month, secret: null });
-    } else {
+    } else if (e.kind === 'grain_followup') {
       if (choiceId === 'fields') { if (p.farms >= 5) p.food += 20; else p.farms++; p.stability += 3; }
       if (choiceId === 'fair') { p.food += 8; p.stability += 4; }
       if (choiceId === 'levy') { p.gold += 14; p.stability -= 9; }
       s.cooldowns.grain = s.month + 6;
+    } else if (e.kind === 'infrastructure') {
+      if (choiceId === 'repair') { p.defense += 4; p.stability += 2; }
+      if (choiceId === 'communal') { p.wood = Math.max(0, p.wood - 3); p.defense += 2; p.stability += 1; }
+      if (choiceId === 'detour') { p.food -= Math.min(p.food, 5); p.stability -= 2; }
+    } else if (e.kind === 'health') {
+      if (choiceId === 'healers') { p.health += 7; p.stability += 1; }
+      if (choiceId === 'quarantine') { p.health += 4; p.stability -= 3; }
+      if (choiceId === 'observe') { p.health += 2; p.intel += 1; }
+    } else if (e.kind === 'crime') {
+      if (choiceId === 'inquiry') { p.stability += 3; p.intel += 1; }
+      if (choiceId === 'informant') { p.intel += 3; p.stability += 1; }
+      if (choiceId === 'raids') { p.stability -= 2; p.defense += 3; }
+    } else if (e.kind === 'labor') {
+      if (choiceId === 'bonuses') { p.goods += 6; p.stability += 2; }
+      if (choiceId === 'normal') p.stability += 3;
+      if (choiceId === 'extended') { p.goods += 8; p.health -= 3; p.stability -= 4; }
+    } else if (e.kind === 'migration') {
+      if (choiceId === 'housing') { p.population += 2; p.stability += 3; }
+      if (choiceId === 'sponsor') { p.population += 1; p.goods += 2; p.stability += 1; }
+      if (choiceId === 'refuse') p.stability -= 3;
+    } else if (e.kind === 'innovation') {
+      if (choiceId === 'prototype') { p.science += 2; p.goods += 4; }
+      if (choiceId === 'review') { p.science += 1; p.stability += 1; }
+      if (choiceId === 'decline') p.stability += 1;
     }
     settle(s);
     const aftermath = {
@@ -505,6 +542,12 @@
       border_followup: { talk: e.approach === 'investigate' ? 'На пограничной встрече вы предъявили собранные сведения. Разговор помог снять часть взаимных подозрений.' : 'Представители двух сторон встретились у границы. После разговора сосед стал менее враждебно оценивать ваши действия.', guard: 'Усиленная стража осталась на заставах. Рубеж стал крепче, однако на другом берегу сочли это признаком недоверия.', standdown: 'Часть передовых патрулей вернулась к обычной службе. Оборона на этом участке ослабла, зато сосед увидел в отводе людей шаг к спокойствию.' },
       grain: { relief: 'Зерно из княжеских амбаров передали просившим деревням. Жители приняли помощь с благодарностью; собственные запасы двора уменьшились.', import: 'Оплаченные купеческие обозы доставили зерно в амбары. Непосредственную нехватку удалось смягчить, но вопрос о будущем снабжении остался.', ration: 'В княжестве начали выдавать зерно по общей норме. Запасы стали расходовать бережнее, однако ограничения встретили недовольство жителей.' },
       grain_followup: { fields: before.farms >= 5 ? 'На уже освоенных полях организовали дополнительные работы и собрали зерно. Деревни увидели, что двор готов вкладываться в их хозяйство.' : 'Деревни получили средства на посев и освоили новые поля. Производство стало устойчивее, а жители встретили поддержку с надеждой.', fair: 'Оставшуюся помощь собрали и передали деревням по общему порядку. Запасы пополнились, а спор о том, кому достанется больше, затих.', levy: 'Сборщики доставили в казну новые средства. В деревнях тяжёлый сбор запомнили как требование платить вскоре после перенесённой нужды.' },
+      infrastructure: { repair: 'Мостовая артель укрепила настил и берег до нового ливня. Обозы снова идут без задержки.', communal: 'Старосты собрали людей на общую работу. Ремонт обошёлся без платы, но потребовал древесины со двора.', detour: 'Обозы пустили длинной дорогой. Казна не потратилась, однако часть припасов испортилась в пути.' },
+      health: { healers: 'Лекари открыли временные приёмные и нашли источник болезни раньше, чем она разошлась по городу.', quarantine: 'Подозрительные дворы закрыли. Болезнь отступила, но торговцы и семьи встретили ограничения тяжело.', observe: 'Открытые списки заболевших помогли понять распространение болезни без закрытия квартала.' },
+      crime: { inquiry: 'Свидетельства сверили с книгами скупщиков. Дело продвинулось без случайных арестов.', informant: 'Тайный свидетель назвал цепочку перекупщиков. Канцелярия получила сведения, но источник пришлось оплатить.', raids: 'Стража провела ночные облавы. На улицах стало тише, однако несколько невиновных семей пожаловались на произвол.' },
+      labor: { bonuses: 'Мастера приняли срочный заказ за доплату и закончили работу без принуждения.', normal: 'Обычный распорядок сохранили. Заказы задержались, зато семьи увидели, что двор не меняет правила при каждом затруднении.', extended: 'Продлённые смены дали больше изделий. Усталость и недовольство рабочих стали ценой результата.' },
+      migration: { housing: 'Новые семьи получили дворы и места в мастерских. Город вырос без давки у ворот.', sponsor: 'Цехи и общины распределили прибывших между кварталами. Новые руки быстро вошли в работу.', refuse: 'Ворота для переселенцев закрыли. Нагрузка на службы не выросла, но решение обсуждают как негостеприимное.' },
+      innovation: { prototype: 'Опытный механизм заработал на одной мельнице. Мастера уже спорят, где применить его следующим.', review: 'Местные мастера проверили расчёты и исправили слабые места чертежа. Знание осталось в княжестве.', decline: 'Проект отложили. Текущие работы не пострадали, но странствующий мастер отправился искать другого покровителя.' },
     }[e.kind][choiceId];
     log(s, `${option.title}. ${aftermath}`, eventView(state).cause, 'council', differences(before, p));
     s.pending = null;
@@ -806,9 +849,9 @@
     check(isObject(s.cooldowns) && number(s.cooldowns.border, 0, 1000010) && number(s.cooldowns.grain, 0, 1000010), 'сроки событий');
     if (s.pending !== null) {
       const e = s.pending;
-      check(isObject(e) && ['border', 'grain', 'border_followup', 'grain_followup'].includes(e.kind) && number(e.created, 0, s.month), 'событие совета');
+      check(isObject(e) && ['border', 'grain', 'border_followup', 'grain_followup', 'infrastructure', 'health', 'crime', 'labor', 'migration', 'innovation'].includes(e.kind) && number(e.created, 0, s.month), 'событие совета');
       if (e.kind.startsWith('border')) check(country(e.target) && ['bandits', 'soldiers'].includes(e.secret), 'пограничное событие');
-      else check(e.target === null, 'продовольственное событие');
+      else check(e.target === null, 'внутреннее событие');
       if (Object.hasOwn(e, 'choiceOrder')) { const ids = rawEventView(s).choices.map(c => c.id); check(list(e.choiceOrder, ids.length) && e.choiceOrder.length === ids.length && new Set(e.choiceOrder).size === ids.length && e.choiceOrder.every(id => ids.includes(id)), 'порядок решений совета'); }
       if (e.kind.endsWith('_followup')) check(validApproach(e.kind.split('_')[0], e.approach) && number(e.origin, 0, s.month), 'продолжение события');
     }

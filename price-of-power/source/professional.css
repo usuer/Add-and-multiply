@@ -166,3 +166,15 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
   .military-view-tabs,.battle-turn-submit{position:static!important}.footer{display:none!important}
   .council-card,.choices{break-inside:auto!important}.council-card .choices{display:block!important}.council-card .choice{display:block!important;break-inside:avoid;margin:9px 0}.council-card .choice>*{display:block!important;margin:4px 0!important}
 }
+
+/* All municipal systems live on the development map. Secondary services stay
+   compact until hovered/focused, so adding functionality does not add clutter. */
+.development-district--service{width:58px;z-index:3}
+.development-district--service .development-district-art{width:46px;height:46px;margin:0;border-radius:12px;background:#14271ee8;box-shadow:0 6px 14px #0009,0 0 0 1px #d5bf776b}
+.development-district--service .development-civic-icon{font-size:21px;border-radius:11px}
+.development-district--service .development-district-name,.development-district--service .development-district-status{position:absolute;left:50%;width:138px;transform:translateX(-50%) translateY(-4px);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s}
+.development-district--service .development-district-name{top:45px;margin:0;font-size:13px}
+.development-district--service .development-district-status{top:76px;font-size:8px}
+.development-district--service:hover,.development-district--service:focus-visible{z-index:20}
+.development-district--service:hover .development-district-name,.development-district--service:hover .development-district-status,.development-district--service:focus-visible .development-district-name,.development-district--service:focus-visible .development-district-status{opacity:1;transform:translateX(-50%) translateY(0)}
+.development-district--service.development-district--building .development-district-art{box-shadow:0 0 0 3px #c3974a55,0 0 18px #dda14c77}

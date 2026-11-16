@@ -9,7 +9,7 @@ function council(s) {
   if (s.chapter && !s.chapter.acknowledged) s = G.acknowledgeChapter(s);
   if (s.pending) {
     const choices = G.getView(s).event.choices;
-    const choice = choices.find(c => ['investigate', 'talk', 'fields', 'import'].includes(c.id) && !c.disabled) || choices.find(c => !c.disabled);
+    const choice = choices.find(c => ['investigate', 'talk', 'fields', 'import', 'communal', 'quarantine', 'raids', 'normal', 'sponsor', 'decline'].includes(c.id) && !c.disabled) || choices.find(c => !c.disabled);
     s = G.chooseEvent(s, choice.id);
   }
   return s;
@@ -108,6 +108,16 @@ test('продовольственная цепочка возникает из 
 });
 test('нормирование длится ровно три расчёта месяца', () => {
   let s=G.createGame({scenario:'scarcity'});s=G.chooseEvent(s,'ration');assert.equal(s.player.rationUntil,3);assert.equal(G.economy({...s,month:2}).consumption+4,G.economy({...s,month:3}).consumption);
+});
+test('совет рассматривает разные внутренние проблемы и всегда оставляет бесплатный выбор', () => {
+  const kinds=['infrastructure','health','crime','labor','migration','innovation'];
+  for(const kind of kinds){
+    let s=rich(`council-${kind}`);s.pending={kind,target:null,created:s.month};
+    const event=G.getView(s).event;
+    assert.equal(event.kind,kind);assert.equal(event.choices.length,3);assert.ok(event.choices.some(c=>c.gold===0&&c.food===0&&!c.disabled));
+    const before=G.serialize(s),choice=event.choices.find(c=>c.gold===0&&c.food===0&&!c.disabled);
+    s=G.chooseEvent(s,choice.id);assert.equal(s.pending,null);assert.notEqual(G.serialize(s),before);assert.equal(s.history[0].kind,'council');assert.doesNotThrow(()=>G.deserialize(G.serialize(s)));
+  }
 });
 test('школы открывают университет, уровни дорожают и требуют времени', () => {
   let s=rich();assert.match(G.orderBlocker(s,'university'),/2 школы/);s=G.queueOrder(s,'school');assert.throws(()=>G.queueOrder(s,'school'),/уже строится/);s=turns(s,3);assert.equal(s.player.schools,1);

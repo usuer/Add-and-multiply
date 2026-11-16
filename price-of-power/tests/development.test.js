@@ -5,10 +5,11 @@ const G = require('../source/core');
 const D = require('../source/development');
 const view = () => G.getView(G.createGame());
 
-test('карта показывает восемь разных проектов и отдельную крепость', () => {
+test('карта показывает все муниципальные проекты и отдельную крепость', () => {
   const html = D.mapMarkup(view());
-  assert.equal((html.match(/data-building-select=/g) || []).length, 8);
-  for (const key of ['farms','orchards','roads','wells','granaries','schools','clinics','universities']) assert.ok(html.includes(`development-art--${key}`));
+  assert.equal((html.match(/data-building-select=/g) || []).length, view().buildings.length);
+  for (const {key} of view().buildings) assert.ok(html.includes(`development-art--${key}`));
+  assert.equal((html.match(/development-district--service/g) || []).length, view().buildings.length - 8);
   assert.match(html, /Замок Ардена/);
   assert.match(html, /arden-city-map\.(?:png|webp)/);
 });

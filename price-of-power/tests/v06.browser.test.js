@@ -135,9 +135,9 @@ async function advance(page) {
       assert.equal(after.orders.length,1);assert.equal(after.orders[0].type,'trade_goods');assert.equal(after.orders[0].target,'mer');assert.ok(after.player.gold<before.player.gold);
     });
 
-    await check('карта показывает восемь разных проектов и позволяет начать строительство',async()=>{
+    await check('карта показывает все городские проекты и позволяет начать строительство',async()=>{
       await load(page,rich('map-browser'));await page.click('nav [data-tab="development"]');
-      assert.equal(await page.locator('#town [data-building-select]').count(),8);
+      assert.equal(await page.locator('#town [data-building-select]').count(),22);
       await page.waitForFunction(()=>{const img=document.querySelector('#town img');return img?.complete&&img.naturalWidth>1000;});
       const positions=await page.locator('#buildings .development-building-picture .development-art').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).backgroundPosition));
       assert.equal(positions.length,22);assert.ok(new Set(positions).size>=8);
