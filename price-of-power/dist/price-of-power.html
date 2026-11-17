@@ -406,6 +406,41 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
 .development-district--service:hover,.development-district--service:focus-visible{z-index:20}
 .development-district--service:hover .development-district-name,.development-district--service:hover .development-district-status,.development-district--service:focus-visible .development-district-name,.development-district--service:focus-visible .development-district-status{opacity:1;transform:translateX(-50%) translateY(0)}
 .development-district--service.development-district--building .development-district-art{box-shadow:0 0 0 3px #c3974a55,0 0 18px #dda14c77}
+.development-district--landmark{width:120px}
+.development-district--landmark .development-district-art{width:88px;height:88px}
+.development-district--landmark .development-district-name{font-size:13px;line-height:1.2}
+.development-district--landmark .development-district-status{
+  position:absolute;left:50%;top:100%;width:120px;margin-top:2px;transform:translateX(-50%) translateY(-3px);
+  opacity:0;pointer-events:none;border:1px solid #9e9c66;border-radius:4px;padding:4px;background:#102019f2;
+  transition:opacity .15s,transform .15s;
+}
+.development-district--landmark:hover,.development-district--landmark:focus-visible{z-index:20}
+.development-district--landmark:hover .development-district-status,.development-district--landmark:focus-visible .development-district-status{
+  opacity:1;transform:translateX(-50%) translateY(0)
+}
+
+/* Overlay-free page chrome. Navigation belongs to the document flow and never
+   floats over the map, its markers, or the building labels. */
+body.map-interface [data-page]:not([data-page="home"])>.map-panel-close{
+  position:static!important;float:none!important;display:flex!important;width:max-content;
+  margin:0 0 18px auto!important;
+}
+.development-tabs{
+  position:static!important;float:none!important;width:fit-content;max-width:100%;
+  margin:0 0 20px!important;backdrop-filter:none!important;
+}
+.development-map-board{isolation:isolate}
+
+@media(max-width:760px){
+  .development-tabs{width:100%;overflow-x:auto}
+  body.map-interface [data-page]:not([data-page="home"])>.map-panel-close{margin-bottom:12px!important}
+}
+
+@media(max-width:1100px){
+  .development-district--landmark{width:84px}
+  .development-district--landmark .development-district-art{width:64px;height:64px}
+  .development-district--landmark .development-district-name{font-size:11px;padding:4px 3px}
+}
 
 </style></head>
 <body>
@@ -2371,7 +2406,7 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
     schools: { title: 'Земская слобода', category: 'Знания', className: 'knowledge', x: 64, y: 72, atlas: 5 },
     clinics: { title: 'Лекарский двор', category: 'Городские службы', className: 'civic', x: 68, y: 36, atlas: 6 },
     universities: { title: 'Учёный квартал', category: 'Знания', className: 'knowledge', x: 84, y: 58, atlas: 7 },
-    houses:{title:'Жилые слободы',category:'Город и население',className:'civic',icon:'⌂',x:55,y:57},smithies:{title:'Кузнечный двор',category:'Ремесло',className:'stores',icon:'⚒',x:57,y:69},lumberyards:{title:'Лесная пристань',category:'Добыча',className:'land',icon:'♣',x:25,y:16},quarries:{title:'Каменный овраг',category:'Добыча',className:'routes',icon:'◆',x:69,y:19},mines:{title:'Рудная гора',category:'Добыча',className:'routes',icon:'⛏',x:88,y:26},workshops:{title:'Ремесленный посад',category:'Производство',className:'stores',icon:'⚙',x:53,y:82},markets:{title:'Большой торг',category:'Торговля',className:'stores',icon:'◉',x:42,y:55},fireStations:{title:'Пожарный двор',category:'Городские службы',className:'civic',icon:'♨',x:61,y:48},sanitation:{title:'Очистные каналы',category:'Городские службы',className:'civic',icon:'≈',x:38,y:31},courts:{title:'Судная палата',category:'Управление',className:'knowledge',icon:'⚖',x:76,y:50},postOffices:{title:'Ямская служба',category:'Связь',className:'routes',icon:'✉',x:35,y:61},barracks:{title:'Военный посад',category:'Оборона',className:'stores',icon:'⚑',x:86,y:40},cityWatch:{title:'Дом городской стражи',category:'Правопорядок',className:'civic',icon:'♜',x:75,y:64},prisons:{title:'Тюремный двор',category:'Правопорядок',className:'stores',icon:'▦',x:86,y:74},
+    houses:{title:'Жилые слободы',category:'Город и население',className:'civic',icon:'⌂',x:59,y:55},smithies:{title:'Кузнечный двор',category:'Ремесло',className:'stores',icon:'⚒',x:54,y:69},lumberyards:{title:'Лесная пристань',category:'Добыча',className:'land',icon:'♣',x:25,y:13},quarries:{title:'Каменный овраг',category:'Добыча',className:'routes',icon:'◆',x:58,y:14},mines:{title:'Рудная гора',category:'Добыча',className:'routes',icon:'⛏',x:91,y:24},workshops:{title:'Ремесленный посад',category:'Производство',className:'stores',icon:'⚙',x:53,y:88},markets:{title:'Большой торг',category:'Торговля',className:'stores',icon:'◉',x:34,y:60},fireStations:{title:'Пожарный двор',category:'Городские службы',className:'civic',icon:'♨',x:46,y:24},sanitation:{title:'Очистные каналы',category:'Городские службы',className:'civic',icon:'≈',x:37,y:18},courts:{title:'Судная палата',category:'Управление',className:'knowledge',icon:'⚖',x:74,y:14},postOffices:{title:'Ямская служба',category:'Связь',className:'routes',icon:'✉',x:24,y:57},barracks:{title:'Военный посад',category:'Оборона',className:'stores',icon:'⚑',x:94,y:42},cityWatch:{title:'Дом городской стражи',category:'Правопорядок',className:'civic',icon:'♜',x:75,y:82},prisons:{title:'Тюремный двор',category:'Правопорядок',className:'stores',icon:'▦',x:95,y:78},
   };
   const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   let latestView = null, selectedKey = null, zoom = 1, listening = false;
@@ -2973,9 +3008,10 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
   }
   function setTab(tab, scroll = false) {
     if (!['home', 'council', 'orders', 'development', 'court', 'army', 'intel', 'history'].includes(tab)) return;
+    const changed = ui.tab !== tab;
     if(tab!=='home')ui.mapStarted=true;
     ui.tab = tab;
-    const battleAlert=$('#military-alert');if(battleAlert)battleAlert.hidden=!G.getView(state).military?.battle||tab==='army';
+    const battleAlert=$('#military-alert');if(battleAlert)battleAlert.hidden=!G.getView(state).military?.battle||tab!=='home';
     document.body.classList.toggle('map-interface',ui.mapStarted);
     for (const panel of document.querySelectorAll('[data-page]')) panel.hidden = ui.mapStarted ? (panel.dataset.page!=='home'&&panel.dataset.page!==tab) : panel.dataset.page!==tab;
     $('#map-panel-close')?.remove();
@@ -2989,6 +3025,10 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
     for (const item of document.querySelectorAll('nav [data-tab]')) {
       const active = item.dataset.tab === tab; item.classList.toggle('active', active);
       if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
+    }
+    if (scroll && changed && tab !== 'home') {
+      const activePanel = document.querySelector(`[data-page="${tab}"]`);
+      if (activePanel) activePanel.scrollTop = 0;
     }
     if (scroll && !ui.mapStarted) window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -3211,7 +3251,7 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
     if (ui.chat) renderChat(v);
     window.PopMilitaryUI.render(v, { quote: opts => G.militaryQuote(state, opts) });
     const battle = v.military?.battle;
-    $('#military-alert').hidden = !battle || ui.tab === 'army';
+    $('#military-alert').hidden = !battle || ui.tab !== 'home';
     if (battle) $('#military-alert').innerHTML = `<span>На рубежах идёт бой: ${esc(battle.locationName)}. Выберите приказ или отступление.</span><button class="button secondary" data-battle-focus>К полю боя →</button>`;
     if (battle) { $('#next-month').disabled = true; $('#turn-hint').textContent = 'Сначала завершите столкновение'; }
     renderPageCoach(); setTab(ui.tab);

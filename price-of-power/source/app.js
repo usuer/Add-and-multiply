@@ -43,9 +43,10 @@
   }
   function setTab(tab, scroll = false) {
     if (!['home', 'council', 'orders', 'development', 'court', 'army', 'intel', 'history'].includes(tab)) return;
+    const changed = ui.tab !== tab;
     if(tab!=='home')ui.mapStarted=true;
     ui.tab = tab;
-    const battleAlert=$('#military-alert');if(battleAlert)battleAlert.hidden=!G.getView(state).military?.battle||tab==='army';
+    const battleAlert=$('#military-alert');if(battleAlert)battleAlert.hidden=!G.getView(state).military?.battle||tab!=='home';
     document.body.classList.toggle('map-interface',ui.mapStarted);
     for (const panel of document.querySelectorAll('[data-page]')) panel.hidden = ui.mapStarted ? (panel.dataset.page!=='home'&&panel.dataset.page!==tab) : panel.dataset.page!==tab;
     $('#map-panel-close')?.remove();
@@ -59,6 +60,10 @@
     for (const item of document.querySelectorAll('nav [data-tab]')) {
       const active = item.dataset.tab === tab; item.classList.toggle('active', active);
       if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
+    }
+    if (scroll && changed && tab !== 'home') {
+      const activePanel = document.querySelector(`[data-page="${tab}"]`);
+      if (activePanel) activePanel.scrollTop = 0;
     }
     if (scroll && !ui.mapStarted) window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -281,7 +286,7 @@
     if (ui.chat) renderChat(v);
     window.PopMilitaryUI.render(v, { quote: opts => G.militaryQuote(state, opts) });
     const battle = v.military?.battle;
-    $('#military-alert').hidden = !battle || ui.tab === 'army';
+    $('#military-alert').hidden = !battle || ui.tab !== 'home';
     if (battle) $('#military-alert').innerHTML = `<span>На рубежах идёт бой: ${esc(battle.locationName)}. Выберите приказ или отступление.</span><button class="button secondary" data-battle-focus>К полю боя →</button>`;
     if (battle) { $('#next-month').disabled = true; $('#turn-hint').textContent = 'Сначала завершите столкновение'; }
     renderPageCoach(); setTab(ui.tab);

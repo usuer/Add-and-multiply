@@ -178,3 +178,38 @@ body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stat
 .development-district--service:hover,.development-district--service:focus-visible{z-index:20}
 .development-district--service:hover .development-district-name,.development-district--service:hover .development-district-status,.development-district--service:focus-visible .development-district-name,.development-district--service:focus-visible .development-district-status{opacity:1;transform:translateX(-50%) translateY(0)}
 .development-district--service.development-district--building .development-district-art{box-shadow:0 0 0 3px #c3974a55,0 0 18px #dda14c77}
+.development-district--landmark{width:120px}
+.development-district--landmark .development-district-art{width:88px;height:88px}
+.development-district--landmark .development-district-name{font-size:13px;line-height:1.2}
+.development-district--landmark .development-district-status{
+  position:absolute;left:50%;top:100%;width:120px;margin-top:2px;transform:translateX(-50%) translateY(-3px);
+  opacity:0;pointer-events:none;border:1px solid #9e9c66;border-radius:4px;padding:4px;background:#102019f2;
+  transition:opacity .15s,transform .15s;
+}
+.development-district--landmark:hover,.development-district--landmark:focus-visible{z-index:20}
+.development-district--landmark:hover .development-district-status,.development-district--landmark:focus-visible .development-district-status{
+  opacity:1;transform:translateX(-50%) translateY(0)
+}
+
+/* Overlay-free page chrome. Navigation belongs to the document flow and never
+   floats over the map, its markers, or the building labels. */
+body.map-interface [data-page]:not([data-page="home"])>.map-panel-close{
+  position:static!important;float:none!important;display:flex!important;width:max-content;
+  margin:0 0 18px auto!important;
+}
+.development-tabs{
+  position:static!important;float:none!important;width:fit-content;max-width:100%;
+  margin:0 0 20px!important;backdrop-filter:none!important;
+}
+.development-map-board{isolation:isolate}
+
+@media(max-width:760px){
+  .development-tabs{width:100%;overflow-x:auto}
+  body.map-interface [data-page]:not([data-page="home"])>.map-panel-close{margin-bottom:12px!important}
+}
+
+@media(max-width:1100px){
+  .development-district--landmark{width:84px}
+  .development-district--landmark .development-district-art{width:64px;height:64px}
+  .development-district--landmark .development-district-name{font-size:11px;padding:4px 3px}
+}

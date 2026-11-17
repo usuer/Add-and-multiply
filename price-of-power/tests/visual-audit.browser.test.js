@@ -39,7 +39,19 @@ async function inspect(page,label){
     const mobileSidebarCompact=innerWidth>760||!sidebar||sidebar.height<80;
     const intersects=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
     const choiceTextOverlaps=[...document.querySelectorAll('.council-card .choice')].filter(visible).some(choice=>{const title=choice.querySelector('strong'),description=choice.querySelector('.choice-description');return title&&description&&intersects(title.getBoundingClientRect(),description.getBoundingClientRect());});
-    return {docOverflow,clipped:clipped.slice(0,20),badButtons:badButtons.slice(0,20),unnamed,unlabeled,duplicates,activeHeadingVisible,mobileSidebarCompact,choiceTextOverlaps};
+    const developmentBoard=document.querySelector('.development-map-board');
+    const developmentChrome=[document.querySelector('.development-tabs'),document.querySelector('.map-panel-close')].filter(n=>n&&visible(n));
+    const developmentChromeOverlap=Boolean(developmentBoard&&visible(developmentBoard)&&developmentChrome.some(n=>intersects(n.getBoundingClientRect(),developmentBoard.getBoundingClientRect())));
+    const developmentMarkers=[...document.querySelectorAll('.development-map-board .development-district')].filter(visible);
+    const developmentMarkerOverlaps=[];
+    for(let i=0;i<developmentMarkers.length;i++)for(let j=i+1;j<developmentMarkers.length;j++){
+      const a=developmentMarkers[i].getBoundingClientRect(),b=developmentMarkers[j].getBoundingClientRect();
+      const area=Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+      if(area>16)developmentMarkerOverlaps.push([developmentMarkers[i].dataset.buildingSelect,developmentMarkers[j].dataset.buildingSelect,Math.round(area)]);
+    }
+    const battleAlert=document.querySelector('#military-alert');
+    const alertOutsideMap=Boolean(activePanel&&activePanel.dataset.page!=='home'&&battleAlert&&visible(battleAlert));
+    return {docOverflow,clipped:clipped.slice(0,20),badButtons:badButtons.slice(0,20),unnamed,unlabeled,duplicates,activeHeadingVisible,mobileSidebarCompact,choiceTextOverlaps,developmentChromeOverlap,developmentMarkerOverlaps,alertOutsideMap};
   });
   assert.equal(result.docOverflow,false,`${label}: horizontal document overflow`);
   assert.deepEqual(result.clipped,[],`${label}: clipped text ${JSON.stringify(result.clipped)}`);
@@ -50,6 +62,9 @@ async function inspect(page,label){
   assert.equal(result.activeHeadingVisible,true,`${label}: active page heading is hidden or covered`);
   assert.equal(result.mobileSidebarCompact,true,`${label}: mobile navigation covers the page`);
   assert.equal(result.choiceTextOverlaps,false,`${label}: council choice title overlaps its description`);
+  assert.equal(result.developmentChromeOverlap,false,`${label}: development navigation overlaps the map`);
+  assert.deepEqual(result.developmentMarkerOverlaps,[],`${label}: development markers overlap ${JSON.stringify(result.developmentMarkerOverlaps)}`);
+  assert.equal(result.alertOutsideMap,false,`${label}: battle alert overlays an opened management page`);
   await page.screenshot({path:path.join(artifacts,`${label}.png`)});
 }
 
@@ -68,7 +83,8 @@ async function inspect(page,label){
     await openTab(page,'development');await inspect(page,'desktop-development-buildings');const building=page.locator('#town [data-building-select]').first();if(await building.count()){await building.click();await inspect(page,'desktop-development-dialog');await page.locator('#development-dialog [data-development-close]').first().click();}await page.locator('#buildings').scrollIntoViewIfNeeded();await inspect(page,'desktop-development-catalog');await page.locator('[data-development-view="laws"]').click();await inspect(page,'desktop-development-laws');
     await openTab(page,'court');await inspect(page,'desktop-court');const scene=page.locator('#encounters [data-scene]').first();if(await scene.count()){await scene.click();await inspect(page,'desktop-audience');await page.locator('[data-action="close-scene"]').first().click();}
     await openTab(page,'army');for(const view of ['map','troops']){await page.locator(`[data-military-view="${view}"]`).click();await inspect(page,`desktop-army-${view}`);}
-    await load(page,battleReady());await openTab(page,'army');await page.locator('[data-military-view="battle"]').click();
+    await load(page,battleReady());await openTab(page,'development');await inspect(page,'desktop-development-during-battle');
+    await openTab(page,'army');await page.locator('[data-military-view="battle"]').click();
     assert.equal(await page.locator('.player-token').count(),3,'battle audit sees all player units');assert.equal(await page.locator('.enemy-token').count(),5,'battle audit sees all enemy units');await inspect(page,'desktop-army-battle');
     await page.setViewportSize({width:1024,height:768});
     for(const tab of ['home','council','development','court','army','intel','orders','history']){await openTab(page,tab);await inspect(page,`tablet-${tab}`);}
@@ -77,6 +93,6 @@ async function inspect(page,label){
     await page.setViewportSize({width:390,height:844});
     for(const tab of ['home','council','development','court','army','intel','history']){await openTab(page,tab);await inspect(page,`mobile-${tab}`);}
     await page.setViewportSize({width:360,height:740});await openTab(page,'council');await inspect(page,'small-phone-council');await openTab(page,'court');await inspect(page,'small-phone-court');
-    assert.deepEqual(errors,[]);console.log('PASS full visual audit: 50 screens across desktop, tablet and mobile');
+    assert.deepEqual(errors,[]);console.log('PASS full visual audit: 51 screens across desktop, tablet and mobile');
   }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});
