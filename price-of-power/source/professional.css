@@ -140,12 +140,23 @@ body.map-interface #military-alert .button{flex:0 0 auto;padding:7px 9px;white-s
 
 /* Battle HUD: no stacked sticky layers, no controls escaping to the right. */
 .military-view-tabs{position:sticky!important;top:0!important;z-index:40;background:#102019!important;backdrop-filter:none!important;box-shadow:0 8px 18px #0008}
-.battle-turn-submit{position:sticky!important;top:62px!important;z-index:39;margin:0;background:#1b2d22!important;box-shadow:0 8px 18px #0008}
+.battle-turn-submit{position:sticky!important;top:190px!important;z-index:39;margin:0;background:#1b2d22!important;box-shadow:0 8px 18px #0008}
 .field-command-palette{width:min(940px,calc(100% - 28px));display:grid;grid-template-columns:210px minmax(0,1fr) auto;gap:10px 14px;align-items:center}
 .field-command-palette>div:first-child{min-width:0}.field-command-palette>span{margin:0}
 .field-tactics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));min-width:0;overflow:visible}
 .field-tactics .button{min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere}
 body:has(.military-view-panel[data-military-panel="battle"]:not([hidden])) #stats{display:none!important}
+
+/* Keep the tactical scene inside the visible army panel.  Several older battle
+   styles set large intrinsic sizes; without these hard bounds Chromium could
+   lay the field out past the panel edge and leave an unpainted strip in
+   screenshots (and an unreachable strip at intermediate desktop widths). */
+.military-view-panel[data-military-panel="battle"]{min-width:0;max-width:100%;overflow-x:hidden}
+.military-view-panel[data-military-panel="battle"] .battle-card{width:100%;max-width:100%;min-width:0;overflow:hidden}
+.military-view-panel[data-military-panel="battle"] .battlefield{display:block;width:100%!important;max-width:100%;min-width:0;overflow:hidden}
+.military-view-panel[data-military-panel="battle"] .battle-turn-submit,
+.military-view-panel[data-military-panel="battle"] .battle-tutorial,
+.military-view-panel[data-military-panel="battle"] .battle-log{width:100%;max-width:100%;min-width:0}
 
 @media(max-width:760px){
   body.map-interface:has(#military-alert:not([hidden])) [data-page]:not([data-page="home"]):not([data-page="army"]){padding-top:132px}
