@@ -1,0 +1,71 @@
+/* Visual direction: a restrained illustrated strategy game, not a dashboard. */
+:root{
+  --bg:#08120e;--surface:#122219;--surface-2:#1a2d21;--surface-3:#243b2b;
+  --line:#3d5542;--line-soft:#2b4234;--text:#f3eedf;--muted:#aebbad;
+  --gold:#d9bd72;--gold-bright:#f2d993;--paper:#eee5d0;--ink:#263027;
+  --shadow:0 24px 70px #020705b8;--radius:18px;--radius-sm:12px
+}
+body{background:#08120e;color:var(--text);font-size:15px;line-height:1.55}
+body:before{content:'';position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(circle at 72% 5%,#35533b55,transparent 32%),linear-gradient(135deg,#07100c,#101e16 62%,#08120e)}
+h1,h2,h3{font-family:Georgia,'Times New Roman',serif;color:#f6edd4}h1{font-size:clamp(36px,3vw,54px);line-height:1.04}h2{font-size:clamp(25px,2vw,35px)}
+.eyebrow{color:#d8bd76;font-size:9px;letter-spacing:2.1px}.intro{font-size:15px;line-height:1.7}.muted{color:#aebbad}
+.button{min-height:42px;padding:10px 16px;border-radius:10px;font-size:12px}.button.primary{background:linear-gradient(180deg,#f0d78c,#caa657);border-color:#f6dd94;box-shadow:0 8px 24px #02070588;color:#162319}.button.secondary{background:#294232;border-color:#56705b}.button.quiet{color:#cbd3ca}.button:hover:not(:disabled){transform:translateY(-2px)}
+
+/* The game shell is one clean stage. Content pages no longer expose a random
+   strip of the map behind them. */
+body.map-interface .topbar{height:76px;padding:10px 24px 10px 96px;background:linear-gradient(180deg,#091510fa,#0c1914f2);border-bottom:1px solid #50634d;box-shadow:0 8px 30px #0008;backdrop-filter:blur(18px)}
+body.map-interface .date{font-size:25px;line-height:1.1}body.map-interface .topbar .eyebrow{font-size:7px}body.map-interface .topbar-actions{gap:3px}
+body.map-interface .topbar-actions>.button.quiet{opacity:.78;padding-inline:8px}body.map-interface .turn-control .button{min-height:46px;padding-inline:20px}
+body.map-interface .sidebar{left:12px;top:88px;width:64px;padding:8px 7px;border-radius:18px;background:#091611ee;border:1px solid #4b624f;box-shadow:0 18px 50px #000b;backdrop-filter:blur(16px)}
+body.map-interface .sidebar nav{gap:6px}body.map-interface .nav-item{width:48px;height:48px;border-radius:12px}body.map-interface .nav-item>span{font-size:20px}body.map-interface .nav-item.active{background:linear-gradient(145deg,#6c7549,#334b35);box-shadow:inset 3px 0 #f1d883,0 8px 20px #0008}
+body.map-interface [data-page]:not([data-page="home"]){top:76px;left:76px;right:0;bottom:0;width:auto!important;max-width:none!important;padding:34px clamp(30px,4vw,72px) 120px;background:linear-gradient(120deg,#0b1712f8,#13241bf9);border:0;box-shadow:none;backdrop-filter:none}
+body.map-interface [data-page]:not([data-page="home"]):before{content:'';position:fixed;inset:76px 0 0 76px;z-index:-1;pointer-events:none;background:linear-gradient(90deg,#091510ed,#0d1c15e8),url('assets/arden-panorama.webp') center/cover;opacity:.34}
+body.map-interface [data-page]:not([data-page="home"])>*{width:min(1440px,100%);margin-left:auto;margin-right:auto}
+body.map-interface [data-page]:not([data-page="home"])>.map-panel-close{position:static!important;float:none!important;z-index:auto;margin:0 0 14px auto!important;width:max-content!important;min-height:38px;padding:8px 13px;background:#172a20ed;border:1px solid #62745f}
+.page-heading{margin:12px auto 28px!important;padding-bottom:18px;border-bottom:1px solid #3e5542;align-items:flex-end}.page-heading h1{margin-top:7px}.page-heading .small-note{font:italic 15px Georgia,serif;color:#c8d0bd}.badge{border-radius:999px;padding:7px 12px;background:#1d3326;border-color:#5d7158}
+body.map-interface #stats{left:92px;bottom:12px;max-width:calc(100vw - 118px);padding:7px 10px;border-radius:14px;background:#081510ef;box-shadow:0 12px 38px #000b;backdrop-filter:blur(16px)}body.map-interface .stat{min-width:108px;padding:3px 14px}body.map-interface .stat-value{font-size:21px}
+
+/* Cards have hierarchy, air and fewer visible boxes. */
+.council-card,.operations,.court-preview,.monthly-report,.chart-card,.command-card,.intel-card,.law-card,.policy-balance,.town-card,.military-panel,.army-summary,.army-unit-card,.campaign-card,.world-card,.ruler-status,.learned-notes{border:1px solid #405945!important;border-radius:18px!important;background:linear-gradient(145deg,#172a20,#0f1e17)!important;box-shadow:0 18px 50px #02070573!important}
+.council-grid{grid-template-columns:minmax(0,1.55fr) minmax(300px,.6fr);gap:24px}.council-card{background:var(--paper)!important;border:0!important;border-radius:18px!important;box-shadow:0 24px 70px #0009!important}.council-card .council-scene,.border-scene{height:clamp(210px,27vh,330px)}.council-card>:not(.council-scene){margin-left:clamp(24px,3vw,48px);margin-right:clamp(24px,3vw,48px)}.council-card>.eyebrow{margin-top:30px}.council-card h2{font-size:clamp(30px,3vw,45px);color:#273129}.event-body{font-size:17px;max-width:920px}.choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.choice{padding:18px;border:1px solid #c9bea1;border-radius:13px}.choice strong{font-size:18px}.operations{padding:22px;border-color:#374d3c!important}.operations .order{padding:15px 0}.court-preview{padding:20px;margin-top:22px}
+
+/* Court is an illustrated cast screen, not a column of form cards. */
+.audience-gallery,.people-grid{display:grid!important;overflow:visible!important;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px!important;padding:4px 0 28px!important}.audience-tile,.person-card{min-width:0!important;max-width:none!important;width:auto!important;flex:auto!important;border:0!important;border-radius:18px!important;overflow:hidden;background:#13251c!important;box-shadow:0 18px 45px #02070588!important;transition:transform .2s,box-shadow .2s}.audience-tile:hover,.person-card:hover{transform:translateY(-5px);box-shadow:0 24px 58px #000a!important}.audience-open{display:grid;grid-template-rows:minmax(270px,38vh) auto;min-height:430px}.audience-open>.portrait,.person-card>.portrait{width:100%!important;height:clamp(260px,33vh,390px)!important;min-height:0!important;aspect-ratio:auto!important;object-fit:cover;object-position:center 15%;border:0!important;border-radius:0!important;filter:saturate(.94) contrast(1.04)}.audience-tile-copy,.person-card>div{padding:20px!important}.audience-tile-copy strong,.person-card h3{font-size:27px}.audience-tile-copy>span,.person-card p{font-size:13px!important;line-height:1.55}.ruler-fold{margin-bottom:24px;border:1px solid #405842;border-radius:13px;background:#112019}.ruler-fold>summary{padding:14px 17px}
+
+/* Orders and laws read as game choices rather than web inputs. */
+.orders-toolbar{padding:14px 16px;border-radius:14px;background:#0c1a14d9;border-color:#3b5340}.filters{gap:7px}.filter{min-height:38px;padding:8px 13px;border-radius:9px}.target-label select{min-width:180px}
+#command-catalog{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))!important;gap:18px!important}#command-catalog .command-card{min-height:320px!important;padding:23px!important;border-top:3px solid #aa965d!important}#command-catalog .command-card h2{font-size:28px}.command-description{font-size:14px;line-height:1.65}
+.development-tabs{padding:5px;border-radius:14px;background:#0a1812;border-color:#3d5542}.development-tabs button{min-height:44px;padding:10px 20px}.town-card{overflow:hidden}.development-map-board{max-height:none;height:min(62vh,720px);min-height:520px}.development-map-heading{padding:22px 25px}.development-map-heading h2{font-size:32px}#buildings{gap:20px!important}#buildings .development-building{flex-basis:360px;border-radius:17px}.development-building-picture{aspect-ratio:16/10!important}.development-building-copy{padding:20px}.law-grid{grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:18px}.law-card{padding:22px}.law-card>summary b{font-size:25px}
+
+/* Intelligence and history use broad visual canvases. */
+.intel-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.intel-card{overflow:hidden;border:0!important}.country-heading{min-height:220px;padding:24px;background-size:cover!important}.country-heading h2{font-size:34px}.intel-body{padding:24px}.army-estimate{font-size:38px}.chart-card{padding:28px}.chart{min-height:390px}.timeline{max-width:1100px}.history-item{padding:0 0 28px 34px}.history-text{font-size:16px}.history-reason{font-size:13px}
+
+/* Military screens keep the terrain dominant and controls compact. */
+.military-view-tabs{top:0!important;padding:6px;border-radius:14px;background:#091711f5!important}.military-view-tabs button{min-height:44px;font-size:12px}.military-summary,.army-metrics{gap:12px}.army-metric{padding:18px!important}.army-unit-card{padding:20px!important}.campaign-map{min-height:520px}.battle-card{border:0!important;border-radius:18px!important;background:#0a1711;box-shadow:0 25px 70px #000b}.battle-heading{padding:18px 22px;background:#13251b}.battlefield{min-height:min(68vh,760px)}.battle-turn-submit{top:188px!important;padding:12px 18px}.field-command-palette{border-radius:14px;background:#081610f2;box-shadow:0 14px 42px #000c}.battle-log{background:#101f18!important}
+
+/* Dialogs and audience retain cinematic focus. */
+dialog{border-radius:20px;border-color:#718267;box-shadow:0 35px 120px #000d}dialog::backdrop{background:#020705e8;backdrop-filter:blur(10px)}.audience-stage{background:linear-gradient(90deg,#0c1a14 0 36%,#ece4d2 36%)!important}.audience-person{background:radial-gradient(circle at 50% 35%,#36523b,#0a1510 68%)}.audience-portrait-wrap{width:min(33vw,500px);aspect-ratio:1/1.18}.audience-scroll{padding:clamp(45px,6vh,80px) clamp(40px,5vw,80px) 110px}.audience-scroll h2{font-size:clamp(38px,4vw,58px)}.scene-story{font-size:17px}.scene-request{font-size:17px}
+
+@media(max-width:1100px){
+  .council-grid{grid-template-columns:1fr}.operations{display:grid;grid-template-columns:1fr 1fr;gap:16px}.operations>.section-heading,.operations>.muted,.operations>.full,.operations>.adviser{grid-column:1/-1}
+  .intel-grid{grid-template-columns:1fr 1fr}.audience-gallery,.people-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  body{font-size:14px}h1{font-size:34px}h2{font-size:26px}
+  body.map-interface .topbar{height:84px;padding:10px 10px;background:#091510fb}body.map-interface .topbar-actions>.button.quiet:not([data-action="new"]){display:none}body.map-interface .topbar-actions>.button.quiet[data-action="new"]{display:block;min-height:34px;padding:6px 8px;font-size:0}body.map-interface .topbar-actions>.button.quiet[data-action="new"]:after{content:'Новая';font-size:9px}body.map-interface .date{font-size:22px}
+  body.map-interface .sidebar{position:fixed;left:8px;right:8px;top:auto;bottom:7px;width:auto;height:56px;min-height:0;max-height:56px;padding:6px;border-radius:16px;z-index:100}
+  body.map-interface .sidebar nav{display:flex;flex-direction:row;align-items:center;justify-content:space-around;gap:3px;height:42px;overflow-x:auto;overflow-y:hidden}
+  body.map-interface .nav-item{flex:0 0 42px;width:42px;height:42px;padding:0}body.map-interface .nav-item>span{font-size:18px}
+  body.map-interface [data-page]:not([data-page="home"]){left:0;top:84px;bottom:65px;width:100vw!important;padding:20px 15px 96px;background:#0d1b15fb}
+  body.map-interface [data-page]:not([data-page="home"]):before{inset:84px 0 65px;opacity:.18}
+  body.map-interface [data-page]:not([data-page="home"])>.map-panel-close{position:static!important;margin:0 0 14px auto!important}
+  .page-heading{align-items:flex-start;gap:12px;margin-bottom:20px!important}.page-heading>.small-note,.page-heading>.badge{align-self:flex-start}
+  .choices{grid-template-columns:1fr}.council-card>:not(.council-scene){margin-left:18px;margin-right:18px}.council-card .council-scene,.border-scene{height:190px}.event-body{font-size:15px}.operations{display:block}
+  .audience-gallery,.people-grid{display:flex!important;overflow-x:auto!important;gap:14px!important;scroll-snap-type:x mandatory}.audience-tile,.person-card{flex:0 0 82vw!important;scroll-snap-align:center}.audience-open{grid-template-rows:300px auto}.audience-open>.portrait,.person-card>.portrait{height:300px!important}
+  #command-catalog{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory}#command-catalog .command-card{flex:0 0 82vw!important;scroll-snap-align:center}
+  .development-map-board{height:540px;min-height:540px}.development-tabs{width:100%;overflow-x:auto}.development-tabs button{flex:0 0 auto}
+  .law-grid,.intel-grid{grid-template-columns:1fr}.country-heading{min-height:190px}.chart-card{padding:18px}.chart{min-height:270px}
+  .military-view-tabs{position:static!important}.battle-turn-submit{position:sticky!important;top:0!important}.battlefield{min-height:620px}.field-command-palette{border-radius:11px}
+  .audience-stage{display:flex!important;background:#ece4d2!important}.audience-person{min-height:390px}.audience-scroll{padding:35px 22px 95px}.audience-scroll h2{font-size:38px}
+}
+@media(max-width:420px){body.map-interface .turn-control .button{padding-inline:10px;font-size:10px}.audience-tile,.person-card,#command-catalog .command-card{flex-basis:88vw!important}.development-map-board{height:500px;min-height:500px}}
