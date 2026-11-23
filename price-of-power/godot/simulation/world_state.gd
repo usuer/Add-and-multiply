@@ -9,12 +9,14 @@ const SAVE_VERSION: int = 1
 @export var family_treasury: int = 45
 @export var ruler_fatigue: int = 8
 @export var public_health: int = 64
+@export var public_order: int = 58
 @export var grain_crisis: GrainCrisis = GrainCrisis.new()
 @export var opening_decision: OpeningDecision = OpeningDecision.new()
 @export var opening_followup: OpeningFollowup = OpeningFollowup.new()
 @export var story_timeline: StoryTimeline = StoryTimeline.new()
 @export var campaign_outcome: CampaignOutcome = CampaignOutcome.new()
 @export var council: CouncilState = CouncilState.new()
+@export var policies: GovernancePolicy = GovernancePolicy.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -100,10 +102,13 @@ func spend_state(amount: int, reason: String) -> bool:
 	return true
 
 func _apply_monthly_economy() -> void:
-	state_treasury += 8 + council.monthly_economy_bonus()
+	state_treasury += 8 + council.monthly_economy_bonus() + policies.monthly_gold_modifier()
 	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus())
 	resources["iron_ore"] = int(resources.get("iron_ore", 0)) + 3
 	resources["worked_iron"] = int(resources.get("worked_iron", 0)) + 1
+	resources["weapons"] = int(resources.get("weapons", 0)) + policies.monthly_weapon_modifier()
+	public_health = clampi(public_health + policies.monthly_health_modifier(), 0, 100)
+	public_order = clampi(public_order + policies.monthly_order_modifier(), 0, 100)
 
 func to_data() -> Dictionary:
 	return {
@@ -114,12 +119,14 @@ func to_data() -> Dictionary:
 		"family_treasury": family_treasury,
 		"ruler_fatigue": ruler_fatigue,
 		"public_health": public_health,
+		"public_order": public_order,
 		"grain_crisis": grain_crisis.to_data(),
 		"opening_decision": opening_decision.to_data(),
 		"opening_followup": opening_followup.to_data(),
 		"story_timeline": story_timeline.to_data(),
 		"campaign_outcome": campaign_outcome.to_data(),
 		"council": council.to_data(),
+		"policies": policies.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -141,12 +148,14 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.family_treasury = maxi(0, int(data.get("family_treasury", 45)))
 	state.ruler_fatigue = clampi(int(data.get("ruler_fatigue", 8)), 0, 100)
 	state.public_health = clampi(int(data.get("public_health", 64)), 0, 100)
+	state.public_order = clampi(int(data.get("public_order", 58)), 0, 100)
 	state.grain_crisis.load_data(data.get("grain_crisis", {}))
 	state.opening_decision.load_data(data.get("opening_decision", {}))
 	state.opening_followup.load_data(data.get("opening_followup", {}))
 	state.story_timeline.load_data(data.get("story_timeline", {}))
 	state.campaign_outcome.load_data(data.get("campaign_outcome", {}))
 	state.council.load_data(data.get("council", {}))
+	state.policies.load_data(data.get("policies", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

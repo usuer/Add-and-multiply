@@ -21,6 +21,7 @@ var grain_choice_label: Label
 var funding_choice_label: Label
 var resolve_opening_button: Button
 var cases_button: Button
+var castle_section: String = "council"
 
 func _ready() -> void:
 	_create_environment()
@@ -497,6 +498,7 @@ func _on_building_selected(building: CityBuilding) -> void:
 	if selected_building != null:
 		selected_building.set_highlighted(false)
 	selected_building = building
+	if building.building_id == &"castle": castle_section = "council"
 	selected_building.set_highlighted(true)
 	camera_rig.focus_on(building.focus_point())
 	building_panel.visible = true
@@ -511,8 +513,11 @@ func _refresh_building_actions() -> void:
 	if selected_building == null:
 		return
 	if selected_building.building_id == &"castle":
-		_add_council_actions()
-	if selected_building.building_id in [&"castle", &"granary"]:
+		_add_castle_navigation()
+		if castle_section == "council": _add_council_actions()
+		else: _add_policy_actions()
+		return
+	if selected_building.building_id == &"granary":
 		var heading := Label.new()
 		heading.text = "ДЕЛО О НЕХВАТКЕ ЗЕРНА"
 		heading.modulate = Color("d9bd72")
@@ -533,6 +538,52 @@ func _refresh_building_actions() -> void:
 		inspect_button.text = "Осмотреть объект"
 		inspect_button.pressed.connect(_inspect_selected_building)
 		building_actions.add_child(inspect_button)
+
+func _add_castle_navigation() -> void:
+	var navigation := HBoxContainer.new()
+	navigation.add_theme_constant_override("separation", 6)
+	building_actions.add_child(navigation)
+	for section: String in ["council", "policies"]:
+		var button := Button.new()
+		button.text = "Совет" if section == "council" else "Правила"
+		button.disabled = castle_section == section
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.pressed.connect(_set_castle_section.bind(section))
+		navigation.add_child(button)
+	building_actions.add_child(HSeparator.new())
+
+func _set_castle_section(section: String) -> void:
+	castle_section = section
+	_refresh_building_actions()
+
+func _add_policy_actions() -> void:
+	var heading := Label.new()
+	heading.text = "ПРАВИЛА КНЯЖЕСТВА"
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	var note := Label.new()
+	note.text = "Указы действуют со следующего месячного расчёта. Реакции людей зависят от их положения и интересов."
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	building_actions.add_child(note)
+	for category_id: String in GovernancePolicy.CATEGORIES:
+		var category: Dictionary = GovernancePolicy.CATEGORIES[category_id]
+		var current := str(state.policies.active[category_id])
+		var category_label := Label.new()
+		category_label.text = "%s · сейчас: %s" % [category["title"], category["options"][current]]
+		category_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(category_label)
+		for option_id: String in category["options"]:
+			if option_id == current: continue
+			var button := Button.new()
+			button.text = str(category["options"][option_id])
+			button.pressed.connect(_enact_policy.bind(category_id, option_id))
+			building_actions.add_child(button)
+		building_actions.add_child(HSeparator.new())
+
+func _enact_policy(category_id: String, option_id: String) -> void:
+	if state.policies.enact(state, category_id, option_id):
+		_refresh_ui("Новый указ вступил в силу: %s" % GovernancePolicy.CATEGORIES[category_id]["options"][option_id])
+		_refresh_building_actions()
 
 func _add_council_actions() -> void:
 	var heading := Label.new()
@@ -608,10 +659,11 @@ func _on_load() -> void:
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
-	resource_label.text = "Казна %d    Личные средства %d    Здоровье %d\nЗерно %d    Железо %d    Оружие %d" % [
+	resource_label.text = "Казна %d    Личные средства %d    Здоровье %d    Порядок %d\nЗерно %d    Железо %d    Оружие %d" % [
 		state.state_treasury,
 		state.family_treasury,
 		state.public_health,
+		state.public_order,
 		int(state.resources.get("grain", 0)),
 		int(state.resources.get("worked_iron", 0)),
 		int(state.resources.get("weapons", 0))

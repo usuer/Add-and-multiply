@@ -14,9 +14,10 @@ func _initialize() -> void:
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
 	_test_physician_changes_epidemic_outcome()
+	_test_governance_policies_change_monthly_results()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 12 checks")
+		print("PASS Godot foundation: 13 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -186,6 +187,24 @@ func _test_physician_changes_epidemic_outcome() -> void:
 	unprepared.story_timeline.choose(unprepared, "fever_outbreak", "clinics")
 	_expect(unprepared.public_health == unprepared_before + 3, "Без главы службы лечебницы должны работать хуже, но не быть бесполезными")
 	_expect(prepared.story_timeline.outcome("fever_outbreak") != unprepared.story_timeline.outcome("fever_outbreak"), "Игрок должен увидеть различие в ходе лечения")
+
+func _test_governance_policies_change_monthly_results() -> void:
+	var state := WorldState.new()
+	var guilds_before := (state.factions["guilds"] as FactionState).disposition
+	_expect(state.policies.enact(state, "labor", "extended"), "Рабочий режим должен изменяться указом")
+	_expect(not state.policies.enact(state, "labor", "extended"), "Повтор уже действующего указа должен отклоняться")
+	_expect((state.factions["guilds"] as FactionState).disposition < guilds_before, "Удлинение труда должно вызывать реакцию цехов")
+	state.policies.enact(state, "mobilization", "total")
+	var gold_before := state.state_treasury
+	var health_before := state.public_health
+	var weapons_before := int(state.resources["weapons"])
+	state.calendar.period = CampaignCalendar.Period.END
+	state.advance_period()
+	_expect(state.state_treasury == gold_before + 6, "Трудовая и мобилизационная политика должны менять доход")
+	_expect(state.public_health == health_before - 2, "Удлинённый труд должен постепенно снижать здоровье")
+	_expect(int(state.resources["weapons"]) == weapons_before + 4, "Всеобщая мобилизация должна ускорять вооружение")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.policies.active["mobilization"] == "total", "Действующие правила должны сохраняться")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
