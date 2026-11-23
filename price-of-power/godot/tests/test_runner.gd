@@ -12,9 +12,10 @@ func _initialize() -> void:
 	_test_story_events_unlock_and_resolve_once()
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
+	_test_council_appointments_affect_government()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 10 checks")
+		print("PASS Godot foundation: 11 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -154,6 +155,21 @@ func _test_campaign_generates_a_stateful_outcome() -> void:
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.campaign_outcome.generated, "Сформированный эпилог должен сохраняться")
 	_expect(restored.campaign_outcome.continuation_hook == state.campaign_outcome.continuation_hook, "Вариант продолжения не должен меняться после загрузки")
+
+func _test_council_appointments_affect_government() -> void:
+	var state := WorldState.new()
+	_expect(state.council.appointments["steward"] == "borin", "Княжество должно начинать с унаследованным управляющим")
+	_expect(state.council.appointments["physician"] == "", "Часть должностей должна быть вакантна")
+	var fatigue_before := state.ruler_fatigue
+	_expect(state.council.appoint(state, "steward", "vesna"), "Совместимого кандидата можно назначить")
+	_expect(not state.council.appoint(state, "marshal", "mira"), "Лекаря нельзя назначить воеводой")
+	_expect(state.ruler_fatigue == fatigue_before + 2, "Кадровое решение должно расходовать внимание правителя")
+	var treasury_before := state.state_treasury
+	state.calendar.period = CampaignCalendar.Period.END
+	state.advance_period()
+	_expect(state.state_treasury == treasury_before + 11, "Состав совета должен менять месячную экономику")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.council.appointments["steward"] == "vesna", "Назначения должны сохраняться")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

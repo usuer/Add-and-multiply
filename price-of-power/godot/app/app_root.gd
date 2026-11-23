@@ -207,11 +207,16 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	column.add_child(building_status)
 	building_description = Label.new()
 	building_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	building_description.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	building_description.custom_minimum_size = Vector2(0, 54)
 	column.add_child(building_description)
+	var actions_scroll := ScrollContainer.new()
+	actions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	actions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(actions_scroll)
 	building_actions = VBoxContainer.new()
 	building_actions.add_theme_constant_override("separation", 7)
-	column.add_child(building_actions)
+	building_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	actions_scroll.add_child(building_actions)
 
 func _create_secretary_panel(layer: CanvasLayer) -> void:
 	secretary_panel = PanelContainer.new()
@@ -505,6 +510,8 @@ func _refresh_building_actions() -> void:
 		child.queue_free()
 	if selected_building == null:
 		return
+	if selected_building.building_id == &"castle":
+		_add_council_actions()
 	if selected_building.building_id in [&"castle", &"granary"]:
 		var heading := Label.new()
 		heading.text = "ДЕЛО О НЕХВАТКЕ ЗЕРНА"
@@ -526,6 +533,38 @@ func _refresh_building_actions() -> void:
 		inspect_button.text = "Осмотреть объект"
 		inspect_button.pressed.connect(_inspect_selected_building)
 		building_actions.add_child(inspect_button)
+
+func _add_council_actions() -> void:
+	var heading := Label.new()
+	heading.text = "СОВЕТ КНЯЗЯ"
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	for role_id: String in CouncilState.ROLES:
+		var current_id := str(state.council.appointments.get(role_id, ""))
+		var role_label := Label.new()
+		role_label.text = "%s: %s" % [CouncilState.ROLES[role_id], CouncilState.CANDIDATES[current_id]["name"] if CouncilState.CANDIDATES.has(current_id) else "должность свободна"]
+		role_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(role_label)
+		for candidate_id: String in state.council.candidates_for(role_id):
+			if candidate_id == current_id:
+				continue
+			var candidate: Dictionary = CouncilState.CANDIDATES[candidate_id]
+			var profile := Label.new()
+			profile.text = "%s — %s" % [candidate["name"], candidate["profile"]]
+			profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			profile.modulate = Color("b9c2b3")
+			building_actions.add_child(profile)
+			var button := Button.new()
+			button.text = "Назначить: %s" % candidate["name"]
+			button.tooltip_text = str(candidate["profile"])
+			button.pressed.connect(_appoint_councillor.bind(role_id, candidate_id))
+			building_actions.add_child(button)
+	building_actions.add_child(HSeparator.new())
+
+func _appoint_councillor(role_id: String, candidate_id: String) -> void:
+	if state.council.appoint(state, role_id, candidate_id):
+		_refresh_ui("Назначение утверждено: %s" % CouncilState.CANDIDATES[candidate_id]["name"])
+		_refresh_building_actions()
 
 func _assign_grain_investigation(delegate_id: String) -> void:
 	if state.assign_grain_investigation(delegate_id):

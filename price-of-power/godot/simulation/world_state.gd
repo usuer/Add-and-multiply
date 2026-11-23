@@ -13,6 +13,7 @@ const SAVE_VERSION: int = 1
 @export var opening_followup: OpeningFollowup = OpeningFollowup.new()
 @export var story_timeline: StoryTimeline = StoryTimeline.new()
 @export var campaign_outcome: CampaignOutcome = CampaignOutcome.new()
+@export var council: CouncilState = CouncilState.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -98,8 +99,8 @@ func spend_state(amount: int, reason: String) -> bool:
 	return true
 
 func _apply_monthly_economy() -> void:
-	state_treasury += 8
-	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5)
+	state_treasury += 8 + council.monthly_economy_bonus()
+	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus())
 	resources["iron_ore"] = int(resources.get("iron_ore", 0)) + 3
 	resources["worked_iron"] = int(resources.get("worked_iron", 0)) + 1
 
@@ -116,6 +117,7 @@ func to_data() -> Dictionary:
 		"opening_followup": opening_followup.to_data(),
 		"story_timeline": story_timeline.to_data(),
 		"campaign_outcome": campaign_outcome.to_data(),
+		"council": council.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -141,6 +143,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.opening_followup.load_data(data.get("opening_followup", {}))
 	state.story_timeline.load_data(data.get("story_timeline", {}))
 	state.campaign_outcome.load_data(data.get("campaign_outcome", {}))
+	state.council.load_data(data.get("council", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))
