@@ -17,9 +17,10 @@ func _initialize() -> void:
 	_test_governance_policies_change_monthly_results()
 	_test_justice_cases_use_evidence_and_capacity()
 	_test_diplomacy_prices_intelligence_and_pressure()
+	_test_development_projects_use_workers_and_complete()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 15 checks")
+		print("PASS Godot foundation: 16 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -242,6 +243,26 @@ func _test_diplomacy_prices_intelligence_and_pressure() -> void:
 	_expect(state.diplomacy.sabotage(state, "velgrad"), "Подготовленная диверсия должна выполняться")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(bool(restored.facts.get("sabotage_velgrad", false)), "Проведённая операция должна сохраняться в мире")
+
+func _test_development_projects_use_workers_and_complete() -> void:
+	var state := WorldState.new()
+	var gold_before := state.state_treasury
+	_expect(state.development.start(state, "granary"), "Доступный проект должен начинаться прямо из объекта")
+	_expect(state.state_treasury == gold_before - 12, "Строительство должно сразу резервировать утверждённую стоимость")
+	_expect(state.development.change_workers("granary", 20), "Свободных работников можно направить на стройку")
+	_expect(int(state.development.active_projects["granary"]["workers"]) == 30, "Назначение работников должно быть явным")
+	for month in range(3): state.development.advance_month(state)
+	_expect(not state.development.active_projects.has("granary"), "Набравший объём работ проект должен завершаться")
+	_expect(state.development.levels["granary"] == 2, "Завершение должно повышать реальный уровень объекта")
+	_expect(state.story_timeline.unread_reports().size() >= 1, "О завершении должен приходить постоянный отчёт")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.development.levels["granary"] == 2, "Уровни построек должны сохраняться")
+
+	var poor := WorldState.new()
+	poor.state_treasury = 0
+	var wood_before := int(poor.resources["wood"])
+	_expect(not poor.development.start(poor, "school"), "Недоступное строительство должно блокироваться")
+	_expect(int(poor.resources["wood"]) == wood_before, "Отклонённый проект не должен частично списывать материалы")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

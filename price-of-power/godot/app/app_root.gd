@@ -69,6 +69,7 @@ func _create_capital_placeholder() -> void:
 	_add_building(&"market", "Городской рынок", "Главное место торговли, найма и распространения слухов.", Vector3(-1.0, 0.0, 0.0), Vector3(8.0, 1.4, 6.0), Color("b49568"))
 	_add_building(&"temple", "Храм", "Центр прихода, помощи больным и регистрации семейных событий.", Vector3(7.0, 0.0, 1.0), Vector3(5.0, 6.0, 5.0), Color("aea287"))
 	_add_building(&"embassy", "Двор иностранных послов", "Здесь принимают соседские миссии, заключают сделки и собирают сведения о чужих дворах.", Vector3(-14.0, 0.0, 9.0), Vector3(5.0, 3.5, 4.0), Color("8d765f"))
+	_add_building(&"school", "Старая приходская школа", "Небольшая школа уже работает при писцовой палате, но ей не хватает учителей и отдельного здания.", Vector3(-7.0, 0.0, 11.0), Vector3(4.0, 2.7, 3.0), Color("9a8567"))
 
 	# Quarry remains outside the defended city.
 	_add_box("Quarry", Vector3(10.0, 0.7, 8.0), Vector3(-26.0, 0.0, 17.0), Color("807b70"))
@@ -522,6 +523,9 @@ func _refresh_building_actions() -> void:
 	if selected_building.building_id == &"embassy":
 		_add_diplomacy_actions()
 		return
+	var project_id := _project_for_building(selected_building.building_id)
+	if not project_id.is_empty():
+		_add_development_actions(project_id)
 	if selected_building.building_id == &"granary":
 		var heading := Label.new()
 		heading.text = "ДЕЛО О НЕХВАТКЕ ЗЕРНА"
@@ -543,6 +547,52 @@ func _refresh_building_actions() -> void:
 		inspect_button.text = "Осмотреть объект"
 		inspect_button.pressed.connect(_inspect_selected_building)
 		building_actions.add_child(inspect_button)
+
+func _project_for_building(building_id: StringName) -> String:
+	return {&"granary": "granary", &"smithy": "smithy", &"market": "housing", &"temple": "clinic", &"school": "school"}.get(building_id, "")
+
+func _add_development_actions(project_id: String) -> void:
+	var definition: Dictionary = DevelopmentState.PROJECTS[project_id]
+	var level := int(state.development.levels.get(project_id, 0))
+	var heading := Label.new()
+	heading.text = "%s · уровень %d" % [definition["title"], level]
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	if state.development.active_projects.has(project_id):
+		var project: Dictionary = state.development.active_projects[project_id]
+		var progress := Label.new()
+		progress.text = "Ход работ: %d/%d · работников %d · свободно %d" % [project["progress"], project["target"], project["workers"], state.development.available_workers()]
+		progress.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(progress)
+		var workforce := HBoxContainer.new()
+		building_actions.add_child(workforce)
+		for delta: int in [-5, 5]:
+			var button := Button.new()
+			button.text = "−5 работников" if delta < 0 else "+5 работников"
+			button.disabled = (delta < 0 and int(project["workers"]) < 5) or (delta > 0 and state.development.available_workers() < 5)
+			button.pressed.connect(_change_project_workers.bind(project_id, delta))
+			workforce.add_child(button)
+	else:
+		var cost := Label.new()
+		cost.text = "Новый этап: %d монет · %d дерева · %d камня" % [definition["gold"], definition["wood"], definition["stone"]]
+		cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(cost)
+		var start := Button.new()
+		start.text = "Начать строительство"
+		start.disabled = not state.development.can_start(state, project_id)
+		start.pressed.connect(_start_project.bind(project_id))
+		building_actions.add_child(start)
+	building_actions.add_child(HSeparator.new())
+
+func _start_project(project_id: String) -> void:
+	if state.development.start(state, project_id):
+		_refresh_ui("Строительство начато. Рабочих можно перераспределять прямо здесь.")
+		_refresh_building_actions()
+
+func _change_project_workers(project_id: String, delta: int) -> void:
+	if state.development.change_workers(project_id, delta):
+		_refresh_ui("Число работников на проекте изменено.")
+		_refresh_building_actions()
 
 func _add_castle_navigation() -> void:
 	var navigation := HBoxContainer.new()

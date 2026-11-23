@@ -19,6 +19,7 @@ const SAVE_VERSION: int = 1
 @export var policies: GovernancePolicy = GovernancePolicy.new()
 @export var justice: JusticeState = JusticeState.new()
 @export var diplomacy: DiplomacyState = DiplomacyState.new()
+@export var development: DevelopmentState = DevelopmentState.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -79,6 +80,7 @@ func advance_period() -> bool:
 		})
 	if calendar.period == CampaignCalendar.Period.BEGINNING:
 		_apply_monthly_economy()
+		development.advance_month(self)
 	consequence_log.append({
 		"cycle": calendar.cycle,
 		"kind": "period_advanced",
@@ -104,12 +106,13 @@ func spend_state(amount: int, reason: String) -> bool:
 	return true
 
 func _apply_monthly_economy() -> void:
-	state_treasury += 8 + council.monthly_economy_bonus() + policies.monthly_gold_modifier()
-	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus())
+	state_treasury += 8 + council.monthly_economy_bonus() + policies.monthly_gold_modifier() + development.monthly_gold_bonus()
+	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus() + development.monthly_grain_bonus())
 	resources["iron_ore"] = int(resources.get("iron_ore", 0)) + 3
 	resources["worked_iron"] = int(resources.get("worked_iron", 0)) + 1
+	resources["tools"] = int(resources.get("tools", 0)) + development.monthly_tools_bonus()
 	resources["weapons"] = int(resources.get("weapons", 0)) + policies.monthly_weapon_modifier()
-	public_health = clampi(public_health + policies.monthly_health_modifier(), 0, 100)
+	public_health = clampi(public_health + policies.monthly_health_modifier() + development.monthly_health_bonus(), 0, 100)
 	public_order = clampi(public_order + policies.monthly_order_modifier(), 0, 100)
 
 func to_data() -> Dictionary:
@@ -131,6 +134,7 @@ func to_data() -> Dictionary:
 		"policies": policies.to_data(),
 		"justice": justice.to_data(),
 		"diplomacy": diplomacy.to_data(),
+		"development": development.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -162,6 +166,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.policies.load_data(data.get("policies", {}))
 	state.justice.load_data(data.get("justice", {}))
 	state.diplomacy.load_data(data.get("diplomacy", {}))
+	state.development.load_data(data.get("development", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))
