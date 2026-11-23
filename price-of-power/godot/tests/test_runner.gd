@@ -23,9 +23,10 @@ func _initialize() -> void:
 	_test_technology_progress_and_practical_bonuses()
 	_test_population_migration_and_rebellion_pressure()
 	_test_ruler_overwork_causes_temporary_incapacity()
+	_test_atomic_autosave_fallback()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 21 checks")
+		print("PASS Godot foundation: 22 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -358,6 +359,18 @@ func _test_ruler_overwork_causes_temporary_incapacity() -> void:
 	_expect(state.ruler_fatigue < 75, "Вынужденный отдых должен заметно снижать усталость")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.ruler_health == state.ruler_health, "Здоровье правителя должно сохраняться")
+
+func _test_atomic_autosave_fallback() -> void:
+	var state := WorldState.new()
+	state.state_treasury = 77
+	var auto_path := CampaignSaveService.AUTOSAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(CampaignSaveService.SAVE_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(auto_path))
+	_expect(CampaignSaveService.save_campaign(state, auto_path) == OK, "Автосохранение должно записываться атомарно")
+	var loaded := CampaignSaveService.load_latest()
+	_expect(loaded != null and loaded.state_treasury == 77, "Автосохранение должно полностью восстанавливать состояние")
+	_expect(not FileAccess.file_exists(auto_path + ".tmp"), "После успешной записи не должен оставаться временный файл")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(auto_path))
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

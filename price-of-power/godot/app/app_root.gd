@@ -33,6 +33,7 @@ var intro_next_button: Button
 var intro_page: int = 0
 var objectives_label: Label
 var illustrated_map: IllustratedCapitalMap
+var new_campaign_confirmation: bool = false
 
 const INTRO_PAGES: Array[Dictionary] = [
 	{"title": "Арденское княжество · весна 1248 года", "body": "После смерти отца вы наследуете не пустую землю, а действующее государство: укреплённую столицу, старых чиновников, ремесленные кварталы и области, которые уже привыкли решать часть дел без двора. Казна не бедна, но почти у каждого запаса есть прежнее обещание."},
@@ -178,6 +179,7 @@ func _create_ui() -> void:
 	var save_row := HBoxContainer.new()
 	actions.add_child(save_row)
 	for item: Dictionary in [
+		{"text": "Новая", "callable": _on_new_campaign},
 		{"text": "Сохранить", "callable": _on_save},
 		{"text": "Загрузить", "callable": _on_load}
 	]:
@@ -1050,6 +1052,8 @@ func _close_building_panel() -> void:
 
 func _on_advance_period() -> void:
 	var advanced := state.advance_period()
+	if advanced:
+		CampaignSaveService.save_campaign(state, CampaignSaveService.AUTOSAVE_PATH)
 	var unread := state.story_timeline.unread_reports().size()
 	var advance_message := "Период завершён"
 	if unread > 0:
@@ -1063,7 +1067,7 @@ func _on_save() -> void:
 	_refresh_ui("Сохранение создано" if error == OK else "Не удалось сохранить: %s" % error_string(error))
 
 func _on_load() -> void:
-	var loaded := CampaignSaveService.load_campaign()
+	var loaded := CampaignSaveService.load_latest()
 	if loaded == null:
 		_refresh_ui("Сохранение ещё не создано")
 		return
@@ -1075,6 +1079,18 @@ func _on_load() -> void:
 		_refresh_intro()
 	if building_panel.visible:
 		_refresh_building_actions()
+
+func _on_new_campaign() -> void:
+	if not new_campaign_confirmation:
+		new_campaign_confirmation = true
+		_refresh_ui("Нажмите «Новая» ещё раз, чтобы начать заново. Текущее ручное сохранение останется доступно.")
+		return
+	new_campaign_confirmation = false
+	building_panel.visible = false
+	secretary_panel.visible = false
+	state = WorldState.new()
+	_show_intro()
+	_refresh_ui("Начата новая кампания. Предыдущее ручное сохранение не удалено.")
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
