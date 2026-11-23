@@ -8,6 +8,7 @@ const SAVE_VERSION: int = 1
 @export var state_treasury: int = 120
 @export var family_treasury: int = 45
 @export var ruler_fatigue: int = 8
+@export var grain_crisis: GrainCrisis = GrainCrisis.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -23,12 +24,28 @@ const SAVE_VERSION: int = 1
 func advance_period() -> bool:
 	if not calendar.advance():
 		return false
+	if grain_crisis.update(calendar.cycle):
+		consequence_log.append({
+			"cycle": calendar.cycle,
+			"kind": "grain_findings_ready",
+			"delegate": grain_crisis.delegate_id
+		})
 	if calendar.period == CampaignCalendar.Period.BEGINNING:
 		_apply_monthly_economy()
 	consequence_log.append({
 		"cycle": calendar.cycle,
 		"kind": "period_advanced",
 		"date": calendar.display_date()
+	})
+	return true
+
+func assign_grain_investigation(delegate_id: String) -> bool:
+	if not grain_crisis.assign(delegate_id, calendar.cycle):
+		return false
+	consequence_log.append({
+		"cycle": calendar.cycle,
+		"kind": "grain_investigation_assigned",
+		"delegate": delegate_id
 	})
 	return true
 
@@ -53,6 +70,7 @@ func to_data() -> Dictionary:
 		"state_treasury": state_treasury,
 		"family_treasury": family_treasury,
 		"ruler_fatigue": ruler_fatigue,
+		"grain_crisis": grain_crisis.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true)
@@ -65,6 +83,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.state_treasury = maxi(0, int(data.get("state_treasury", 120)))
 	state.family_treasury = maxi(0, int(data.get("family_treasury", 45)))
 	state.ruler_fatigue = clampi(int(data.get("ruler_fatigue", 8)), 0, 100)
+	state.grain_crisis.load_data(data.get("grain_crisis", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

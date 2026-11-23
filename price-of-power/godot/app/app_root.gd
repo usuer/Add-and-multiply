@@ -1,11 +1,19 @@
 extends Node3D
 
 const CAPITAL_CAMERA := preload("res://world/capital_camera.gd")
+const CITY_BUILDING := preload("res://world/city_building.gd")
 
 var state: WorldState = WorldState.new()
 var date_label: Label
 var resource_label: Label
 var notice_label: Label
+var camera_rig: CapitalCamera
+var selected_building: CityBuilding
+var building_panel: PanelContainer
+var building_title: Label
+var building_description: Label
+var building_status: Label
+var building_actions: VBoxContainer
 
 func _ready() -> void:
 	_create_environment()
@@ -45,19 +53,23 @@ func _create_capital_placeholder() -> void:
 	_add_box("EastWallBottom", Vector3(1.2, 2.5, 12.0), Vector3(13.0, 1.25, 9.5), Color("a99b7e"))
 
 	# Palace-castle and functional city blocks.
-	_add_building("Castle", Vector3(-11.0, 0.0, -4.0), Vector3(9.0, 7.0, 8.0), Color("7d6d5d"))
-	_add_building("Keep", Vector3(-11.0, 0.0, -4.0), Vector3(4.0, 11.0, 4.0), Color("66594c"))
-	_add_building("Barracks", Vector3(-3.0, 0.0, 8.0), Vector3(7.0, 3.8, 4.0), Color("806b53"))
-	_add_building("Smithy", Vector3(6.0, 0.0, 8.0), Vector3(5.0, 3.0, 4.0), Color("624f42"))
-	_add_building("Granary", Vector3(6.0, 0.0, -7.0), Vector3(6.0, 4.0, 4.0), Color("9b7b4f"))
-	_add_building("Market", Vector3(-1.0, 0.0, 0.0), Vector3(8.0, 1.4, 6.0), Color("b49568"))
-	_add_building("Temple", Vector3(7.0, 0.0, 1.0), Vector3(5.0, 6.0, 5.0), Color("aea287"))
+	_add_building(&"castle", "Замок Ардена", "Дворец княжеской семьи, канцелярия и последний рубеж обороны.", Vector3(-11.0, 0.0, -4.0), Vector3(9.0, 7.0, 8.0), Color("7d6d5d"))
+	_add_building(&"keep", "Донжон", "Внутренняя башня, архив и защищённые запасы на случай прорыва стен.", Vector3(-11.0, 0.0, -4.0), Vector3(4.0, 11.0, 4.0), Color("66594c"))
+	_add_building(&"barracks", "Казармы", "Гарнизон столицы, обучение ополчения и размещение военных запасов.", Vector3(-3.0, 0.0, 8.0), Vector3(7.0, 3.8, 4.0), Color("806b53"))
+	_add_building(&"smithy", "Кузница", "Производит инструменты и вооружение, потребляя древесину и обработанное железо.", Vector3(6.0, 0.0, 8.0), Vector3(5.0, 3.0, 4.0), Color("624f42"))
+	_add_building(&"granary", "Княжеский амбар", "Государственные запасы зерна. Недостача в областных книгах требует расследования.", Vector3(6.0, 0.0, -7.0), Vector3(6.0, 4.0, 4.0), Color("9b7b4f"))
+	_add_building(&"market", "Городской рынок", "Главное место торговли, найма и распространения слухов.", Vector3(-1.0, 0.0, 0.0), Vector3(8.0, 1.4, 6.0), Color("b49568"))
+	_add_building(&"temple", "Храм", "Центр прихода, помощи больным и регистрации семейных событий.", Vector3(7.0, 0.0, 1.0), Vector3(5.0, 6.0, 5.0), Color("aea287"))
 
 	# Quarry remains outside the defended city.
 	_add_box("Quarry", Vector3(10.0, 0.7, 8.0), Vector3(-26.0, 0.0, 17.0), Color("807b70"))
 
-func _add_building(label_text: String, ground_position: Vector3, size: Vector3, color: Color) -> void:
-	_add_box(label_text, size, ground_position + Vector3(0.0, size.y * 0.5, 0.0), color)
+func _add_building(id: StringName, title: String, details: String, ground_position: Vector3, size: Vector3, color: Color) -> void:
+	var building := CITY_BUILDING.new() as CityBuilding
+	building.configure(id, title, details, size, color)
+	building.position = ground_position
+	building.selected.connect(_on_building_selected)
+	add_child(building)
 
 func _add_box(node_name: String, size: Vector3, world_position: Vector3, color: Color) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -73,9 +85,9 @@ func _add_box(node_name: String, size: Vector3, world_position: Vector3, color: 
 	add_child(mesh_instance)
 
 func _create_camera() -> void:
-	var rig := CAPITAL_CAMERA.new()
-	rig.position = Vector3(-2.0, 0.0, 8.0)
-	add_child(rig)
+	camera_rig = CAPITAL_CAMERA.new()
+	camera_rig.position = Vector3(-2.0, 0.0, 8.0)
+	add_child(camera_rig)
 
 func _create_ui() -> void:
 	var layer := CanvasLayer.new()
@@ -88,6 +100,7 @@ func _create_ui() -> void:
 	margin.add_theme_constant_override("margin_right", 28)
 	margin.add_theme_constant_override("margin_bottom", 24)
 	layer.add_child(margin)
+	_create_building_panel(layer)
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
@@ -150,9 +163,103 @@ func _create_ui() -> void:
 	notice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	footer.add_child(notice_label)
 
+func _create_building_panel(layer: CanvasLayer) -> void:
+	building_panel = PanelContainer.new()
+	building_panel.visible = false
+	building_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	building_panel.position = Vector2(-388, -210)
+	building_panel.size = Vector2(360, 420)
+	layer.add_child(building_panel)
+
+	var panel_margin := MarginContainer.new()
+	panel_margin.add_theme_constant_override("margin_left", 22)
+	panel_margin.add_theme_constant_override("margin_top", 20)
+	panel_margin.add_theme_constant_override("margin_right", 22)
+	panel_margin.add_theme_constant_override("margin_bottom", 20)
+	building_panel.add_child(panel_margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	panel_margin.add_child(column)
+
+	var close_button := Button.new()
+	close_button.text = "Вернуться к городу"
+	close_button.pressed.connect(_close_building_panel)
+	column.add_child(close_button)
+	building_title = Label.new()
+	building_title.add_theme_font_size_override("font_size", 25)
+	building_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(building_title)
+	building_status = Label.new()
+	building_status.modulate = Color("d9bd72")
+	column.add_child(building_status)
+	building_description = Label.new()
+	building_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	building_description.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(building_description)
+	building_actions = VBoxContainer.new()
+	building_actions.add_theme_constant_override("separation", 7)
+	column.add_child(building_actions)
+
+func _on_building_selected(building: CityBuilding) -> void:
+	if selected_building != null:
+		selected_building.set_highlighted(false)
+	selected_building = building
+	selected_building.set_highlighted(true)
+	camera_rig.focus_on(building.focus_point())
+	building_panel.visible = true
+	building_title.text = building.display_name
+	building_status.text = building.building_status
+	building_description.text = building.description
+	_refresh_building_actions()
+
+func _refresh_building_actions() -> void:
+	for child in building_actions.get_children():
+		child.queue_free()
+	if selected_building == null:
+		return
+	if selected_building.building_id in [&"castle", &"granary"]:
+		var heading := Label.new()
+		heading.text = "ДЕЛО О НЕХВАТКЕ ЗЕРНА"
+		heading.modulate = Color("d9bd72")
+		building_actions.add_child(heading)
+		var crisis_text := Label.new()
+		crisis_text.text = state.grain_crisis.status_text()
+		crisis_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(crisis_text)
+		if state.grain_crisis.stage == GrainCrisis.Stage.REPORTED:
+			for delegate_id: String in GrainCrisis.DELEGATES:
+				var delegate: Dictionary = GrainCrisis.DELEGATES[delegate_id]
+				var button := Button.new()
+				button.text = "Поручить: %s" % delegate["name"]
+				button.pressed.connect(_assign_grain_investigation.bind(delegate_id))
+				building_actions.add_child(button)
+	else:
+		var inspect_button := Button.new()
+		inspect_button.text = "Осмотреть объект"
+		inspect_button.pressed.connect(_inspect_selected_building)
+		building_actions.add_child(inspect_button)
+
+func _assign_grain_investigation(delegate_id: String) -> void:
+	if state.assign_grain_investigation(delegate_id):
+		_refresh_ui("Расследование поручено: %s" % GrainCrisis.DELEGATES[delegate_id]["name"])
+	_refresh_building_actions()
+
+func _inspect_selected_building() -> void:
+	if selected_building != null:
+		_refresh_ui("Осмотрено: %s. Новых срочных проблем не обнаружено." % selected_building.display_name)
+
+func _close_building_panel() -> void:
+	building_panel.visible = false
+	if selected_building != null:
+		selected_building.set_highlighted(false)
+	selected_building = null
+	camera_rig.overview()
+
 func _on_advance_period() -> void:
 	var advanced := state.advance_period()
 	_refresh_ui("Период завершён" if advanced else "Демоверсия завершена — доступен эпилог")
+	if building_panel.visible:
+		_refresh_building_actions()
 
 func _on_save() -> void:
 	var error := CampaignSaveService.save_campaign(state)
@@ -165,6 +272,8 @@ func _on_load() -> void:
 		return
 	state = loaded
 	_refresh_ui("Сохранение загружено")
+	if building_panel.visible:
+		_refresh_building_actions()
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()

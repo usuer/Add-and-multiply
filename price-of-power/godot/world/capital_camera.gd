@@ -9,6 +9,7 @@ extends Node3D
 
 var _zoom: float = 31.0
 var _camera: Camera3D
+var _focus_tween: Tween
 
 func _ready() -> void:
 	_camera = Camera3D.new()
@@ -33,4 +34,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		if mouse_event.pressed and mouse_event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			_zoom = clampf(_zoom + (-zoom_speed if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP else zoom_speed), min_zoom, max_zoom)
 			_camera.position.z = _zoom
+
+func focus_on(world_point: Vector3) -> void:
+	if _focus_tween != null and _focus_tween.is_running():
+		_focus_tween.kill()
+	_focus_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	_focus_tween.tween_property(self, "global_position", Vector3(world_point.x, global_position.y, world_point.z + 5.0), 0.65)
+	_zoom = 23.0
+	_focus_tween.parallel().tween_property(_camera, "position:z", _zoom, 0.65)
+
+func overview() -> void:
+	focus_on(Vector3(-2.0, 0.0, 3.0))
+	_zoom = 31.0
+	if _focus_tween != null:
+		_focus_tween.parallel().tween_property(_camera, "position:z", _zoom, 0.65)
 
