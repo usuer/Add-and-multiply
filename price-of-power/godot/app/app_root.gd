@@ -2,6 +2,7 @@ extends Node3D
 
 const CAPITAL_CAMERA := preload("res://world/capital_camera.gd")
 const CITY_BUILDING := preload("res://world/city_building.gd")
+const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
 const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
 
 var state: WorldState = WorldState.new()
@@ -31,6 +32,7 @@ var intro_back_button: Button
 var intro_next_button: Button
 var intro_page: int = 0
 var objectives_label: Label
+var illustrated_map: IllustratedCapitalMap
 
 const INTRO_PAGES: Array[Dictionary] = [
 	{"title": "Арденское княжество · весна 1248 года", "body": "После смерти отца вы наследуете не пустую землю, а действующее государство: укреплённую столицу, старых чиновников, ремесленные кварталы и области, которые уже привыкли решать часть дел без двора. Казна не бедна, но почти у каждого запаса есть прежнее обещание."},
@@ -184,9 +186,12 @@ func _create_ui() -> void:
 		button.pressed.connect(item["callable"])
 		save_row.add_child(button)
 
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(spacer)
+	illustrated_map = ILLUSTRATED_MAP.new() as IllustratedCapitalMap
+	illustrated_map.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	illustrated_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	illustrated_map.custom_minimum_size = Vector2(0, 420)
+	illustrated_map.building_selected.connect(_on_illustrated_building_selected)
+	root.add_child(illustrated_map)
 
 	var objectives_panel := PanelContainer.new()
 	objectives_panel.custom_minimum_size = Vector2(0, 42)
@@ -200,7 +205,7 @@ func _create_ui() -> void:
 	footer.custom_minimum_size = Vector2(0, 62)
 	root.add_child(footer)
 	notice_label = Label.new()
-	notice_label.text = "WASD — перемещение · Q/E — вращение · колесо — масштаб"
+	notice_label.text = "Перетаскивайте карту · колесо — масштаб · выберите здание для управления"
 	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	notice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	footer.add_child(notice_label)
@@ -617,6 +622,12 @@ func _on_building_selected(building: CityBuilding) -> void:
 	building_description.text = building.description
 	_refresh_building_actions()
 
+func _on_illustrated_building_selected(building_id: StringName) -> void:
+	for child: Node in get_children():
+		if child is CityBuilding and (child as CityBuilding).building_id == building_id:
+			_on_building_selected(child as CityBuilding)
+			return
+
 func _refresh_building_actions() -> void:
 	for child in building_actions.get_children():
 		child.queue_free()
@@ -1028,7 +1039,7 @@ func _refresh_ui(message: String) -> void:
 		int(state.resources.get("worked_iron", 0)),
 		int(state.resources.get("weapons", 0))
 	]
-	notice_label.text = message + "    ·    WASD — перемещение · Q/E — вращение · колесо — масштаб"
+	notice_label.text = message + "    ·    перетаскивание — движение карты · колесо — масштаб"
 	if objectives_label != null:
 		var completed := state.guide.completed_count(state)
 		var next_goal := "Все вводные цели выполнены"
