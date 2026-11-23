@@ -10,6 +10,7 @@ const SAVE_VERSION: int = 1
 @export var ruler_fatigue: int = 8
 @export var grain_crisis: GrainCrisis = GrainCrisis.new()
 @export var opening_decision: OpeningDecision = OpeningDecision.new()
+@export var opening_followup: OpeningFollowup = OpeningFollowup.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -107,6 +108,7 @@ func to_data() -> Dictionary:
 		"ruler_fatigue": ruler_fatigue,
 		"grain_crisis": grain_crisis.to_data(),
 		"opening_decision": opening_decision.to_data(),
+		"opening_followup": opening_followup.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -129,6 +131,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.ruler_fatigue = clampi(int(data.get("ruler_fatigue", 8)), 0, 100)
 	state.grain_crisis.load_data(data.get("grain_crisis", {}))
 	state.opening_decision.load_data(data.get("opening_decision", {}))
+	state.opening_followup.load_data(data.get("opening_followup", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

@@ -8,9 +8,10 @@ func _initialize() -> void:
 	_test_grain_investigation_uses_delegate_method()
 	_test_opening_decision_is_composite_and_atomic()
 	_test_opening_decision_creates_social_memory()
+	_test_followup_conversation_remembers_response()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 6 checks")
+		print("PASS Godot foundation: 7 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -85,6 +86,19 @@ func _test_opening_decision_creates_social_memory() -> void:
 	_expect(rural.disposition < rural_before, "Откладывание помощи должно ухудшать отношение области")
 	_expect(state.opening_decision.observed_reactions(state).size() == 3, "Игрок должен получить краткие наблюдаемые реакции")
 
+func _test_followup_conversation_remembers_response() -> void:
+	var state := WorldState.new()
+	state.opening_decision.choose_funeral("solemn")
+	state.opening_decision.choose_grain("partial")
+	state.opening_decision.choose_funding("family")
+	state.opening_decision.resolve(state)
+	_expect(state.opening_followup.status == OpeningFollowup.Status.AVAILABLE, "После решения должен открыться личный разговор")
+	_expect(state.opening_followup.actor_id == "spouse", "Расход семейных средств должна обсудить супруга")
+	var before := (state.characters["spouse"] as CharacterState).memories.size()
+	_expect(state.opening_followup.choose(state, "apologize"), "Доступный ответ должен завершать разговор")
+	_expect((state.characters["spouse"] as CharacterState).memories.size() == before + 1, "Ответ должен остаться в памяти собеседника")
+	_expect(not state.opening_followup.choose(state, "duty"), "Нельзя ответить в завершённом разговоре второй раз")
+
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
 	state.advance_period()
@@ -107,5 +121,6 @@ func _test_save_round_trip() -> void:
 		_expect(loaded.opening_decision.grain_response == "partial", "Выбор помощи должен сохраняться")
 		_expect((loaded.characters["spouse"] as CharacterState).memories.size() == 1, "Память персонажа должна сохраняться")
 		_expect((loaded.factions["rural"] as FactionState).known_reasons.size() == 1, "Причина реакции группы должна сохраняться")
+		_expect(loaded.opening_followup.status == OpeningFollowup.Status.AVAILABLE, "Незавершённый личный разговор должен сохраняться")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 

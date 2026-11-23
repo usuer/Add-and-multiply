@@ -75,6 +75,7 @@ func resolve(state: WorldState) -> bool:
 	state.facts["grain_response"] = grain_response
 	state.facts["funeral_plan"] = funeral_plan
 	_apply_social_consequences(state)
+	state.opening_followup.prepare(self)
 	state.consequence_log.append({
 		"cycle": resolved_cycle,
 		"kind": "opening_decision_resolved",

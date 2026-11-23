@@ -296,6 +296,7 @@ func _refresh_secretary_case() -> void:
 			reaction_label.text = "• " + reaction
 			reaction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			secretary_case_body.add_child(reaction_label)
+		_add_opening_followup()
 		resolve_opening_button.visible = false
 		return
 
@@ -330,6 +331,39 @@ func _refresh_secretary_case() -> void:
 	secretary_case_body.add_child(warning)
 	resolve_opening_button.visible = true
 	resolve_opening_button.disabled = not decision.can_resolve(state)
+
+func _add_opening_followup() -> void:
+	var followup := state.opening_followup
+	if followup.status == OpeningFollowup.Status.LOCKED:
+		return
+	var divider := HSeparator.new()
+	secretary_case_body.add_child(divider)
+	var actor: CharacterState = state.characters[followup.actor_id]
+	var heading := Label.new()
+	heading.text = "%s · %s" % [followup.title, actor.display_name]
+	heading.add_theme_font_size_override("font_size", 20)
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(heading)
+	var speech := Label.new()
+	speech.text = followup.spoken_text
+	speech.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(speech)
+	if followup.status == OpeningFollowup.Status.RESOLVED:
+		var closing := Label.new()
+		closing.text = followup.closing_text
+		closing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(closing)
+		return
+	for response_id: String in followup.response_ids:
+		var response := Button.new()
+		response.text = followup.response_title(response_id)
+		response.custom_minimum_size = Vector2(0, 42)
+		response.pressed.connect(_choose_opening_followup.bind(response_id))
+		secretary_case_body.add_child(response)
+
+func _choose_opening_followup(response_id: String) -> void:
+	if state.opening_followup.choose(state, response_id):
+		_refresh_secretary_case()
 
 func _add_choice_section(title: String, choices: Dictionary, selected_id: String, callback: Callable) -> void:
 	var heading := Label.new()
