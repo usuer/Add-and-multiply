@@ -515,7 +515,8 @@ func _refresh_building_actions() -> void:
 	if selected_building.building_id == &"castle":
 		_add_castle_navigation()
 		if castle_section == "council": _add_council_actions()
-		else: _add_policy_actions()
+		elif castle_section == "policies": _add_policy_actions()
+		else: _add_justice_actions()
 		return
 	if selected_building.building_id == &"granary":
 		var heading := Label.new()
@@ -543,9 +544,9 @@ func _add_castle_navigation() -> void:
 	var navigation := HBoxContainer.new()
 	navigation.add_theme_constant_override("separation", 6)
 	building_actions.add_child(navigation)
-	for section: String in ["council", "policies"]:
+	for section: String in ["council", "policies", "justice"]:
 		var button := Button.new()
-		button.text = "Совет" if section == "council" else "Правила"
+		button.text = {"council": "Совет", "policies": "Правила", "justice": "Суд"}[section]
 		button.disabled = castle_section == section
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(_set_castle_section.bind(section))
@@ -583,6 +584,42 @@ func _add_policy_actions() -> void:
 func _enact_policy(category_id: String, option_id: String) -> void:
 	if state.policies.enact(state, category_id, option_id):
 		_refresh_ui("Новый указ вступил в силу: %s" % GovernancePolicy.CATEGORIES[category_id]["options"][option_id])
+		_refresh_building_actions()
+
+func _add_justice_actions() -> void:
+	var heading := Label.new()
+	heading.text = "СУД И ТЮРЬМА · %d/%d МЕСТ" % [state.justice.prisoners, state.justice.prison_capacity]
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	var cases := state.justice.available_cases()
+	if cases.is_empty():
+		var empty := Label.new()
+		empty.text = "Неразобранных дел сейчас нет."
+		building_actions.add_child(empty)
+		return
+	for case_id: String in cases:
+		var court_case: Dictionary = JusticeState.CASES[case_id]
+		var title := Label.new()
+		title.text = "%s · %s" % [court_case["name"], court_case["charge"]]
+		title.add_theme_font_size_override("font_size", 17)
+		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(title)
+		var evidence := Label.new()
+		evidence.text = "Доказательства: %s" % court_case["evidence"]
+		evidence.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		evidence.modulate = Color("b9c2b3")
+		building_actions.add_child(evidence)
+		for option_id: String in court_case["options"]:
+			var button := Button.new()
+			button.text = str(court_case["options"][option_id])
+			button.disabled = not state.justice.can_judge(case_id, option_id)
+			button.pressed.connect(_judge_case.bind(case_id, option_id))
+			building_actions.add_child(button)
+		building_actions.add_child(HSeparator.new())
+
+func _judge_case(case_id: String, option_id: String) -> void:
+	if state.justice.judge(state, case_id, option_id):
+		_refresh_ui(state.justice.outcome(case_id))
 		_refresh_building_actions()
 
 func _add_council_actions() -> void:

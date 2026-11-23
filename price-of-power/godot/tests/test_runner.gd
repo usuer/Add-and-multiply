@@ -15,9 +15,10 @@ func _initialize() -> void:
 	_test_council_appointments_affect_government()
 	_test_physician_changes_epidemic_outcome()
 	_test_governance_policies_change_monthly_results()
+	_test_justice_cases_use_evidence_and_capacity()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 13 checks")
+		print("PASS Godot foundation: 14 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -205,6 +206,19 @@ func _test_governance_policies_change_monthly_results() -> void:
 	_expect(int(state.resources["weapons"]) == weapons_before + 4, "Всеобщая мобилизация должна ускорять вооружение")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.policies.active["mobilization"] == "total", "Действующие правила должны сохраняться")
+
+func _test_justice_cases_use_evidence_and_capacity() -> void:
+	var state := WorldState.new()
+	var guilds_before := (state.factions["guilds"] as FactionState).disposition
+	_expect(state.justice.judge(state, "market_thief", "release"), "Суд должен позволять освободить человека при слабых уликах")
+	_expect(not state.justice.judge(state, "market_thief", "labor"), "Одно дело нельзя решить дважды")
+	_expect((state.factions["guilds"] as FactionState).disposition == guilds_before - 1, "Решение суда должно вызывать объяснимую реакцию")
+	state.justice.prisoners = state.justice.prison_capacity
+	_expect(not state.justice.judge(state, "river_smuggler", "prison"), "Переполненная тюрьма должна блокировать заключение")
+	_expect(state.justice.judge(state, "river_smuggler", "informant"), "При переполнении должен оставаться альтернативный путь")
+	_expect(bool(state.facts.get("river_informant", false)), "Вербовка должна создавать разведывательный ресурс")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.justice.informants == ["vardan"], "Осведомители должны сохраняться")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
