@@ -20,6 +20,14 @@ godot4 --path godot
 godot4 --headless --path godot --script res://tests/test_runner.gd
 ```
 
+## Сборка игрового пакета
+
+```bash
+./scripts/build_release.sh
+```
+
+Скрипт импортирует ресурсы, запускает все проверки и создаёт `build/price-of-power.pck`. Профили Windows и Linux также доступны в окне Export редактора Godot; для готовых исполняемых файлов редактору требуются официальные export templates той же версии.
+
 Сейчас реализованы:
 
 - запускаемая 3D-сцена укреплённой столицы;
