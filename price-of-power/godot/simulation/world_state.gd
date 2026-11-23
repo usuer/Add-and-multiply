@@ -61,6 +61,7 @@ func _make_faction(id: String, title: String, disposition_value: int) -> Faction
 func advance_period() -> bool:
 	if not calendar.advance():
 		return false
+	story_timeline.update(self)
 	if grain_crisis.update(calendar.cycle):
 		consequence_log.append({
 			"cycle": calendar.cycle,

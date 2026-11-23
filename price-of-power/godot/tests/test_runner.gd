@@ -10,9 +10,10 @@ func _initialize() -> void:
 	_test_opening_decision_creates_social_memory()
 	_test_followup_conversation_remembers_response()
 	_test_story_events_unlock_and_resolve_once()
+	_test_neglected_events_and_border_branch()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 8 checks")
+		print("PASS Godot foundation: 9 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -117,6 +118,28 @@ func _test_story_events_unlock_and_resolve_once() -> void:
 	_expect(not poor_state.story_timeline.choose(poor_state, "granary_roof", "repair"), "Недоступный платный вариант должен блокироваться")
 	_expect(poor_state.state_treasury == 2, "Отклонённый вариант не должен списывать часть суммы")
 	_expect(poor_state.story_timeline.choose(poor_state, "granary_roof", "inspect"), "При нехватке денег должен оставаться осмысленный бесплатный путь")
+
+func _test_neglected_events_and_border_branch() -> void:
+	var neglected := WorldState.new()
+	var grain_before := int(neglected.resources["grain"])
+	neglected.advance_period()
+	neglected.advance_period()
+	neglected.advance_period()
+	_expect(str((neglected.story_timeline.resolved["granary_roof"] as Dictionary).get("choice")) == "neglected", "Просроченная авария должна разрешаться сама")
+	_expect(int(neglected.resources["grain"]) < grain_before, "Игнорирование крыши должно портить зерно")
+	_expect(neglected.story_timeline.unread_reports().size() == 1, "Просроченное дело должно создавать постоянный отчёт")
+	neglected.story_timeline.mark_reports_read()
+	_expect(neglected.story_timeline.unread_reports().is_empty(), "Открытый отчёт должен отмечаться прочитанным")
+
+	var border := WorldState.new()
+	for step in range(5): border.advance_period()
+	_expect(border.calendar.cycle == 6, "Пограничный гонец должен появиться на шестом цикле")
+	_expect(border.story_timeline.choose(border, "border_courier", "scouts"), "Должно быть можно отправить дозор")
+	border.advance_period()
+	border.advance_period()
+	_expect(bool(border.facts.get("northern_scouts_returned", false)), "Дозор должен вернуться через два периода")
+	_expect("scout_report" in border.story_timeline.available_events(border.calendar.cycle), "Возвращение дозора должно открыть новую военную развилку")
+	_expect(border.story_timeline.unread_reports().size() >= 1, "Возвращение дозора должно сопровождаться видимым отчётом")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

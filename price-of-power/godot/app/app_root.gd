@@ -278,6 +278,7 @@ func _close_secretary() -> void:
 func _refresh_secretary_case() -> void:
 	for child in secretary_case_body.get_children():
 		child.queue_free()
+	_add_unread_reports()
 	var decision := state.opening_decision
 	if decision.status == OpeningDecision.Status.RESOLVED:
 		var result_heading := Label.new()
@@ -333,6 +334,26 @@ func _refresh_secretary_case() -> void:
 	secretary_case_body.add_child(warning)
 	resolve_opening_button.visible = true
 	resolve_opening_button.disabled = not decision.can_resolve(state)
+
+func _add_unread_reports() -> void:
+	var reports := state.story_timeline.unread_reports()
+	if reports.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = "ПОСЛЕДСТВИЯ · %d" % reports.size()
+	heading.modulate = Color("e0a96b")
+	secretary_case_body.add_child(heading)
+	for report: Dictionary in reports:
+		var title := Label.new()
+		title.text = str(report.get("title", "Новый отчёт"))
+		title.add_theme_font_size_override("font_size", 19)
+		secretary_case_body.add_child(title)
+		var body := Label.new()
+		body.text = str(report.get("text", ""))
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(body)
+	state.story_timeline.mark_reports_read()
+	secretary_case_body.add_child(HSeparator.new())
 
 func _add_opening_followup() -> void:
 	var followup := state.opening_followup
@@ -498,7 +519,11 @@ func _close_building_panel() -> void:
 
 func _on_advance_period() -> void:
 	var advanced := state.advance_period()
-	_refresh_ui("Период завершён" if advanced else "Демоверсия завершена — доступен эпилог")
+	var unread := state.story_timeline.unread_reports().size()
+	var advance_message := "Период завершён"
+	if unread > 0:
+		advance_message = "Получено новых отчётов: %d — откройте дела секретаря" % unread
+	_refresh_ui(advance_message if advanced else "Демоверсия завершена — доступен эпилог")
 	if building_panel.visible:
 		_refresh_building_actions()
 
@@ -532,5 +557,6 @@ func _refresh_ui(message: String) -> void:
 			open_cases += 1
 		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
 			open_cases += 1
+		open_cases += state.story_timeline.unread_reports().size()
 		cases_button.text = "Дела секретаря · %d" % open_cases
 
