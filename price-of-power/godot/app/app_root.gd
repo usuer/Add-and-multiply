@@ -287,6 +287,15 @@ func _refresh_secretary_case() -> void:
 		result.text = decision.observed_outcome
 		result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		secretary_case_body.add_child(result)
+		var reactions_heading := Label.new()
+		reactions_heading.text = "Что уже заметно"
+		reactions_heading.add_theme_font_size_override("font_size", 20)
+		secretary_case_body.add_child(reactions_heading)
+		for reaction: String in decision.observed_reactions(state):
+			var reaction_label := Label.new()
+			reaction_label.text = "• " + reaction
+			reaction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			secretary_case_body.add_child(reaction_label)
 		resolve_opening_button.visible = false
 		return
 

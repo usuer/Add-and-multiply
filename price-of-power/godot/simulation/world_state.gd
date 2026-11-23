@@ -21,6 +21,40 @@ const SAVE_VERSION: int = 1
 }
 @export var facts: Dictionary = {}
 @export var consequence_log: Array[Dictionary] = []
+@export var characters: Dictionary = {}
+@export var factions: Dictionary = {}
+
+func _init() -> void:
+	if characters.is_empty():
+		characters = {
+			"spouse": _make_character("spouse", "Княгиня Элина", 34, 28, 24),
+			"sister": _make_character("sister", "Лада, сестра князя", 48, 16, 31),
+			"secretary": _make_character("secretary", "Марек, секретарь", 8, 42, 37)
+		}
+	if factions.is_empty():
+		factions = {
+			"nobility": _make_faction("nobility", "Знать", 5),
+			"guilds": _make_faction("guilds", "Городские цехи", 2),
+			"clergy": _make_faction("clergy", "Духовенство", 8),
+			"military": _make_faction("military", "Войско", 7),
+			"rural": _make_faction("rural", "Жители областей", -3)
+		}
+
+func _make_character(id: String, title: String, affection_value: int, respect_value: int, trust_value: int) -> CharacterState:
+	var character := CharacterState.new()
+	character.character_id = id
+	character.display_name = title
+	character.affection = affection_value
+	character.respect = respect_value
+	character.trust = trust_value
+	return character
+
+func _make_faction(id: String, title: String, disposition_value: int) -> FactionState:
+	var faction := FactionState.new()
+	faction.faction_id = id
+	faction.display_name = title
+	faction.disposition = disposition_value
+	return faction
 
 func advance_period() -> bool:
 	if not calendar.advance():
@@ -75,8 +109,16 @@ func to_data() -> Dictionary:
 		"opening_decision": opening_decision.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
-		"consequence_log": consequence_log.duplicate(true)
+		"consequence_log": consequence_log.duplicate(true),
+		"characters": _resources_to_data(characters),
+		"factions": _resources_to_data(factions)
 	}
+
+func _resources_to_data(source: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for id: String in source:
+		result[id] = source[id].to_data()
+	return result
 
 static func from_data(data: Dictionary) -> WorldState:
 	var state := WorldState.new()
@@ -90,5 +132,13 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))
+	state.characters.clear()
+	for id: String in (data.get("characters", {}) as Dictionary):
+		state.characters[id] = CharacterState.from_data(data["characters"][id])
+	state.factions.clear()
+	for id: String in (data.get("factions", {}) as Dictionary):
+		state.factions[id] = FactionState.from_data(data["factions"][id])
+	if state.characters.is_empty() or state.factions.is_empty():
+		state._init()
 	return state
 

@@ -74,6 +74,7 @@ func resolve(state: WorldState) -> bool:
 	state.facts["father_funeral_completed"] = true
 	state.facts["grain_response"] = grain_response
 	state.facts["funeral_plan"] = funeral_plan
+	_apply_social_consequences(state)
 	state.consequence_log.append({
 		"cycle": resolved_cycle,
 		"kind": "opening_decision_resolved",
@@ -82,6 +83,48 @@ func resolve(state: WorldState) -> bool:
 		"funding": funding_source
 	})
 	return true
+
+func _apply_social_consequences(state: WorldState) -> void:
+	var cycle := state.calendar.cycle
+	var spouse: CharacterState = state.characters["spouse"]
+	var sister: CharacterState = state.characters["sister"]
+	var nobility: FactionState = state.factions["nobility"]
+	var clergy: FactionState = state.factions["clergy"]
+	var rural: FactionState = state.factions["rural"]
+	match funeral_plan:
+		"modest":
+			nobility.react(cycle, -4, "Часть знати сочла прощание с прежним князем слишком скромным.")
+			clergy.react(cycle, -1, "Духовенство приняло церемонию, но ожидало большего почтения.")
+			spouse.remember(cycle, "father_funeral", "Вы предпочли сдержанность во время семейного траура.", {"respect": 1})
+		"solemn":
+			nobility.react(cycle, 3, "Знать увидела в церемонии уважение к традиции без показной роскоши.")
+			clergy.react(cycle, 3, "Духовенство отметило достойное соблюдение обряда.")
+			spouse.remember(cycle, "father_funeral", "Вы устроили достойное прощание с отцом.", {"affection": 2, "respect": 2})
+		"grand":
+			nobility.react(cycle, 7, "Великая церемония укрепила представление о силе княжеского дома.")
+			clergy.react(cycle, 5, "Щедрый обряд возвысил храм и память покойного князя.")
+			spouse.remember(cycle, "father_funeral", "Вы превратили семейный траур в событие всего княжества.", {"respect": 4})
+	match grain_response:
+		"partial": rural.react(cycle, 3, "Первый обоз дошёл до нескольких нуждающихся селений, но зерна хватило не всем.")
+		"full": rural.react(cycle, 8, "Большой обоз из княжеских амбаров снял остроту голода в Долинной области.")
+		"purchase": rural.react(cycle, 6, "Закупленное зерно отправлено в область, не опустошая местные амбары.")
+		"defer": rural.react(cycle, -6, "Просителей отправили ждать проверки, пока в деревнях сокращают хлебные пайки.")
+	if grain_response in ["partial", "full", "purchase"]:
+		sister.remember(cycle, "grain_relief", "Вы не оставили областных жителей без помощи.", {"trust": 3})
+	else:
+		sister.remember(cycle, "grain_relief", "Вы поставили проверку выше немедленной помощи голодающим.", {"trust": -3, "resentment": 2})
+	if funding_source == "family":
+		spouse.remember(cycle, "family_funds", "Вы распорядились семейными средствами ради государственного решения.", {"trust": -2, "resentment": 2})
+	state.facts["opening_social_consequences_applied"] = true
+
+func observed_reactions(state: WorldState) -> Array[String]:
+	if status != Status.RESOLVED:
+		return []
+	return [
+		str((state.factions["nobility"] as FactionState).latest_reaction()),
+		str((state.factions["rural"] as FactionState).latest_reaction()),
+		str((state.characters["spouse"] as CharacterState).memories.back().get("summary", ""))
+	]
 
 func _build_outcome() -> String:
 	var funeral_text := str(FUNERAL_PLANS[funeral_plan]["title"])

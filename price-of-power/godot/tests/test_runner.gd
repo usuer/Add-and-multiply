@@ -7,9 +7,10 @@ func _initialize() -> void:
 	_test_failed_spending_is_atomic()
 	_test_grain_investigation_uses_delegate_method()
 	_test_opening_decision_is_composite_and_atomic()
+	_test_opening_decision_creates_social_memory()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 5 checks")
+		print("PASS Godot foundation: 6 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -67,12 +68,31 @@ func _test_opening_decision_is_composite_and_atomic() -> void:
 	_expect(not poor_state.opening_decision.resolve(poor_state), "Недостаток личных денег должен блокировать подпись")
 	_expect(poor_state.family_treasury == family_before, "Отклонённое решение не должно менять личные средства")
 
+func _test_opening_decision_creates_social_memory() -> void:
+	var state := WorldState.new()
+	var spouse: CharacterState = state.characters["spouse"]
+	var sister: CharacterState = state.characters["sister"]
+	var rural: FactionState = state.factions["rural"]
+	var spouse_trust_before := spouse.trust
+	var rural_before := rural.disposition
+	state.opening_decision.choose_funeral("grand")
+	state.opening_decision.choose_grain("defer")
+	state.opening_decision.choose_funding("family")
+	_expect(state.opening_decision.resolve(state), "Решение из личных средств должно выполняться")
+	_expect(spouse.memories.size() == 2, "Супруга должна помнить похороны и расход семейных денег")
+	_expect(spouse.trust < spouse_trust_before, "Расход семейных денег без отдельного согласования должен снижать доверие")
+	_expect(sister.memories.size() == 1, "Сестра должна запомнить ответ голодающей области")
+	_expect(rural.disposition < rural_before, "Откладывание помощи должно ухудшать отношение области")
+	_expect(state.opening_decision.observed_reactions(state).size() == 3, "Игрок должен получить краткие наблюдаемые реакции")
+
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
 	state.advance_period()
 	state.assign_grain_investigation("agent")
 	state.opening_decision.choose_funeral("modest")
 	state.opening_decision.choose_grain("partial")
+	state.opening_decision.choose_funding("state")
+	state.opening_decision.resolve(state)
 	state.spend_state(7, "ремонт ворот")
 	var path := "user://test_campaign.json"
 	_expect(CampaignSaveService.save_campaign(state, path) == OK, "Тестовое сохранение должно записываться")
@@ -85,5 +105,7 @@ func _test_save_round_trip() -> void:
 		_expect(loaded.grain_crisis.stage == GrainCrisis.Stage.INVESTIGATING, "Состояние расследования должно сохраняться")
 		_expect(loaded.opening_decision.funeral_plan == "modest", "Выбор церемонии должен сохраняться")
 		_expect(loaded.opening_decision.grain_response == "partial", "Выбор помощи должен сохраняться")
+		_expect((loaded.characters["spouse"] as CharacterState).memories.size() == 1, "Память персонажа должна сохраняться")
+		_expect((loaded.factions["rural"] as FactionState).known_reasons.size() == 1, "Причина реакции группы должна сохраняться")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
