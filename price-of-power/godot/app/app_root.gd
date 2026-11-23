@@ -2,6 +2,7 @@ extends Node3D
 
 const CAPITAL_CAMERA := preload("res://world/capital_camera.gd")
 const CITY_BUILDING := preload("res://world/city_building.gd")
+const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
 
 var state: WorldState = WorldState.new()
 var date_label: Label
@@ -216,8 +217,8 @@ func _create_intro_overlay(layer: CanvasLayer) -> void:
 	intro_overlay.add_child(shade)
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-360, -240)
-	panel.size = Vector2(720, 480)
+	panel.position = Vector2(-410, -350)
+	panel.size = Vector2(820, 700)
 	intro_overlay.add_child(panel)
 	var margin := MarginContainer.new()
 	for side: String in ["left", "top", "right", "bottom"]:
@@ -229,6 +230,13 @@ func _create_intro_overlay(layer: CanvasLayer) -> void:
 	intro_page_label = Label.new()
 	intro_page_label.modulate = Color("d9bd72")
 	column.add_child(intro_page_label)
+	var capital_picture := TextureRect.new()
+	capital_picture.texture = CAPITAL_ART
+	capital_picture.custom_minimum_size = Vector2(0, 285)
+	capital_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	capital_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	capital_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(capital_picture)
 	intro_title = Label.new()
 	intro_title.add_theme_font_size_override("font_size", 28)
 	intro_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
