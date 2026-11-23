@@ -68,6 +68,7 @@ func _create_capital_placeholder() -> void:
 	_add_building(&"granary", "Княжеский амбар", "Государственные запасы зерна. Недостача в областных книгах требует расследования.", Vector3(6.0, 0.0, -7.0), Vector3(6.0, 4.0, 4.0), Color("9b7b4f"))
 	_add_building(&"market", "Городской рынок", "Главное место торговли, найма и распространения слухов.", Vector3(-1.0, 0.0, 0.0), Vector3(8.0, 1.4, 6.0), Color("b49568"))
 	_add_building(&"temple", "Храм", "Центр прихода, помощи больным и регистрации семейных событий.", Vector3(7.0, 0.0, 1.0), Vector3(5.0, 6.0, 5.0), Color("aea287"))
+	_add_building(&"embassy", "Двор иностранных послов", "Здесь принимают соседские миссии, заключают сделки и собирают сведения о чужих дворах.", Vector3(-14.0, 0.0, 9.0), Vector3(5.0, 3.5, 4.0), Color("8d765f"))
 
 	# Quarry remains outside the defended city.
 	_add_box("Quarry", Vector3(10.0, 0.7, 8.0), Vector3(-26.0, 0.0, 17.0), Color("807b70"))
@@ -518,6 +519,9 @@ func _refresh_building_actions() -> void:
 		elif castle_section == "policies": _add_policy_actions()
 		else: _add_justice_actions()
 		return
+	if selected_building.building_id == &"embassy":
+		_add_diplomacy_actions()
+		return
 	if selected_building.building_id == &"granary":
 		var heading := Label.new()
 		heading.text = "ДЕЛО О НЕХВАТКЕ ЗЕРНА"
@@ -620,6 +624,72 @@ func _add_justice_actions() -> void:
 func _judge_case(case_id: String, option_id: String) -> void:
 	if state.justice.judge(state, case_id, option_id):
 		_refresh_ui(state.justice.outcome(case_id))
+		_refresh_building_actions()
+
+func _add_diplomacy_actions() -> void:
+	var heading := Label.new()
+	heading.text = "СОСЕДНИЕ ГОСУДАРСТВА"
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	for neighbor_id: String in DiplomacyState.NEIGHBORS:
+		var neighbor: Dictionary = DiplomacyState.NEIGHBORS[neighbor_id]
+		var title := Label.new()
+		title.text = "%s · %s" % [neighbor["name"], state.diplomacy.relation_label(neighbor_id)]
+		title.add_theme_font_size_override("font_size", 18)
+		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(title)
+		var profile := Label.new()
+		profile.text = "%s\n%s" % [neighbor["character"], state.diplomacy.known_strength(neighbor_id)]
+		profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		profile.modulate = Color("b9c2b3")
+		building_actions.add_child(profile)
+		for good_id: String in neighbor["goods"]:
+			var trade := Button.new()
+			trade.text = "Купить 10 %s · %d монет" % [_resource_name(good_id), state.diplomacy.pack_price(neighbor_id, good_id)]
+			trade.disabled = state.state_treasury < state.diplomacy.pack_price(neighbor_id, good_id)
+			trade.pressed.connect(_buy_diplomatic_pack.bind(neighbor_id, good_id))
+			building_actions.add_child(trade)
+		var actions := HBoxContainer.new()
+		actions.add_theme_constant_override("separation", 4)
+		building_actions.add_child(actions)
+		var spy := Button.new()
+		spy.text = "Разведать"
+		spy.disabled = not state.diplomacy.can_spy(state, neighbor_id)
+		spy.pressed.connect(_spy_neighbor.bind(neighbor_id))
+		actions.add_child(spy)
+		var threaten := Button.new()
+		threaten.text = "Надавить"
+		threaten.pressed.connect(_threaten_neighbor.bind(neighbor_id))
+		actions.add_child(threaten)
+		var sabotage := Button.new()
+		sabotage.text = "Диверсия"
+		sabotage.disabled = not state.diplomacy.can_sabotage(state, neighbor_id)
+		sabotage.pressed.connect(_sabotage_neighbor.bind(neighbor_id))
+		actions.add_child(sabotage)
+		building_actions.add_child(HSeparator.new())
+
+func _resource_name(good_id: String) -> String:
+	return {"grain": "зерна", "wood": "древесины", "tools": "инструментов", "worked_iron": "железа", "weapons": "оружия"}.get(good_id, good_id)
+
+func _buy_diplomatic_pack(neighbor_id: String, good_id: String) -> void:
+	if state.diplomacy.buy_pack(state, neighbor_id, good_id):
+		_refresh_ui("Сделка заключена. Цена следующих переговоров уже учитывает новые отношения.")
+		_refresh_building_actions()
+
+func _spy_neighbor(neighbor_id: String) -> void:
+	if state.diplomacy.spy(state, neighbor_id):
+		_refresh_ui("Разведка вернулась с более точной оценкой сил соседа.")
+		_refresh_building_actions()
+
+func _threaten_neighbor(neighbor_id: String) -> void:
+	if state.diplomacy.threaten(state, neighbor_id):
+		var succeeded := state.diplomacy.last_action(neighbor_id) == "threat_succeeded"
+		_refresh_ui("Сосед уступил и снизил цены." if succeeded else "Угроза не подкреплена достаточной силой; отношения ухудшились.")
+		_refresh_building_actions()
+
+func _sabotage_neighbor(neighbor_id: String) -> void:
+	if state.diplomacy.sabotage(state, neighbor_id):
+		_refresh_ui("Операция проведена. Её политическая цена проявится, если исполнителей раскроют.")
 		_refresh_building_actions()
 
 func _add_council_actions() -> void:

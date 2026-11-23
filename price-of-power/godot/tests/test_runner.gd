@@ -16,9 +16,10 @@ func _initialize() -> void:
 	_test_physician_changes_epidemic_outcome()
 	_test_governance_policies_change_monthly_results()
 	_test_justice_cases_use_evidence_and_capacity()
+	_test_diplomacy_prices_intelligence_and_pressure()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 14 checks")
+		print("PASS Godot foundation: 15 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -219,6 +220,28 @@ func _test_justice_cases_use_evidence_and_capacity() -> void:
 	_expect(bool(state.facts.get("river_informant", false)), "Вербовка должна создавать разведывательный ресурс")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.justice.informants == ["vardan"], "Осведомители должны сохраняться")
+
+func _test_diplomacy_prices_intelligence_and_pressure() -> void:
+	var state := WorldState.new()
+	var grain_before := int(state.resources["grain"])
+	var price_before := state.diplomacy.pack_price("velgrad", "grain")
+	_expect(state.diplomacy.buy_pack(state, "velgrad", "grain"), "С соседом должна заключаться реальная товарная сделка")
+	_expect(int(state.resources["grain"]) == grain_before + 10, "Сделка должна доставлять оговорённый товар")
+	_expect(state.diplomacy.pack_price("velgrad", "grain") <= price_before, "Успешная торговля не должна ухудшать следующую цену")
+
+	var weak := WorldState.new()
+	weak.resources["weapons"] = 0
+	weak.public_order = 0
+	weak.diplomacy.threaten(weak, "velgrad")
+	_expect(weak.diplomacy.last_action("velgrad") == "threat_failed", "Пустая угроза сильному соседу должна проваливаться")
+
+	state.council.appoint(state, "intelligence", "tibor")
+	_expect(state.diplomacy.spy(state, "velgrad"), "Глава тайной канцелярии должен открывать разведку")
+	_expect(state.diplomacy.spy(state, "velgrad"), "Повторная разведка должна уточнять сведения")
+	_expect(state.diplomacy.can_sabotage(state, "velgrad"), "Диверсия должна требовать достаточной разведки")
+	_expect(state.diplomacy.sabotage(state, "velgrad"), "Подготовленная диверсия должна выполняться")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(bool(restored.facts.get("sabotage_velgrad", false)), "Проведённая операция должна сохраняться в мире")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

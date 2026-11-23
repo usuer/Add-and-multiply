@@ -18,6 +18,7 @@ const SAVE_VERSION: int = 1
 @export var council: CouncilState = CouncilState.new()
 @export var policies: GovernancePolicy = GovernancePolicy.new()
 @export var justice: JusticeState = JusticeState.new()
+@export var diplomacy: DiplomacyState = DiplomacyState.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -129,6 +130,7 @@ func to_data() -> Dictionary:
 		"council": council.to_data(),
 		"policies": policies.to_data(),
 		"justice": justice.to_data(),
+		"diplomacy": diplomacy.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -159,6 +161,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.council.load_data(data.get("council", {}))
 	state.policies.load_data(data.get("policies", {}))
 	state.justice.load_data(data.get("justice", {}))
+	state.diplomacy.load_data(data.get("diplomacy", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))
