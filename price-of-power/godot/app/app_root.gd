@@ -22,6 +22,20 @@ var funding_choice_label: Label
 var resolve_opening_button: Button
 var cases_button: Button
 var castle_section: String = "council"
+var intro_overlay: Control
+var intro_title: Label
+var intro_body: Label
+var intro_page_label: Label
+var intro_back_button: Button
+var intro_next_button: Button
+var intro_page: int = 0
+var objectives_label: Label
+
+const INTRO_PAGES: Array[Dictionary] = [
+	{"title": "Арденское княжество · весна 1248 года", "body": "После смерти отца вы наследуете не пустую землю, а действующее государство: укреплённую столицу, старых чиновников, ремесленные кварталы и области, которые уже привыкли решать часть дел без двора. Казна не бедна, но почти у каждого запаса есть прежнее обещание."},
+	{"title": "Власть начинается с незавершённых дел", "body": "Долинная область просит открыть амбары. Двор ждёт решения о похоронах князя. В зерновых книгах обнаружена недостача. Вам не нужно лично делать всё: поручения разным людям занимают разное время и приносят разные сведения."},
+	{"title": "Город — главное меню", "body": "Выбирайте здания прямо на карте. Замок открывает совет, законы и суд; амбар — зерновое расследование; казармы — армию; двор послов — торговлю и разведку. Завершайте период только после проверки срочных дел: некоторые проблемы не будут ждать бесконечно."}
+]
 
 func _ready() -> void:
 	_create_environment()
@@ -29,6 +43,8 @@ func _ready() -> void:
 	_create_camera()
 	_create_ui()
 	_refresh_ui("Первая техническая сцена: укреплённый Арден")
+	if not state.guide.intro_seen:
+		_show_intro()
 
 func _create_environment() -> void:
 	var environment := WorldEnvironment.new()
@@ -112,6 +128,7 @@ func _create_ui() -> void:
 	layer.add_child(margin)
 	_create_building_panel(layer)
 	_create_secretary_panel(layer)
+	_create_intro_overlay(layer)
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
@@ -170,6 +187,14 @@ func _create_ui() -> void:
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(spacer)
 
+	var objectives_panel := PanelContainer.new()
+	objectives_panel.custom_minimum_size = Vector2(0, 42)
+	root.add_child(objectives_panel)
+	objectives_label = Label.new()
+	objectives_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	objectives_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	objectives_panel.add_child(objectives_label)
+
 	var footer := PanelContainer.new()
 	footer.custom_minimum_size = Vector2(0, 62)
 	root.add_child(footer)
@@ -178,6 +203,81 @@ func _create_ui() -> void:
 	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	notice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	footer.add_child(notice_label)
+
+func _create_intro_overlay(layer: CanvasLayer) -> void:
+	intro_overlay = Control.new()
+	intro_overlay.visible = false
+	intro_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	intro_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(intro_overlay)
+	var shade := ColorRect.new()
+	shade.color = Color(0.025, 0.045, 0.04, 0.88)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	intro_overlay.add_child(shade)
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.position = Vector2(-360, -240)
+	panel.size = Vector2(720, 480)
+	intro_overlay.add_child(panel)
+	var margin := MarginContainer.new()
+	for side: String in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 30)
+	panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 18)
+	margin.add_child(column)
+	intro_page_label = Label.new()
+	intro_page_label.modulate = Color("d9bd72")
+	column.add_child(intro_page_label)
+	intro_title = Label.new()
+	intro_title.add_theme_font_size_override("font_size", 28)
+	intro_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(intro_title)
+	intro_body = Label.new()
+	intro_body.add_theme_font_size_override("font_size", 18)
+	intro_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(intro_body)
+	var navigation := HBoxContainer.new()
+	navigation.add_theme_constant_override("separation", 10)
+	column.add_child(navigation)
+	intro_back_button = Button.new()
+	intro_back_button.text = "Назад"
+	intro_back_button.pressed.connect(_intro_back)
+	navigation.add_child(intro_back_button)
+	var nav_spacer := Control.new()
+	nav_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	navigation.add_child(nav_spacer)
+	intro_next_button = Button.new()
+	intro_next_button.custom_minimum_size = Vector2(190, 46)
+	intro_next_button.pressed.connect(_intro_next)
+	navigation.add_child(intro_next_button)
+
+func _show_intro() -> void:
+	intro_page = 0
+	intro_overlay.visible = true
+	_refresh_intro()
+
+func _refresh_intro() -> void:
+	var page: Dictionary = INTRO_PAGES[intro_page]
+	intro_page_label.text = "ВВЕДЕНИЕ · %d/%d" % [intro_page + 1, INTRO_PAGES.size()]
+	intro_title.text = page["title"]
+	intro_body.text = page["body"]
+	intro_back_button.disabled = intro_page == 0
+	intro_next_button.text = "Начать правление" if intro_page == INTRO_PAGES.size() - 1 else "Далее"
+
+func _intro_back() -> void:
+	intro_page = maxi(0, intro_page - 1)
+	_refresh_intro()
+
+func _intro_next() -> void:
+	if intro_page < INTRO_PAGES.size() - 1:
+		intro_page += 1
+		_refresh_intro()
+		return
+	state.guide.intro_seen = true
+	intro_overlay.visible = false
+	_refresh_ui("Первое дело ждёт в канцелярии. Откройте «Дела секретаря».")
 
 func _create_building_panel(layer: CanvasLayer) -> void:
 	building_panel = PanelContainer.new()
@@ -902,6 +1002,10 @@ func _on_load() -> void:
 		return
 	state = loaded
 	_refresh_ui("Сохранение загружено")
+	intro_overlay.visible = not state.guide.intro_seen
+	if intro_overlay.visible:
+		intro_page = 0
+		_refresh_intro()
 	if building_panel.visible:
 		_refresh_building_actions()
 
@@ -917,6 +1021,14 @@ func _refresh_ui(message: String) -> void:
 		int(state.resources.get("weapons", 0))
 	]
 	notice_label.text = message + "    ·    WASD — перемещение · Q/E — вращение · колесо — масштаб"
+	if objectives_label != null:
+		var completed := state.guide.completed_count(state)
+		var next_goal := "Все вводные цели выполнены"
+		for objective: Dictionary in state.guide.objectives(state):
+			if not bool(objective["done"]):
+				next_goal = str(objective["title"])
+				break
+		objectives_label.text = "Первые шаги %d/4 · %s" % [completed, next_goal]
 	if cases_button != null:
 		var open_cases := state.story_timeline.available_events(state.calendar.cycle).size()
 		if state.opening_decision.status != OpeningDecision.Status.RESOLVED:

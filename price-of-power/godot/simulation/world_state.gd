@@ -21,6 +21,7 @@ const SAVE_VERSION: int = 1
 @export var diplomacy: DiplomacyState = DiplomacyState.new()
 @export var development: DevelopmentState = DevelopmentState.new()
 @export var army: ArmyState = ArmyState.new()
+@export var guide: CampaignGuide = CampaignGuide.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -137,6 +138,7 @@ func to_data() -> Dictionary:
 		"diplomacy": diplomacy.to_data(),
 		"development": development.to_data(),
 		"army": army.to_data(),
+		"guide": guide.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -170,6 +172,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.diplomacy.load_data(data.get("diplomacy", {}))
 	state.development.load_data(data.get("development", {}))
 	state.army.load_data(data.get("army", {}))
+	state.guide.load_data(data.get("guide", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

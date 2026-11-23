@@ -19,9 +19,10 @@ func _initialize() -> void:
 	_test_diplomacy_prices_intelligence_and_pressure()
 	_test_development_projects_use_workers_and_complete()
 	_test_army_uses_unit_specific_simultaneous_orders()
+	_test_campaign_guide_tracks_real_actions()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 17 checks")
+		print("PASS Godot foundation: 18 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -284,6 +285,18 @@ func _test_army_uses_unit_specific_simultaneous_orders() -> void:
 	_expect(state.army.battle_log.size() == 1, "Ход должен оставлять понятный журнал потерь и приказов")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.army.battle_log.size() == 1, "Состояние незавершённого боя должно сохраняться")
+
+func _test_campaign_guide_tracks_real_actions() -> void:
+	var state := WorldState.new()
+	_expect(state.guide.completed_count(state) == 0, "Новая кампания должна начинаться с понятных невыполненных целей")
+	state.assign_grain_investigation("captain")
+	_expect(state.guide.completed_count(state) == 1, "Поручение расследования должно автоматически закрывать соответствующую цель")
+	state.council.appoint(state, "physician", "mira")
+	_expect(state.guide.completed_count(state) == 2, "Назначение чиновника должно учитываться без отдельной галочки")
+	state.guide.intro_seen = true
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.guide.intro_seen, "Просмотр введения должен сохраняться")
+	_expect(restored.guide.completed_count(restored) == 2, "Цели должны восстанавливаться из реального состояния мира")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
