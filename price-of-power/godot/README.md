@@ -26,7 +26,7 @@ godot4 --headless --path godot --script res://tests/test_runner.gd
 ./scripts/build_release.sh
 ```
 
-Скрипт импортирует ресурсы, запускает все проверки и создаёт `build/price-of-power.pck`. Профили Windows и Linux также доступны в окне Export редактора Godot; для готовых исполняемых файлов редактору требуются официальные export templates той же версии.
+Скрипт импортирует ресурсы, запускает все проверки и создаёт `build/price-of-power.pck`. Если установлены официальные export templates той же версии Godot, он также собирает `Price-of-Power.exe`, связанный `.pck` и единый архив `Price-of-Power-Windows.zip`.
 
 Сейчас реализованы:
 
