@@ -3,6 +3,7 @@ extends Node3D
 const CAPITAL_CAMERA := preload("res://world/capital_camera.gd")
 const CITY_BUILDING := preload("res://world/city_building.gd")
 const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
+const ILLUSTRATED_BATTLE := preload("res://world/illustrated_battle_view.gd")
 const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
 
 var state: WorldState = WorldState.new()
@@ -33,6 +34,8 @@ var intro_next_button: Button
 var intro_page: int = 0
 var objectives_label: Label
 var illustrated_map: IllustratedCapitalMap
+var battle_view: IllustratedBattleView
+var selected_army_unit: String = "retinue"
 var new_campaign_confirmation: bool = false
 
 const INTRO_PAGES: Array[Dictionary] = [
@@ -194,6 +197,13 @@ func _create_ui() -> void:
 	illustrated_map.custom_minimum_size = Vector2(0, 420)
 	illustrated_map.building_selected.connect(_on_illustrated_building_selected)
 	root.add_child(illustrated_map)
+	battle_view = ILLUSTRATED_BATTLE.new() as IllustratedBattleView
+	battle_view.visible = false
+	battle_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_view.custom_minimum_size = Vector2(0, 420)
+	battle_view.friendly_unit_selected.connect(_on_battle_unit_selected)
+	root.add_child(battle_view)
 
 	var objectives_panel := PanelContainer.new()
 	objectives_panel.custom_minimum_size = Vector2(0, 42)
@@ -627,8 +637,17 @@ func _on_building_selected(building: CityBuilding) -> void:
 func _on_illustrated_building_selected(building_id: StringName) -> void:
 	for child: Node in get_children():
 		if child is CityBuilding and (child as CityBuilding).building_id == building_id:
+			var show_battle := building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE
+			illustrated_map.visible = not show_battle
+			battle_view.visible = show_battle
+			if show_battle: battle_view.refresh(state.army, selected_army_unit)
 			_on_building_selected(child as CityBuilding)
 			return
+
+func _on_battle_unit_selected(unit_id: String) -> void:
+	selected_army_unit = unit_id
+	if building_panel.visible and selected_building != null and selected_building.building_id == &"barracks":
+		_refresh_building_actions()
 
 func _refresh_building_actions() -> void:
 	for child in building_actions.get_children():
@@ -925,6 +944,7 @@ func _add_army_actions() -> void:
 		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		building_actions.add_child(quiet)
 		return
+	battle_view.refresh(state.army, selected_army_unit)
 	var terrain := Label.new()
 	terrain.text = "%s · провиант %d" % [state.army.terrain, state.army.supplies]
 	terrain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -944,6 +964,12 @@ func _add_army_actions() -> void:
 		unit_label.text = "%s · %d бойцов · дух %d · усталость %d" % [ArmyState.UNIT_NAMES[unit_id], unit["count"], unit["morale"], unit["fatigue"]]
 		unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		building_actions.add_child(unit_label)
+		if unit_id != selected_army_unit:
+			continue
+		var selected_marker := Label.new()
+		selected_marker.text = "ВЫБРАННЫЙ ОТРЯД · приказы ниже"
+		selected_marker.modulate = Color("d9bd72")
+		building_actions.add_child(selected_marker)
 		if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
 			var deployment := HBoxContainer.new()
 			building_actions.add_child(deployment)
@@ -1048,6 +1074,8 @@ func _close_building_panel() -> void:
 	if selected_building != null:
 		selected_building.set_highlighted(false)
 	selected_building = null
+	battle_view.visible = false
+	illustrated_map.visible = true
 	camera_rig.overview()
 
 func _on_advance_period() -> void:
