@@ -166,12 +166,14 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 		"scout_report:fortify":
 			state.state_treasury -= 12
 			state.facts["northern_posture"] = "fortified"
+			state.army.begin_border_battle("fortified")
 			return "К переправам выступили сапёры и гарнизонные роты. Скрыть приготовления от соседских лазутчиков не получится."
 		"scout_report:parley":
 			state.facts["northern_posture"] = "parley"
 			return "Посланник повёз предложение о встрече без свидетелей. Если это уловка, он окажется в руках противника."
 		"scout_report:trap":
 			state.facts["northern_posture"] = "ambush"
+			state.army.begin_border_battle("ambush")
 			(state.factions["military"] as FactionState).react(state.calendar.cycle, 3, "Князь доверил войску подготовку скрытой обороны переправы.")
 			return "На вид переправа осталась беззащитной. Ночью дружина начала занимать лесные балки по обе стороны дороги."
 		"fever_outbreak:quarantine":

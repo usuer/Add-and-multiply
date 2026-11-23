@@ -523,6 +523,9 @@ func _refresh_building_actions() -> void:
 	if selected_building.building_id == &"embassy":
 		_add_diplomacy_actions()
 		return
+	if selected_building.building_id == &"barracks":
+		_add_army_actions()
+		return
 	var project_id := _project_for_building(selected_building.building_id)
 	if not project_id.is_empty():
 		_add_development_actions(project_id)
@@ -740,6 +743,94 @@ func _threaten_neighbor(neighbor_id: String) -> void:
 func _sabotage_neighbor(neighbor_id: String) -> void:
 	if state.diplomacy.sabotage(state, neighbor_id):
 		_refresh_ui("Операция проведена. Её политическая цена проявится, если исполнителей раскроют.")
+		_refresh_building_actions()
+
+func _add_army_actions() -> void:
+	var heading := Label.new()
+	heading.text = "ПОГРАНИЧНОЕ ВОЙСКО"
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	if state.army.status == ArmyState.BattleStatus.NONE:
+		var quiet := Label.new()
+		quiet.text = "Боевого приказа нет. Разведка и решения на северной границе могут открыть столкновение."
+		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(quiet)
+		return
+	var terrain := Label.new()
+	terrain.text = "%s · провиант %d" % [state.army.terrain, state.army.supplies]
+	terrain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	building_actions.add_child(terrain)
+	var enemy_heading := Label.new()
+	enemy_heading.text = "Противник"
+	building_actions.add_child(enemy_heading)
+	for enemy_id: String in state.army.enemy:
+		var enemy_unit: Dictionary = state.army.enemy[enemy_id]
+		var enemy_label := Label.new()
+		enemy_label.text = "%s · %d бойцов · дух %d" % [enemy_unit["name"], enemy_unit["count"], enemy_unit["morale"]]
+		building_actions.add_child(enemy_label)
+	building_actions.add_child(HSeparator.new())
+	for unit_id: String in state.army.friendly:
+		var unit: Dictionary = state.army.friendly[unit_id]
+		var unit_label := Label.new()
+		unit_label.text = "%s · %d бойцов · дух %d · усталость %d" % [ArmyState.UNIT_NAMES[unit_id], unit["count"], unit["morale"], unit["fatigue"]]
+		unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(unit_label)
+		if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
+			var deployment := HBoxContainer.new()
+			building_actions.add_child(deployment)
+			for depth: int in [1, 2, 3]:
+				var depth_button := Button.new()
+				depth_button.text = "%d %s" % [depth, "линия" if depth == 1 else "линии"]
+				depth_button.disabled = int(unit["depth"]) == depth
+				depth_button.pressed.connect(_deploy_unit.bind(unit_id, depth))
+				deployment.add_child(depth_button)
+		elif state.army.status == ArmyState.BattleStatus.FIGHTING and int(unit["count"]) > 0:
+			for order_id: String in ArmyState.ORDERS[unit_id]:
+				var order := Button.new()
+				order.text = str(ArmyState.ORDERS[unit_id][order_id])
+				order.disabled = str(state.army.pending_orders.get(unit_id, "")) == order_id
+				order.pressed.connect(_issue_army_order.bind(unit_id, order_id))
+				building_actions.add_child(order)
+		building_actions.add_child(HSeparator.new())
+	if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
+		var start := Button.new()
+		start.text = "Подтвердить расстановку и начать бой"
+		start.pressed.connect(_start_army_combat)
+		building_actions.add_child(start)
+	elif state.army.status == ArmyState.BattleStatus.FIGHTING:
+		var resolve := Button.new()
+		resolve.text = "Завершить ход и выполнить все приказы"
+		resolve.disabled = not state.army.ready_to_resolve()
+		resolve.pressed.connect(_resolve_army_turn)
+		building_actions.add_child(resolve)
+	if not state.army.battle_log.is_empty():
+		var last: Dictionary = state.army.battle_log.back()
+		var log := Label.new()
+		log.text = "Итог хода %d · наши потери: %s · потери врага: %s" % [last["turn"], _loss_total(last["friendly_losses"]), _loss_total(last["enemy_losses"])]
+		log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(log)
+
+func _loss_total(losses: Dictionary) -> int:
+	var result := 0
+	for value: int in losses.values(): result += value
+	return result
+
+func _deploy_unit(unit_id: String, depth: int) -> void:
+	if state.army.deploy(unit_id, depth): _refresh_building_actions()
+
+func _start_army_combat() -> void:
+	if state.army.start_combat():
+		_refresh_ui("Бой начался. Выдайте отдельный приказ каждому боеспособному отряду.")
+		_refresh_building_actions()
+
+func _issue_army_order(unit_id: String, order_id: String) -> void:
+	if state.army.issue_order(unit_id, order_id):
+		_refresh_ui("Приказ записан. Ход не завершится, пока остальные отряды не получат команды.")
+		_refresh_building_actions()
+
+func _resolve_army_turn() -> void:
+	if state.army.resolve_turn():
+		_refresh_ui("Все приказы выполнены одновременно. Потери показаны в журнале боя.")
 		_refresh_building_actions()
 
 func _add_council_actions() -> void:

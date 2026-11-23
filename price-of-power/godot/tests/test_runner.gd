@@ -18,9 +18,10 @@ func _initialize() -> void:
 	_test_justice_cases_use_evidence_and_capacity()
 	_test_diplomacy_prices_intelligence_and_pressure()
 	_test_development_projects_use_workers_and_complete()
+	_test_army_uses_unit_specific_simultaneous_orders()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 16 checks")
+		print("PASS Godot foundation: 17 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -263,6 +264,26 @@ func _test_development_projects_use_workers_and_complete() -> void:
 	var wood_before := int(poor.resources["wood"])
 	_expect(not poor.development.start(poor, "school"), "Недоступное строительство должно блокироваться")
 	_expect(int(poor.resources["wood"]) == wood_before, "Отклонённый проект не должен частично списывать материалы")
+
+func _test_army_uses_unit_specific_simultaneous_orders() -> void:
+	var state := WorldState.new()
+	_expect(state.army.begin_border_battle("ambush"), "Пограничное решение должно запускать боевую сцену")
+	_expect(state.army.status == ArmyState.BattleStatus.DEPLOYMENT, "Перед боем должна быть отдельная расстановка")
+	_expect(state.army.deploy("archers", 1), "Лучников можно растянуть в одну линию")
+	_expect(not state.army.deploy("archers", 4), "Глубина строя не должна выходить за сетку расстановки")
+	state.army.start_combat()
+	_expect(not state.army.issue_order("archers", "advance"), "Лучникам нельзя отдавать пехотную команду")
+	_expect(state.army.issue_order("archers", "volley"), "Лучникам доступен прицельный залп")
+	_expect(state.army.issue_order("retinue", "shield"), "Дружине доступен щитовой строй")
+	_expect(not state.army.ready_to_resolve(), "Ход не должен завершаться, пока конница ждёт приказа")
+	_expect(state.army.issue_order("cavalry", "flank"), "Коннице доступен обход фланга")
+	var enemy_before := int(state.army.enemy["spears"]["count"]) + int(state.army.enemy["bows"]["count"])
+	_expect(state.army.resolve_turn(), "Все приказы должны исполняться одним тактическим ходом")
+	var enemy_after := int(state.army.enemy["spears"]["count"]) + int(state.army.enemy["bows"]["count"])
+	_expect(enemy_after < enemy_before, "Залп и фланговый удар должны наносить видимые потери")
+	_expect(state.army.battle_log.size() == 1, "Ход должен оставлять понятный журнал потерь и приказов")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.army.battle_log.size() == 1, "Состояние незавершённого боя должно сохраняться")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
