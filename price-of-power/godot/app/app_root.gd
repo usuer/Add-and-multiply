@@ -1027,6 +1027,8 @@ func _resolve_army_turn() -> void:
 	if state.army.resolve_turn():
 		_refresh_ui("Все приказы выполнены одновременно. Потери показаны в журнале боя.")
 		_refresh_building_actions()
+		if not state.army.battle_log.is_empty():
+			battle_view.play_turn(state.army.battle_log.back())
 
 func _add_council_actions() -> void:
 	var heading := Label.new()

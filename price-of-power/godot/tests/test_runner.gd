@@ -24,9 +24,10 @@ func _initialize() -> void:
 	_test_population_migration_and_rebellion_pressure()
 	_test_ruler_overwork_causes_temporary_incapacity()
 	_test_atomic_autosave_fallback()
+	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 22 checks")
+		print("PASS Godot foundation: 23 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -371,6 +372,18 @@ func _test_atomic_autosave_fallback() -> void:
 	_expect(loaded != null and loaded.state_treasury == 77, "Автосохранение должно полностью восстанавливать состояние")
 	_expect(not FileAccess.file_exists(auto_path + ".tmp"), "После успешной записи не должен оставаться временный файл")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(auto_path))
+
+func _test_battle_view_builds_animated_formations() -> void:
+	var army := ArmyState.new()
+	army.begin_border_battle("ambush")
+	army.start_combat()
+	army.issue_order("retinue", "advance")
+	army.issue_order("archers", "volley")
+	army.issue_order("cavalry", "flank")
+	army.resolve_turn()
+	_expect(IllustratedBattleView.FRIENDLY_CELLS.size() == 3, "Боевое поле должно содержать три отдельные наши формации")
+	_expect(IllustratedBattleView.ENEMY_CELLS.size() == 3, "Боевое поле должно содержать три отдельные вражеские формации")
+	_expect((army.battle_log.back()["orders"] as Dictionary).get("archers") == "volley", "Анимация должна получать фактически выполненный приказ лучников")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

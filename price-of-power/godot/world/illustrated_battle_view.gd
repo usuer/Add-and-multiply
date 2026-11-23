@@ -72,6 +72,62 @@ func refresh(army: ArmyState, selected_unit: String = "") -> void:
 	if not selected_unit.is_empty(): _selected_unit = selected_unit
 	_layout_units()
 
+func play_turn(turn_record: Dictionary) -> void:
+	if _army == null: return
+	var orders: Dictionary = turn_record.get("orders", {})
+	for unit_id: String in orders:
+		var order := str(orders[unit_id])
+		if order in ["advance", "flank", "charge"]:
+			_animate_movement(unit_id, order)
+		elif unit_id == "archers" and order in ["volley", "suppress"]:
+			_animate_arrows("bows" if order == "suppress" else "spears")
+	var friendly_losses: Dictionary = turn_record.get("friendly_losses", {})
+	for unit_id: String in friendly_losses:
+		if int(friendly_losses[unit_id]) > 0: _flash_casualties(_friendly_buttons.get(unit_id))
+	var enemy_losses: Dictionary = turn_record.get("enemy_losses", {})
+	for unit_id: String in enemy_losses:
+		if int(enemy_losses[unit_id]) > 0: _flash_casualties(_enemy_sprites.get(unit_id))
+
+func _animate_movement(unit_id: String, order: String) -> void:
+	var button: TextureButton = _friendly_buttons.get(unit_id)
+	if button == null or not button.visible: return
+	var origin := button.position
+	var offset := Vector2(0, -80)
+	if order == "flank": offset = Vector2(90, -70)
+	if order == "charge": offset = Vector2(0, -125)
+	var tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(button, "position", origin + offset, 0.34)
+	tween.tween_property(button, "position", origin, 0.34)
+
+func _animate_arrows(target_id: String) -> void:
+	var source: TextureButton = _friendly_buttons.get("archers")
+	var target: TextureRect = _enemy_sprites.get(target_id)
+	if source == null or target == null or not source.visible or not target.visible: return
+	var start := source.position + source.size * 0.5
+	var finish := target.position + target.size * 0.5
+	for index in range(7):
+		var arrow := ColorRect.new()
+		arrow.color = Color("d8c38e")
+		arrow.size = Vector2(3, 24)
+		arrow.pivot_offset = arrow.size * 0.5
+		var spread := Vector2((index - 3) * 9, abs(index - 3) * 3)
+		arrow.position = start + spread
+		arrow.rotation = (finish - start).angle() + PI * 0.5
+		arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(arrow)
+		var tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.tween_interval(index * 0.035)
+		tween.tween_property(arrow, "position", finish + spread, 0.48)
+		tween.parallel().tween_property(arrow, "modulate:a", 0.15, 0.48)
+		tween.tween_callback(arrow.queue_free)
+
+func _flash_casualties(control: Control) -> void:
+	if control == null or not control.visible: return
+	var original := control.modulate
+	var tween := create_tween()
+	tween.tween_property(control, "modulate", Color(1.0, 0.3, 0.24, 0.72), 0.12)
+	tween.tween_property(control, "modulate", original, 0.34)
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and _army != null:
 		_layout_units()
