@@ -299,8 +299,10 @@ func _test_campaign_guide_tracks_real_actions() -> void:
 	state.council.appoint(state, "physician", "mira")
 	_expect(state.guide.completed_count(state) == 2, "Назначение чиновника должно учитываться без отдельной галочки")
 	state.guide.intro_seen = true
+	state.guide.prologue_seen = true
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.guide.intro_seen, "Просмотр введения должен сохраняться")
+	_expect(restored.guide.prologue_seen, "Сцена передачи власти должна показываться только один раз за кампанию")
 	_expect(restored.guide.completed_count(restored) == 2, "Цели должны восстанавливаться из реального состояния мира")
 
 func _test_technology_progress_and_practical_bonuses() -> void:

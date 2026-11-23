@@ -3,8 +3,9 @@ extends Node3D
 const CAPITAL_CAMERA := preload("res://world/capital_camera.gd")
 const CITY_BUILDING := preload("res://world/city_building.gd")
 const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
-const ILLUSTRATED_BATTLE := preload("res://world/illustrated_battle_view.gd")
 const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
+const FATHER_LAST_NIGHT_ART: Texture2D = preload("res://assets/art/fathers_last_night.png")
+const USE_3D_PLACEHOLDERS: bool = false
 
 var state: WorldState = WorldState.new()
 var date_label: Label
@@ -31,17 +32,22 @@ var intro_body: Label
 var intro_page_label: Label
 var intro_back_button: Button
 var intro_next_button: Button
+var intro_picture: TextureRect
 var intro_page: int = 0
 var objectives_label: Label
 var illustrated_map: IllustratedCapitalMap
-var battle_view: IllustratedBattleView
+var battle_view: Control
+var interface_root: VBoxContainer
+var modal_shade: ColorRect
 var selected_army_unit: String = "retinue"
 var new_campaign_confirmation: bool = false
 
 const INTRO_PAGES: Array[Dictionary] = [
-	{"title": "Арденское княжество · весна 1248 года", "body": "После смерти отца вы наследуете не пустую землю, а действующее государство: укреплённую столицу, старых чиновников, ремесленные кварталы и области, которые уже привыкли решать часть дел без двора. Казна не бедна, но почти у каждого запаса есть прежнее обещание."},
-	{"title": "Власть начинается с незавершённых дел", "body": "Долинная область просит открыть амбары. Двор ждёт решения о похоронах князя. В зерновых книгах обнаружена недостача. Вам не нужно лично делать всё: поручения разным людям занимают разное время и приносят разные сведения."},
-	{"title": "Город — главное меню", "body": "Выбирайте здания прямо на карте. Замок открывает совет, законы и суд; амбар — зерновое расследование; казармы — армию; двор послов — торговлю и разведку. Завершайте период только после проверки срочных дел: некоторые проблемы не будут ждать бесконечно."}
+	{"title": "Последняя ночь старого князя", "body": "Отец зовёт вас незадолго до рассвета. Лекари уже вышли из комнаты. На столе лежат зерновые книги, сломанная печать и карта северных дорог. «Я оставляю тебе не трон, а множество обещаний, данных разным людям», — говорит он."},
+	{"title": "Предупреждение, которое он не успел закончить", "body": "Отец просит защитить Ладу и проверить пропавшее зерно. Затем показывает на сломанную печать: «Кто-то в моём совете передавал северянам наши дороги. Не обвиняй первого, на кого укажут. Ищи того, кому выгодно…» Последнее имя он произнести не успевает."},
+	{"title": "На рассвете власть переходит к вам", "body": "К полудню город узнаёт о смерти князя. Семья ждёт решения о похоронах, из Долинной области требуют открыть амбары, а старые советники уже спорят, какой приказ вы должны подписать первым. Отказ отвечать тоже станет решением."},
+	{"title": "Арденское княжество · весна 1248 года", "body": "Вы наследуете действующее государство: укреплённую столицу, чиновников, ремесленные кварталы и области со своими интересами. Казна не пуста, но почти у каждого запаса есть прежнее назначение."},
+	{"title": "Город — главное меню", "body": "Выбирайте здания на карте. Замок открывает совет, правила и суд; амбар — расследование; казармы — армию; двор послов — торговлю и разведку. Некоторые проблемы ухудшаются, если оставить их без ответа."}
 ]
 
 func _ready() -> void:
@@ -50,8 +56,14 @@ func _ready() -> void:
 	_create_camera()
 	_create_ui()
 	_refresh_ui("Первая техническая сцена: укреплённый Арден")
-	if not state.guide.intro_seen:
+	if not state.guide.prologue_seen or not state.guide.intro_seen:
 		_show_intro()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.alt_pressed and event.keycode == KEY_ENTER:
+		var window := get_window()
+		window.mode = Window.MODE_WINDOWED if window.mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN] else Window.MODE_FULLSCREEN
+		get_viewport().set_input_as_handled()
 
 func _create_environment() -> void:
 	var environment := WorldEnvironment.new()
@@ -99,12 +111,14 @@ func _create_capital_placeholder() -> void:
 
 func _add_building(id: StringName, title: String, details: String, ground_position: Vector3, size: Vector3, color: Color) -> void:
 	var building := CITY_BUILDING.new() as CityBuilding
-	building.configure(id, title, details, size, color)
+	building.configure(id, title, details, size, color, USE_3D_PLACEHOLDERS)
 	building.position = ground_position
 	building.selected.connect(_on_building_selected)
 	add_child(building)
 
 func _add_box(node_name: String, size: Vector3, world_position: Vector3, color: Color) -> void:
+	if not USE_3D_PLACEHOLDERS:
+		return
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = node_name
 	var mesh := BoxMesh.new()
@@ -133,24 +147,29 @@ func _create_ui() -> void:
 	margin.add_theme_constant_override("margin_right", 28)
 	margin.add_theme_constant_override("margin_bottom", 24)
 	layer.add_child(margin)
+	_create_modal_shade(layer)
 	_create_building_panel(layer)
 	_create_secretary_panel(layer)
 	_create_intro_overlay(layer)
 
 	var root := VBoxContainer.new()
+	interface_root = root
 	root.add_theme_constant_override("separation", 10)
 	margin.add_child(root)
 
 	var header := PanelContainer.new()
-	header.custom_minimum_size = Vector2(0, 92)
+	header.custom_minimum_size = Vector2(0, 126)
 	root.add_child(header)
 
+	var header_content := VBoxContainer.new()
+	header_content.add_theme_constant_override("separation", 5)
+	header.add_child(header_content)
 	var header_row := HBoxContainer.new()
-	header_row.add_theme_constant_override("separation", 24)
-	header.add_child(header_row)
+	header_row.add_theme_constant_override("separation", 8)
+	header_content.add_child(header_row)
 
 	var title_column := VBoxContainer.new()
-	title_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_column.custom_minimum_size = Vector2(240, 0)
 	header_row.add_child(title_column)
 
 	var title := Label.new()
@@ -159,37 +178,42 @@ func _create_ui() -> void:
 	title_column.add_child(title)
 
 	date_label = Label.new()
-	date_label.add_theme_font_size_override("font_size", 25)
+	date_label.add_theme_font_size_override("font_size", 22)
 	title_column.add_child(date_label)
 
-	resource_label = Label.new()
-	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	resource_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	header_row.add_child(resource_label)
+	var header_spacer := Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(header_spacer)
 	cases_button = Button.new()
 	cases_button.text = "Дела секретаря · 1"
-	cases_button.custom_minimum_size = Vector2(155, 44)
+	cases_button.custom_minimum_size = Vector2(145, 44)
 	cases_button.pressed.connect(_open_secretary)
 	header_row.add_child(cases_button)
 
-	var actions := VBoxContainer.new()
-	header_row.add_child(actions)
 	var next_button := Button.new()
 	next_button.text = "Завершить период"
-	next_button.custom_minimum_size = Vector2(190, 44)
+	next_button.custom_minimum_size = Vector2(170, 44)
 	next_button.pressed.connect(_on_advance_period)
-	actions.add_child(next_button)
-	var save_row := HBoxContainer.new()
-	actions.add_child(save_row)
+	header_row.add_child(next_button)
 	for item: Dictionary in [
 		{"text": "Новая", "callable": _on_new_campaign},
-		{"text": "Сохранить", "callable": _on_save},
-		{"text": "Загрузить", "callable": _on_load}
+		{"text": "Сохр.", "callable": _on_save},
+		{"text": "Загр.", "callable": _on_load}
 	]:
 		var button := Button.new()
 		button.text = item["text"]
+		button.custom_minimum_size = Vector2(64, 44)
 		button.pressed.connect(item["callable"])
-		save_row.add_child(button)
+		header_row.add_child(button)
+
+	resource_label = Label.new()
+	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	resource_label.custom_minimum_size = Vector2(0, 48)
+	resource_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	resource_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	resource_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	resource_label.add_theme_font_size_override("font_size", 14)
+	header_content.add_child(resource_label)
 
 	illustrated_map = ILLUSTRATED_MAP.new() as IllustratedCapitalMap
 	illustrated_map.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -197,13 +221,6 @@ func _create_ui() -> void:
 	illustrated_map.custom_minimum_size = Vector2(0, 420)
 	illustrated_map.building_selected.connect(_on_illustrated_building_selected)
 	root.add_child(illustrated_map)
-	battle_view = ILLUSTRATED_BATTLE.new() as IllustratedBattleView
-	battle_view.visible = false
-	battle_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	battle_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	battle_view.custom_minimum_size = Vector2(0, 420)
-	battle_view.friendly_unit_selected.connect(_on_battle_unit_selected)
-	root.add_child(battle_view)
 
 	var objectives_panel := PanelContainer.new()
 	objectives_panel.custom_minimum_size = Vector2(0, 42)
@@ -211,6 +228,7 @@ func _create_ui() -> void:
 	objectives_label = Label.new()
 	objectives_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	objectives_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	objectives_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	objectives_panel.add_child(objectives_label)
 
 	var footer := PanelContainer.new()
@@ -220,7 +238,30 @@ func _create_ui() -> void:
 	notice_label.text = "Перетаскивайте карту · колесо — масштаб · выберите здание для управления"
 	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	notice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	notice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	footer.add_child(notice_label)
+
+func _create_modal_shade(layer: CanvasLayer) -> void:
+	modal_shade = ColorRect.new()
+	modal_shade.visible = false
+	modal_shade.color = Color(0.01, 0.02, 0.018, 0.78)
+	modal_shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	modal_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(modal_shade)
+
+func _panel_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.025, 0.065, 0.052, 0.995)
+	style.border_color = Color("b99b54")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(12)
+	style.shadow_color = Color(0, 0, 0, 0.72)
+	style.shadow_size = 18
+	style.content_margin_left = 8
+	style.content_margin_top = 8
+	style.content_margin_right = 8
+	style.content_margin_bottom = 8
+	return style
 
 func _create_intro_overlay(layer: CanvasLayer) -> void:
 	intro_overlay = Control.new()
@@ -247,13 +288,13 @@ func _create_intro_overlay(layer: CanvasLayer) -> void:
 	intro_page_label = Label.new()
 	intro_page_label.modulate = Color("d9bd72")
 	column.add_child(intro_page_label)
-	var capital_picture := TextureRect.new()
-	capital_picture.texture = CAPITAL_ART
-	capital_picture.custom_minimum_size = Vector2(0, 285)
-	capital_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	capital_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	capital_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(capital_picture)
+	intro_picture = TextureRect.new()
+	intro_picture.texture = FATHER_LAST_NIGHT_ART
+	intro_picture.custom_minimum_size = Vector2(0, 285)
+	intro_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	intro_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	intro_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(intro_picture)
 	intro_title = Label.new()
 	intro_title.add_theme_font_size_override("font_size", 28)
 	intro_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -288,6 +329,7 @@ func _refresh_intro() -> void:
 	intro_page_label.text = "ВВЕДЕНИЕ · %d/%d" % [intro_page + 1, INTRO_PAGES.size()]
 	intro_title.text = page["title"]
 	intro_body.text = page["body"]
+	intro_picture.texture = FATHER_LAST_NIGHT_ART if intro_page < 3 else CAPITAL_ART
 	intro_back_button.disabled = intro_page == 0
 	intro_next_button.text = "Начать правление" if intro_page == INTRO_PAGES.size() - 1 else "Далее"
 
@@ -301,6 +343,8 @@ func _intro_next() -> void:
 		_refresh_intro()
 		return
 	state.guide.intro_seen = true
+	state.guide.prologue_seen = true
+	state.facts["father_warned_of_traitor"] = true
 	intro_overlay.visible = false
 	_refresh_ui("Первое дело ждёт в канцелярии. Откройте «Дела секретаря».")
 
@@ -308,8 +352,9 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	building_panel = PanelContainer.new()
 	building_panel.visible = false
 	building_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	building_panel.position = Vector2(-388, -210)
-	building_panel.size = Vector2(360, 420)
+	building_panel.position = Vector2(-488, -325)
+	building_panel.size = Vector2(460, 650)
+	building_panel.add_theme_stylebox_override("panel", _panel_style())
 	layer.add_child(building_panel)
 
 	var panel_margin := MarginContainer.new()
@@ -350,8 +395,9 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 	secretary_panel = PanelContainer.new()
 	secretary_panel.visible = false
 	secretary_panel.set_anchors_preset(Control.PRESET_CENTER)
-	secretary_panel.position = Vector2(-390, -330)
-	secretary_panel.size = Vector2(780, 660)
+	secretary_panel.position = Vector2(-430, -350)
+	secretary_panel.size = Vector2(860, 700)
+	secretary_panel.add_theme_stylebox_override("panel", _panel_style())
 	layer.add_child(secretary_panel)
 
 	var margin := MarginContainer.new()
@@ -402,11 +448,16 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 
 func _open_secretary() -> void:
 	building_panel.visible = false
+	if battle_view != null: battle_view.visible = false
+	illustrated_map.visible = true
+	illustrated_map.reset_overview()
 	secretary_panel.visible = true
+	modal_shade.visible = true
 	_refresh_secretary_case()
 
 func _close_secretary() -> void:
 	secretary_panel.visible = false
+	modal_shade.visible = building_panel.visible
 
 func _refresh_secretary_case() -> void:
 	for child in secretary_case_body.get_children():
@@ -629,6 +680,8 @@ func _on_building_selected(building: CityBuilding) -> void:
 	selected_building.set_highlighted(true)
 	camera_rig.focus_on(building.focus_point())
 	building_panel.visible = true
+	secretary_panel.visible = false
+	modal_shade.visible = true
 	building_title.text = building.display_name
 	building_status.text = building.building_status
 	building_description.text = building.description
@@ -639,10 +692,27 @@ func _on_illustrated_building_selected(building_id: StringName) -> void:
 		if child is CityBuilding and (child as CityBuilding).building_id == building_id:
 			var show_battle := building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE
 			illustrated_map.visible = not show_battle
-			battle_view.visible = show_battle
-			if show_battle: battle_view.refresh(state.army, selected_army_unit)
+			if show_battle:
+				_ensure_battle_view()
+				battle_view.visible = true
+				battle_view.call("refresh", state.army, selected_army_unit)
+			else:
+				illustrated_map.focus_on(building_id)
+				if battle_view != null: battle_view.visible = false
 			_on_building_selected(child as CityBuilding)
 			return
+
+func _ensure_battle_view() -> void:
+	if battle_view != null: return
+	var battle_script := load("res://world/illustrated_battle_view.gd")
+	battle_view = battle_script.new() as Control
+	battle_view.visible = false
+	battle_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_view.custom_minimum_size = Vector2(0, 420)
+	battle_view.connect("friendly_unit_selected", _on_battle_unit_selected)
+	interface_root.add_child(battle_view)
+	interface_root.move_child(battle_view, illustrated_map.get_index() + 1)
 
 func _on_battle_unit_selected(unit_id: String) -> void:
 	selected_army_unit = unit_id
@@ -944,7 +1014,7 @@ func _add_army_actions() -> void:
 		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		building_actions.add_child(quiet)
 		return
-	battle_view.refresh(state.army, selected_army_unit)
+	battle_view.call("refresh", state.army, selected_army_unit)
 	var terrain := Label.new()
 	terrain.text = "%s · провиант %d" % [state.army.terrain, state.army.supplies]
 	terrain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1028,7 +1098,7 @@ func _resolve_army_turn() -> void:
 		_refresh_ui("Все приказы выполнены одновременно. Потери показаны в журнале боя.")
 		_refresh_building_actions()
 		if not state.army.battle_log.is_empty():
-			battle_view.play_turn(state.army.battle_log.back())
+			battle_view.call("play_turn", state.army.battle_log.back())
 
 func _add_council_actions() -> void:
 	var heading := Label.new()
@@ -1076,8 +1146,10 @@ func _close_building_panel() -> void:
 	if selected_building != null:
 		selected_building.set_highlighted(false)
 	selected_building = null
-	battle_view.visible = false
+	modal_shade.visible = secretary_panel.visible
+	if battle_view != null: battle_view.visible = false
 	illustrated_map.visible = true
+	illustrated_map.reset_overview()
 	camera_rig.overview()
 
 func _on_advance_period() -> void:
@@ -1103,7 +1175,7 @@ func _on_load() -> void:
 		return
 	state = loaded
 	_refresh_ui("Сохранение загружено")
-	intro_overlay.visible = not state.guide.intro_seen
+	intro_overlay.visible = not state.guide.prologue_seen or not state.guide.intro_seen
 	if intro_overlay.visible:
 		intro_page = 0
 		_refresh_intro()
@@ -1124,18 +1196,18 @@ func _on_new_campaign() -> void:
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
-	resource_label.text = "Казна %d    Личные %d    Жители %d\nКнязь %d · усталость %d    Здоровье земель %d    Порядок %d    Недовольство %d\nЗерно %d    Железо %d    Оружие %d" % [
+	resource_label.text = "Казна %d · Личные %d · Жители %d · Зерно %d · Железо %d · Оружие %d\nКнязь %d · Усталость %d · Здоровье земель %d · Порядок %d · Недовольство %d" % [
 		state.state_treasury,
 		state.family_treasury,
 		state.population.residents,
+		int(state.resources.get("grain", 0)),
+		int(state.resources.get("worked_iron", 0)),
+		int(state.resources.get("weapons", 0)),
 		state.ruler_health,
 		state.ruler_fatigue,
 		state.public_health,
 		state.public_order,
-		state.population.unrest,
-		int(state.resources.get("grain", 0)),
-		int(state.resources.get("worked_iron", 0)),
-		int(state.resources.get("weapons", 0))
+		state.population.unrest
 	]
 	notice_label.text = message + "    ·    перетаскивание — движение карты · колесо — масштаб"
 	if objectives_label != null:

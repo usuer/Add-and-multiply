@@ -11,11 +11,13 @@ signal selected(building: CityBuilding)
 var _mesh_instance: MeshInstance3D
 var _material: StandardMaterial3D
 
-func configure(id: StringName, title: String, details: String, size: Vector3, color: Color) -> void:
+func configure(id: StringName, title: String, details: String, size: Vector3, color: Color, create_visual: bool = true) -> void:
 	building_id = id
 	display_name = title
 	description = details
 	name = String(id)
+	if not create_visual:
+		return
 
 	_mesh_instance = MeshInstance3D.new()
 	var mesh := BoxMesh.new()

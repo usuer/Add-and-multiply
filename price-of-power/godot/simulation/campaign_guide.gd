@@ -2,6 +2,7 @@ class_name CampaignGuide
 extends Resource
 
 @export var intro_seen: bool = false
+@export var prologue_seen: bool = false
 
 func objectives(state: WorldState) -> Array[Dictionary]:
 	return [
@@ -18,7 +19,8 @@ func completed_count(state: WorldState) -> int:
 	return result
 
 func to_data() -> Dictionary:
-	return {"intro_seen": intro_seen}
+	return {"intro_seen": intro_seen, "prologue_seen": prologue_seen}
 
 func load_data(data: Dictionary) -> void:
 	intro_seen = bool(data.get("intro_seen", false))
+	prologue_seen = bool(data.get("prologue_seen", false))

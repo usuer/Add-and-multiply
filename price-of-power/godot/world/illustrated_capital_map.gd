@@ -21,12 +21,14 @@ var _zoom_factor: float = 1.0
 var _base_scale: float = 1.0
 var _dragging: bool = false
 var _last_pointer: Vector2
+var _focus_tween: Tween
 
 func _ready() -> void:
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	map_root = Control.new()
 	map_root.size = MAP_SIZE
+	map_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(map_root)
 	var picture := TextureRect.new()
 	picture.texture = CAPITAL_TEXTURE
@@ -95,6 +97,33 @@ func _apply_transform() -> void:
 		map_root.position.y = (size.y - rendered.y) * 0.5
 	else:
 		map_root.position.y = clampf(map_root.position.y, size.y - rendered.y, 0.0)
+
+func focus_on(building_id: StringName) -> void:
+	if not HOTSPOTS.has(String(building_id)) or size.x <= 1.0: return
+	if _focus_tween != null and _focus_tween.is_running(): _focus_tween.kill()
+	_zoom_factor = 1.55
+	var target_scale := _current_scale()
+	var hotspot: Vector2 = HOTSPOTS[String(building_id)]["position"]
+	var target_position := _clamped_position(size * 0.5 - hotspot * target_scale, target_scale)
+	_focus_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	_focus_tween.tween_property(map_root, "scale", Vector2.ONE * target_scale, 0.38)
+	_focus_tween.parallel().tween_property(map_root, "position", target_position, 0.38)
+
+func reset_overview() -> void:
+	if _focus_tween != null and _focus_tween.is_running(): _focus_tween.kill()
+	_zoom_factor = 1.0
+	var target_scale := _current_scale()
+	var target_position := _clamped_position((size - MAP_SIZE * target_scale) * 0.5, target_scale)
+	_focus_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	_focus_tween.tween_property(map_root, "scale", Vector2.ONE * target_scale, 0.38)
+	_focus_tween.parallel().tween_property(map_root, "position", target_position, 0.38)
+
+func _clamped_position(candidate: Vector2, scale_value: float) -> Vector2:
+	var result := candidate
+	var rendered := MAP_SIZE * scale_value
+	result.x = (size.x - rendered.x) * 0.5 if rendered.x <= size.x else clampf(result.x, size.x - rendered.x, 0.0)
+	result.y = (size.y - rendered.y) * 0.5 if rendered.y <= size.y else clampf(result.y, size.y - rendered.y, 0.0)
+	return result
 
 func _select_building(building_id: StringName) -> void:
 	building_selected.emit(building_id)
