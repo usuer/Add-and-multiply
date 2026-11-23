@@ -13,8 +13,8 @@ const CANDIDATES: Dictionary = {
 	"vesna": {"name": "Весна Ратич", "role": "steward", "profile": "Купеческая вдова; быстро находит деньги, но городские цехи ждут от неё ответных услуг.", "economy": 4, "grain": -1},
 	"radomir": {"name": "Радомир Седой", "role": "marshal", "profile": "Ветеран отцовских походов; верен дому, осторожен и не любит молодых командиров.", "economy": -1, "grain": 0},
 	"yaropolk": {"name": "Ярополк Лис", "role": "marshal", "profile": "Смелый полевой командир; умеет действовать быстро, но имеет долги перед знатью.", "economy": -2, "grain": 0},
-	"mira": {"name": "Мира Травница", "role": "physician", "profile": "Лечила деревни во время прошлой горячки; опытна, но духовенство не доверяет её методам.", "economy": 0, "grain": 1},
-	"severin": {"name": "Брат Северин", "role": "physician", "profile": "Храмовый лекарь с сетью приходов; дисциплинирован, но ставит церковный порядок выше скорости.", "economy": -1, "grain": 1},
+	"mira": {"name": "Мира Травница", "role": "physician", "profile": "Лечила деревни во время прошлой горячки; опытна, но духовенство не доверяет её методам.", "economy": 0, "grain": 1, "medicine": 4},
+	"severin": {"name": "Брат Северин", "role": "physician", "profile": "Храмовый лекарь с сетью приходов; дисциплинирован, но ставит церковный порядок выше скорости.", "economy": -1, "grain": 1, "medicine": 3},
 	"tibor": {"name": "Тибор Безгербовый", "role": "intelligence", "profile": "Знает контрабандистов и трактиры; приносит сведения быстро, но никто не знает его настоящей верности.", "economy": -1, "grain": 0},
 	"elena": {"name": "Елена Ворон", "role": "intelligence", "profile": "Дворянка и опытная посланница; имеет доступ к соседним дворам, зато связана семейными обещаниями.", "economy": -2, "grain": 0}
 }
@@ -54,6 +54,10 @@ func monthly_grain_bonus() -> int:
 		if CANDIDATES.has(candidate_id):
 			result += int(CANDIDATES[candidate_id].get("grain", 0))
 	return result
+
+func medicine_skill() -> int:
+	var physician_id := str(appointments.get("physician", ""))
+	return int(CANDIDATES.get(physician_id, {}).get("medicine", 0))
 
 func to_data() -> Dictionary:
 	return {"appointments": appointments.duplicate(true), "appointment_history": appointment_history.duplicate(true)}

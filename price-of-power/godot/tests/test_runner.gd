@@ -13,9 +13,10 @@ func _initialize() -> void:
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
+	_test_physician_changes_epidemic_outcome()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 11 checks")
+		print("PASS Godot foundation: 12 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -170,6 +171,21 @@ func _test_council_appointments_affect_government() -> void:
 	_expect(state.state_treasury == treasury_before + 11, "Состав совета должен менять месячную экономику")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.council.appointments["steward"] == "vesna", "Назначения должны сохраняться")
+
+func _test_physician_changes_epidemic_outcome() -> void:
+	var prepared := WorldState.new()
+	prepared.council.appoint(prepared, "physician", "mira")
+	while prepared.calendar.cycle < 10: prepared.advance_period()
+	var prepared_before := prepared.public_health
+	_expect(prepared.story_timeline.choose(prepared, "fever_outbreak", "clinics"), "При эпидемии можно открыть лечебницы")
+	_expect(prepared.public_health == prepared_before + 8, "Опытный лекарь должен повысить эффективность лечебниц")
+
+	var unprepared := WorldState.new()
+	while unprepared.calendar.cycle < 10: unprepared.advance_period()
+	var unprepared_before := unprepared.public_health
+	unprepared.story_timeline.choose(unprepared, "fever_outbreak", "clinics")
+	_expect(unprepared.public_health == unprepared_before + 3, "Без главы службы лечебницы должны работать хуже, но не быть бесполезными")
+	_expect(prepared.story_timeline.outcome("fever_outbreak") != unprepared.story_timeline.outcome("fever_outbreak"), "Игрок должен увидеть различие в ходе лечения")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

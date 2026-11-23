@@ -8,6 +8,7 @@ const SAVE_VERSION: int = 1
 @export var state_treasury: int = 120
 @export var family_treasury: int = 45
 @export var ruler_fatigue: int = 8
+@export var public_health: int = 64
 @export var grain_crisis: GrainCrisis = GrainCrisis.new()
 @export var opening_decision: OpeningDecision = OpeningDecision.new()
 @export var opening_followup: OpeningFollowup = OpeningFollowup.new()
@@ -112,6 +113,7 @@ func to_data() -> Dictionary:
 		"state_treasury": state_treasury,
 		"family_treasury": family_treasury,
 		"ruler_fatigue": ruler_fatigue,
+		"public_health": public_health,
 		"grain_crisis": grain_crisis.to_data(),
 		"opening_decision": opening_decision.to_data(),
 		"opening_followup": opening_followup.to_data(),
@@ -138,6 +140,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.state_treasury = maxi(0, int(data.get("state_treasury", 120)))
 	state.family_treasury = maxi(0, int(data.get("family_treasury", 45)))
 	state.ruler_fatigue = clampi(int(data.get("ruler_fatigue", 8)), 0, 100)
+	state.public_health = clampi(int(data.get("public_health", 64)), 0, 100)
 	state.grain_crisis.load_data(data.get("grain_crisis", {}))
 	state.opening_decision.load_data(data.get("opening_decision", {}))
 	state.opening_followup.load_data(data.get("opening_followup", {}))
