@@ -40,14 +40,38 @@ func _ready() -> void:
 	for building_id: String in HOTSPOTS:
 		var hotspot: Dictionary = HOTSPOTS[building_id]
 		var button := Button.new()
-		button.text = str(hotspot["title"])
-		button.position = hotspot["position"] - Vector2(62, 22)
-		button.size = Vector2(124, 44)
-		button.add_theme_font_size_override("font_size", 16)
+		button.text = "◆  %s" % hotspot["title"]
+		button.position = hotspot["position"] - Vector2(72, 23)
+		button.size = Vector2(144, 46)
+		button.pivot_offset = button.size * 0.5
+		button.add_theme_font_size_override("font_size", 15)
+		button.add_theme_color_override("font_color", Color("f5e7ba"))
+		button.add_theme_color_override("font_hover_color", Color("fff4cf"))
+		button.add_theme_stylebox_override("normal", _marker_style(Color(0.025, 0.075, 0.06, 0.92), Color("b99b54"), 1))
+		button.add_theme_stylebox_override("hover", _marker_style(Color(0.08, 0.18, 0.12, 0.98), Color("e0bd68"), 2))
+		button.add_theme_stylebox_override("pressed", _marker_style(Color(0.12, 0.24, 0.15, 0.98), Color("f0cf7a"), 2))
 		button.tooltip_text = "Открыть: %s" % hotspot["title"]
 		button.pressed.connect(_select_building.bind(StringName(building_id)))
+		button.mouse_entered.connect(_animate_marker.bind(button, 1.045))
+		button.mouse_exited.connect(_animate_marker.bind(button, 1.0))
 		map_root.add_child(button)
 	call_deferred("_fit_map")
+
+func _marker_style(background: Color, border: Color, width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(width)
+	style.set_corner_radius_all(18)
+	style.shadow_color = Color(0, 0, 0, 0.58)
+	style.shadow_size = 8
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	return style
+
+func _animate_marker(button: Button, target_scale: float) -> void:
+	var tween := button.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(button, "scale", Vector2.ONE * target_scale, 0.12)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and map_root != null:
@@ -117,6 +141,19 @@ func reset_overview() -> void:
 	_focus_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	_focus_tween.tween_property(map_root, "scale", Vector2.ONE * target_scale, 0.38)
 	_focus_tween.parallel().tween_property(map_root, "position", target_position, 0.38)
+
+func preview_for(building_id: StringName) -> Texture2D:
+	if not HOTSPOTS.has(String(building_id)):
+		return CAPITAL_TEXTURE
+	var center: Vector2 = HOTSPOTS[String(building_id)]["position"]
+	var preview_size := Vector2(560, 300)
+	var origin := center - preview_size * 0.5
+	origin.x = clampf(origin.x, 0.0, MAP_SIZE.x - preview_size.x)
+	origin.y = clampf(origin.y, 0.0, MAP_SIZE.y - preview_size.y)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = CAPITAL_TEXTURE
+	atlas.region = Rect2(origin, preview_size)
+	return atlas
 
 func _clamped_position(candidate: Vector2, scale_value: float) -> Vector2:
 	var result := candidate

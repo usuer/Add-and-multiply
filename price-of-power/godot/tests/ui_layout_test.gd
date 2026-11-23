@@ -16,6 +16,11 @@ func _run() -> void:
 		app.call("_intro_next")
 	await process_frame
 	_check_header(app, "при запуске")
+	app.call("_on_illustrated_building_selected", &"granary")
+	await process_frame
+	_check_building_panel(app)
+	app.call("_close_building_panel")
+	await process_frame
 	var state: WorldState = app.get("state") as WorldState
 	state.opening_decision.choose_funeral("solemn")
 	state.opening_decision.choose_grain("partial")
@@ -28,9 +33,11 @@ func _run() -> void:
 	app.call("_open_secretary")
 	await process_frame
 	_check_header(app, "при открытии протечки амбара")
+	_check_secretary_summary(app, 1)
 	app.call("_choose_story_event", "granary_roof", "repair")
 	await process_frame
 	_check_header(app, "после отправки плотников")
+	_check_secretary_summary(app, 0)
 	app.call("_close_secretary")
 	app.call("_on_advance_period")
 	await process_frame
@@ -56,6 +63,25 @@ func _check_common_desktop_sizes(app: Node) -> void:
 	var shade := app.get("modal_shade") as ColorRect
 	if shade == null or not shade.visible or shade.color.a < 0.7:
 		failures.append("Окно секретаря должно отделяться от карты плотным затемнением")
+
+func _check_building_panel(app: Node) -> void:
+	var panel := app.get("building_panel") as PanelContainer
+	var picture := app.get("building_picture") as TextureRect
+	var context := app.get("building_context") as Label
+	if panel == null or not panel.visible or not root.get_visible_rect().encloses(panel.get_global_rect()):
+		failures.append("Карточка городского объекта должна полностью помещаться на экране")
+	if picture == null or picture.texture == null:
+		failures.append("Карточка здания должна показывать художественное приближение объекта")
+	if context == null or context.text != "ЗАПАСЫ И СНАБЖЕНИЕ":
+		failures.append("Карточка амбара должна объяснять назначение места")
+
+func _check_secretary_summary(app: Node, expected_cases: int) -> void:
+	var title := app.get("secretary_title") as Label
+	var introduction := app.get("secretary_introduction") as Label
+	if title == null or title.text != "Дела княжеской канцелярии":
+		failures.append("После вступления секретарь должен показывать актуальную повестку, а не старый заголовок")
+	if introduction == null or not introduction.text.contains("Новых дел: %d" % expected_cases):
+		failures.append("Канцелярия должна кратко показывать число новых дел: ожидалось %d" % expected_cases)
 
 func _check_header(app: Node, stage: String) -> void:
 	var visible_rect := root.get_visible_rect()

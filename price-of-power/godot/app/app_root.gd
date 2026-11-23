@@ -15,11 +15,15 @@ var camera_rig: CapitalCamera
 var selected_building: CityBuilding
 var building_panel: PanelContainer
 var building_title: Label
+var building_context: Label
+var building_picture: TextureRect
 var building_description: Label
 var building_status: Label
 var building_actions: VBoxContainer
 var secretary_panel: PanelContainer
 var secretary_case_body: VBoxContainer
+var secretary_title: Label
+var secretary_introduction: Label
 var funeral_choice_label: Label
 var grain_choice_label: Label
 var funding_choice_label: Label
@@ -39,6 +43,7 @@ var illustrated_map: IllustratedCapitalMap
 var battle_view: Control
 var interface_root: VBoxContainer
 var modal_shade: ColorRect
+var panel_tween: Tween
 var selected_army_unit: String = "retinue"
 var new_campaign_confirmation: bool = false
 
@@ -364,13 +369,26 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	panel_margin.add_theme_constant_override("margin_bottom", 20)
 	building_panel.add_child(panel_margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
+	column.add_theme_constant_override("separation", 9)
 	panel_margin.add_child(column)
 
+	var top_row := HBoxContainer.new()
+	column.add_child(top_row)
+	building_context = Label.new()
+	building_context.text = "ГОРОДСКОЙ ОБЪЕКТ"
+	building_context.modulate = Color("d9bd72")
+	building_context.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(building_context)
 	var close_button := Button.new()
-	close_button.text = "Вернуться к городу"
+	close_button.text = "← К городу"
 	close_button.pressed.connect(_close_building_panel)
-	column.add_child(close_button)
+	top_row.add_child(close_button)
+	building_picture = TextureRect.new()
+	building_picture.custom_minimum_size = Vector2(0, 170)
+	building_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	building_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	building_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(building_picture)
 	building_title = Label.new()
 	building_title.add_theme_font_size_override("font_size", 25)
 	building_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -422,15 +440,16 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 	close.pressed.connect(_close_secretary)
 	top.add_child(close)
 
-	var title := Label.new()
-	title.text = "Похороны князя и просьба об открытии амбаров"
-	title.add_theme_font_size_override("font_size", 27)
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root.add_child(title)
-	var introduction := Label.new()
-	introduction.text = "Милорд, двор ожидает решения о церемонии. Одновременно из Долинной области пришла просьба о зерне. Мы можем разделить источники средств и не обязаны ограничиваться простым отказом."
-	introduction.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root.add_child(introduction)
+	secretary_title = Label.new()
+	secretary_title.text = "Похороны князя и просьба об открытии амбаров"
+	secretary_title.add_theme_font_size_override("font_size", 27)
+	secretary_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(secretary_title)
+	secretary_introduction = Label.new()
+	secretary_introduction.text = "Два срочных решения требуют вашей печати."
+	secretary_introduction.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_introduction.modulate = Color("b9c2b3")
+	root.add_child(secretary_introduction)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -453,6 +472,7 @@ func _open_secretary() -> void:
 	illustrated_map.reset_overview()
 	secretary_panel.visible = true
 	modal_shade.visible = true
+	_reveal_panel(secretary_panel)
 	_refresh_secretary_case()
 
 func _close_secretary() -> void:
@@ -465,6 +485,9 @@ func _refresh_secretary_case() -> void:
 	_add_unread_reports()
 	var decision := state.opening_decision
 	if decision.status == OpeningDecision.Status.RESOLVED:
+		var available_count := state.story_timeline.available_events(state.calendar.cycle).size()
+		secretary_title.text = "Дела княжеской канцелярии"
+		secretary_introduction.text = "Новых дел: %d · последствия принятых решений появляются здесь по мере поступления донесений." % available_count
 		var result_heading := Label.new()
 		result_heading.text = "РЕШЕНИЕ ПРИНЯТО"
 		result_heading.modulate = Color("d9bd72")
@@ -487,6 +510,8 @@ func _refresh_secretary_case() -> void:
 		_add_campaign_outcome()
 		resolve_opening_button.visible = false
 		return
+	secretary_title.text = "Первые решения нового князя"
+	secretary_introduction.text = "Определите церемонию, помощь области и источник средств. Точные последствия заранее неизвестны."
 
 	_add_choice_section("1 · Церемония", OpeningDecision.FUNERAL_PLANS, decision.funeral_plan, _choose_funeral)
 	funeral_choice_label = Label.new()
@@ -585,21 +610,42 @@ func _add_available_story_events() -> void:
 	secretary_case_body.add_child(agenda_heading)
 	for event_id: String in available:
 		var event := state.story_timeline.definition(event_id)
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", _card_style())
+		secretary_case_body.add_child(card)
+		var card_margin := MarginContainer.new()
+		card_margin.add_theme_constant_override("margin_left", 16)
+		card_margin.add_theme_constant_override("margin_top", 12)
+		card_margin.add_theme_constant_override("margin_right", 16)
+		card_margin.add_theme_constant_override("margin_bottom", 14)
+		card.add_child(card_margin)
+		var card_content := VBoxContainer.new()
+		card_content.add_theme_constant_override("separation", 8)
+		card_margin.add_child(card_content)
 		var event_title := Label.new()
 		event_title.text = "%s · %s" % [event["title"], event["location"]]
 		event_title.add_theme_font_size_override("font_size", 20)
-		secretary_case_body.add_child(event_title)
+		card_content.add_child(event_title)
 		var summary := Label.new()
 		summary.text = event["summary"]
 		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		secretary_case_body.add_child(summary)
+		summary.modulate = Color("c7d0c3")
+		card_content.add_child(summary)
 		for choice_id: String in event["choices"]:
 			var choice := Button.new()
 			choice.text = str(event["choices"][choice_id])
 			choice.custom_minimum_size = Vector2(0, 40)
 			choice.disabled = not state.story_timeline.can_choose(state, event_id, choice_id)
 			choice.pressed.connect(_choose_story_event.bind(event_id, choice_id))
-			secretary_case_body.add_child(choice)
+			card_content.add_child(choice)
+
+func _card_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.045, 0.105, 0.078, 0.96)
+	style.border_color = Color(0.38, 0.48, 0.32, 0.9)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(9)
+	return style
 
 func _choose_story_event(event_id: String, choice_id: String) -> void:
 	if state.story_timeline.choose(state, event_id, choice_id):
@@ -682,10 +728,36 @@ func _on_building_selected(building: CityBuilding) -> void:
 	building_panel.visible = true
 	secretary_panel.visible = false
 	modal_shade.visible = true
+	_reveal_panel(building_panel)
 	building_title.text = building.display_name
+	building_context.text = _building_context(building.building_id)
+	building_picture.texture = illustrated_map.preview_for(building.building_id)
 	building_status.text = building.building_status
 	building_description.text = building.description
 	_refresh_building_actions()
+
+func _reveal_panel(panel: Control) -> void:
+	if panel_tween != null and panel_tween.is_running():
+		panel_tween.kill()
+	panel.pivot_offset = panel.size * 0.5
+	panel.scale = Vector2(0.975, 0.975)
+	panel.modulate.a = 0.0
+	panel_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	panel_tween.tween_property(panel, "scale", Vector2.ONE, 0.18)
+	panel_tween.tween_property(panel, "modulate:a", 1.0, 0.16)
+
+func _building_context(building_id: StringName) -> String:
+	return {
+		&"castle": "ВЛАСТЬ И УПРАВЛЕНИЕ",
+		&"keep": "АРХИВ И ПОСЛЕДНИЙ РУБЕЖ",
+		&"barracks": "ГАРНИЗОН И ОБОРОНА",
+		&"smithy": "РЕМЕСЛО И ВООРУЖЕНИЕ",
+		&"granary": "ЗАПАСЫ И СНАБЖЕНИЕ",
+		&"market": "ТОРГОВЛЯ И ГОРОЖАНЕ",
+		&"temple": "ОБЩИНА И ЗДОРОВЬЕ",
+		&"embassy": "ДИПЛОМАТИЯ И РАЗВЕДКА",
+		&"school": "ОБРАЗОВАНИЕ И ЗНАНИЯ"
+	}.get(building_id, "ГОРОДСКОЙ ОБЪЕКТ")
 
 func _on_illustrated_building_selected(building_id: StringName) -> void:
 	for child: Node in get_children():
