@@ -16,12 +16,29 @@ func _run() -> void:
 		app.call("_intro_next")
 	await process_frame
 	_check_header(app, "при запуске")
+	var state: WorldState = app.get("state") as WorldState
+	state.opening_decision.choose_funeral("solemn")
+	state.opening_decision.choose_grain("partial")
+	state.opening_decision.choose_funding("state")
+	if not state.opening_decision.resolve(state):
+		failures.append("Не удалось подготовить вступительное решение для UI-сценария")
 	app.call("_on_advance_period")
 	await process_frame
 	_check_header(app, "после завершения периода")
 	app.call("_open_secretary")
 	await process_frame
+	_check_header(app, "при открытии протечки амбара")
+	app.call("_choose_story_event", "granary_roof", "repair")
+	await process_frame
+	_check_header(app, "после отправки плотников")
+	app.call("_close_secretary")
+	app.call("_on_advance_period")
+	await process_frame
+	_check_header(app, "после следующего периода")
+	app.call("_open_secretary")
+	await process_frame
 	_check_header(app, "при повторном открытии секретаря")
+	await _check_common_desktop_sizes(app)
 	if failures.is_empty():
 		print("PASS UI layout: header remains usable at 1024x700")
 		quit(0)
@@ -29,6 +46,16 @@ func _run() -> void:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+func _check_common_desktop_sizes(app: Node) -> void:
+	for window_size in [Vector2i(1024, 700), Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1920, 1080), Vector2i(2560, 1440)]:
+		root.size = window_size
+		await process_frame
+		await process_frame
+		_check_header(app, "при размере %dx%d" % [window_size.x, window_size.y])
+	var shade := app.get("modal_shade") as ColorRect
+	if shade == null or not shade.visible or shade.color.a < 0.7:
+		failures.append("Окно секретаря должно отделяться от карты плотным затемнением")
 
 func _check_header(app: Node, stage: String) -> void:
 	var visible_rect := root.get_visible_rect()
