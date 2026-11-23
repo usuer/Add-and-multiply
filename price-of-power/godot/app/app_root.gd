@@ -20,6 +20,7 @@ var funeral_choice_label: Label
 var grain_choice_label: Label
 var funding_choice_label: Label
 var resolve_opening_button: Button
+var cases_button: Button
 
 func _ready() -> void:
 	_create_environment()
@@ -138,7 +139,7 @@ func _create_ui() -> void:
 	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	header_row.add_child(resource_label)
-	var cases_button := Button.new()
+	cases_button = Button.new()
 	cases_button.text = "Дела секретаря · 1"
 	cases_button.custom_minimum_size = Vector2(155, 44)
 	cases_button.pressed.connect(_open_secretary)
@@ -297,6 +298,7 @@ func _refresh_secretary_case() -> void:
 			reaction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			secretary_case_body.add_child(reaction_label)
 		_add_opening_followup()
+		_add_available_story_events()
 		resolve_opening_button.visible = false
 		return
 
@@ -363,6 +365,40 @@ func _add_opening_followup() -> void:
 
 func _choose_opening_followup(response_id: String) -> void:
 	if state.opening_followup.choose(state, response_id):
+		_refresh_secretary_case()
+
+func _add_available_story_events() -> void:
+	var available := state.story_timeline.available_events(state.calendar.cycle)
+	if available.is_empty():
+		return
+	var divider := HSeparator.new()
+	secretary_case_body.add_child(divider)
+	var agenda_heading := Label.new()
+	agenda_heading.text = "НОВЫЕ ДЕЛА · %d" % available.size()
+	agenda_heading.modulate = Color("d9bd72")
+	secretary_case_body.add_child(agenda_heading)
+	for event_id: String in available:
+		var event := state.story_timeline.definition(event_id)
+		var event_title := Label.new()
+		event_title.text = "%s · %s" % [event["title"], event["location"]]
+		event_title.add_theme_font_size_override("font_size", 20)
+		secretary_case_body.add_child(event_title)
+		var summary := Label.new()
+		summary.text = event["summary"]
+		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(summary)
+		for choice_id: String in event["choices"]:
+			var choice := Button.new()
+			choice.text = str(event["choices"][choice_id])
+			choice.custom_minimum_size = Vector2(0, 40)
+			choice.disabled = not state.story_timeline.can_choose(state, event_id, choice_id)
+			choice.pressed.connect(_choose_story_event.bind(event_id, choice_id))
+			secretary_case_body.add_child(choice)
+
+func _choose_story_event(event_id: String, choice_id: String) -> void:
+	if state.story_timeline.choose(state, event_id, choice_id):
+		var outcome := state.story_timeline.outcome(event_id)
+		_refresh_ui(outcome)
 		_refresh_secretary_case()
 
 func _add_choice_section(title: String, choices: Dictionary, selected_id: String, callback: Callable) -> void:
@@ -490,4 +526,11 @@ func _refresh_ui(message: String) -> void:
 		int(state.resources.get("weapons", 0))
 	]
 	notice_label.text = message + "    ·    WASD — перемещение · Q/E — вращение · колесо — масштаб"
+	if cases_button != null:
+		var open_cases := state.story_timeline.available_events(state.calendar.cycle).size()
+		if state.opening_decision.status != OpeningDecision.Status.RESOLVED:
+			open_cases += 1
+		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
+			open_cases += 1
+		cases_button.text = "Дела секретаря · %d" % open_cases
 

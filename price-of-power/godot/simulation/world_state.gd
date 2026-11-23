@@ -11,6 +11,7 @@ const SAVE_VERSION: int = 1
 @export var grain_crisis: GrainCrisis = GrainCrisis.new()
 @export var opening_decision: OpeningDecision = OpeningDecision.new()
 @export var opening_followup: OpeningFollowup = OpeningFollowup.new()
+@export var story_timeline: StoryTimeline = StoryTimeline.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -109,6 +110,7 @@ func to_data() -> Dictionary:
 		"grain_crisis": grain_crisis.to_data(),
 		"opening_decision": opening_decision.to_data(),
 		"opening_followup": opening_followup.to_data(),
+		"story_timeline": story_timeline.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -132,6 +134,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.grain_crisis.load_data(data.get("grain_crisis", {}))
 	state.opening_decision.load_data(data.get("opening_decision", {}))
 	state.opening_followup.load_data(data.get("opening_followup", {}))
+	state.story_timeline.load_data(data.get("story_timeline", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

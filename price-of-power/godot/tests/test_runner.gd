@@ -9,9 +9,10 @@ func _initialize() -> void:
 	_test_opening_decision_is_composite_and_atomic()
 	_test_opening_decision_creates_social_memory()
 	_test_followup_conversation_remembers_response()
+	_test_story_events_unlock_and_resolve_once()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 7 checks")
+		print("PASS Godot foundation: 8 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -99,6 +100,24 @@ func _test_followup_conversation_remembers_response() -> void:
 	_expect((state.characters["spouse"] as CharacterState).memories.size() == before + 1, "Ответ должен остаться в памяти собеседника")
 	_expect(not state.opening_followup.choose(state, "duty"), "Нельзя ответить в завершённом разговоре второй раз")
 
+func _test_story_events_unlock_and_resolve_once() -> void:
+	var state := WorldState.new()
+	_expect(state.story_timeline.available_events(state.calendar.cycle).is_empty(), "Событие не должно открываться раньше срока")
+	state.advance_period()
+	var available := state.story_timeline.available_events(state.calendar.cycle)
+	_expect(available == ["granary_roof"], "На втором цикле должна открыться протечка амбара")
+	var treasury_before := state.state_treasury
+	_expect(state.story_timeline.choose(state, "granary_roof", "repair"), "Доступное событие должно принимать решение")
+	_expect(state.state_treasury == treasury_before - 5, "Срочный ремонт должен оплачиваться из казны")
+	_expect(not state.story_timeline.choose(state, "granary_roof", "inspect"), "Решённое событие нельзя разыграть повторно")
+	_expect(state.story_timeline.available_events(state.calendar.cycle).is_empty(), "Решённое событие должно исчезать из очереди")
+	var poor_state := WorldState.new()
+	poor_state.state_treasury = 2
+	poor_state.advance_period()
+	_expect(not poor_state.story_timeline.choose(poor_state, "granary_roof", "repair"), "Недоступный платный вариант должен блокироваться")
+	_expect(poor_state.state_treasury == 2, "Отклонённый вариант не должен списывать часть суммы")
+	_expect(poor_state.story_timeline.choose(poor_state, "granary_roof", "inspect"), "При нехватке денег должен оставаться осмысленный бесплатный путь")
+
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
 	state.advance_period()
@@ -107,6 +126,7 @@ func _test_save_round_trip() -> void:
 	state.opening_decision.choose_grain("partial")
 	state.opening_decision.choose_funding("state")
 	state.opening_decision.resolve(state)
+	state.story_timeline.choose(state, "granary_roof", "inspect")
 	state.spend_state(7, "ремонт ворот")
 	var path := "user://test_campaign.json"
 	_expect(CampaignSaveService.save_campaign(state, path) == OK, "Тестовое сохранение должно записываться")
@@ -122,5 +142,6 @@ func _test_save_round_trip() -> void:
 		_expect((loaded.characters["spouse"] as CharacterState).memories.size() == 1, "Память персонажа должна сохраняться")
 		_expect((loaded.factions["rural"] as FactionState).known_reasons.size() == 1, "Причина реакции группы должна сохраняться")
 		_expect(loaded.opening_followup.status == OpeningFollowup.Status.AVAILABLE, "Незавершённый личный разговор должен сохраняться")
+		_expect(loaded.story_timeline.resolved.has("granary_roof"), "Решённое календарное событие должно сохраняться")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
