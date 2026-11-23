@@ -1,0 +1,24 @@
+[application]
+config/name="Цена власти — вертикальный срез"
+run/main_scene="res://app/app_root.tscn"
+
+[display]
+window/size/viewport_width=1440
+window/size/viewport_height=900
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+
+[input]
+camera_forward={"deadzone":0.3,"events":[Object(InputEventKey,"physical_keycode":87)]}
+camera_back={"deadzone":0.3,"events":[Object(InputEventKey,"physical_keycode":83)]}
+camera_left={"deadzone":0.3,"events":[Object(InputEventKey,"physical_keycode":65)]}
+camera_right={"deadzone":0.3,"events":[Object(InputEventKey,"physical_keycode":68)]}
+camera_rotate_left={"deadzone":0.3,"events":[Object(InputEventKey,"physical_keycode":81)]}
+camera_rotate_right={"deadzone":0.3,"events":[Object(InputEventKey,"physical_keycode":69)]}
+
