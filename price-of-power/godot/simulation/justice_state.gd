@@ -29,7 +29,7 @@ func can_judge(case_id: String, option_id: String) -> bool:
 	return not (case_id == "river_smuggler" and option_id == "prison" and prisoners >= prison_capacity)
 
 func judge(state: WorldState, case_id: String, option_id: String) -> bool:
-	if not can_judge(case_id, option_id): return false
+	if not state.can_govern() or not can_judge(case_id, option_id): return false
 	var outcome := ""
 	match "%s:%s" % [case_id, option_id]:
 		"market_thief:release":
@@ -54,7 +54,7 @@ func judge(state: WorldState, case_id: String, option_id: String) -> bool:
 			state.facts["river_informant"] = true
 			outcome = "Вардан вернулся к лодке под тайным надзором. Он назовёт заказчиков, только если поверит, что уговор соблюдают."
 	resolved_cases[case_id] = {"cycle": state.calendar.cycle, "option": option_id, "outcome": outcome}
-	state.ruler_fatigue = mini(100, state.ruler_fatigue + 2)
+	state.add_fatigue(2)
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "court_judgment", "case": case_id, "option": option_id})
 	return true
 

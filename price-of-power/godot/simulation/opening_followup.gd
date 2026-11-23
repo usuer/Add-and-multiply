@@ -37,7 +37,7 @@ func response_title(response_id: String) -> String:
 	}.get(response_id, "")
 
 func choose(state: WorldState, response_id: String) -> bool:
-	if status != Status.AVAILABLE or response_id not in response_ids:
+	if not state.can_govern() or status != Status.AVAILABLE or response_id not in response_ids:
 		return false
 	chosen_response = response_id
 	var actor: CharacterState = state.characters[actor_id]
@@ -63,6 +63,7 @@ func choose(state: WorldState, response_id: String) -> bool:
 			closing_text = "Лада берёт вас за руку. «Это честный ответ. Только княжество не даст нам долго оставаться просто детьми своего отца»."
 	status = Status.RESOLVED
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "opening_followup_resolved", "actor": actor_id, "response": response_id})
+	state.add_fatigue(2)
 	return true
 
 func to_data() -> Dictionary:

@@ -22,9 +22,10 @@ func _initialize() -> void:
 	_test_campaign_guide_tracks_real_actions()
 	_test_technology_progress_and_practical_bonuses()
 	_test_population_migration_and_rebellion_pressure()
+	_test_ruler_overwork_causes_temporary_incapacity()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 20 checks")
+		print("PASS Godot foundation: 21 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -302,8 +303,8 @@ func _test_campaign_guide_tracks_real_actions() -> void:
 
 func _test_technology_progress_and_practical_bonuses() -> void:
 	var state := WorldState.new()
-	_expect(state.technology.start("crop_rotation"), "Школа должна начинать выбранное исследование")
-	_expect(not state.technology.start("sanitation"), "Нельзя вести два крупных исследования одновременно")
+	_expect(state.technology.start(state, "crop_rotation"), "Школа должна начинать выбранное исследование")
+	_expect(not state.technology.start(state, "sanitation"), "Нельзя вести два крупных исследования одновременно")
 	for month in range(6): state.technology.advance_month(state)
 	_expect("crop_rotation" in state.technology.unlocked, "Накопленные знания должны завершать исследование")
 	var grain_before := int(state.resources["grain"])
@@ -341,6 +342,22 @@ func _test_population_migration_and_rebellion_pressure() -> void:
 	_expect(harsh.story_timeline.unread_reports().size() >= 1, "Начало бунта должно сопровождаться постоянным отчётом")
 	var restored := WorldState.from_data(harsh.to_data())
 	_expect(restored.population.rebellion_active, "Состояние бунта должно сохраняться")
+
+func _test_ruler_overwork_causes_temporary_incapacity() -> void:
+	var state := WorldState.new()
+	state.ruler_fatigue = 95
+	state.ruler_health = 35
+	state.advance_period()
+	_expect(not state.can_govern(), "Переутомлённый князь с низким здоровьем должен временно слечь")
+	_expect(state.incapacitated_periods == 2, "Болезнь должна иметь понятный срок восстановления")
+	_expect(not state.council.appoint(state, "physician", "mira"), "Во время болезни нельзя лично назначать чиновников")
+	_expect(state.story_timeline.unread_reports().size() >= 1, "Болезнь должна сопровождаться постоянным объяснением")
+	state.advance_period()
+	state.advance_period()
+	_expect(state.can_govern(), "После восстановления личное управление должно возвращаться")
+	_expect(state.ruler_fatigue < 75, "Вынужденный отдых должен заметно снижать усталость")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.ruler_health == state.ruler_health, "Здоровье правителя должно сохраняться")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

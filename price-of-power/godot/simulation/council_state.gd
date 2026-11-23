@@ -30,14 +30,14 @@ func candidates_for(role_id: String) -> Array[String]:
 	return result
 
 func appoint(state: WorldState, role_id: String, candidate_id: String) -> bool:
-	if not ROLES.has(role_id) or not CANDIDATES.has(candidate_id):
+	if not state.can_govern() or not ROLES.has(role_id) or not CANDIDATES.has(candidate_id):
 		return false
 	if str(CANDIDATES[candidate_id]["role"]) != role_id or str(appointments.get(role_id, "")) == candidate_id:
 		return false
 	var previous := str(appointments.get(role_id, ""))
 	appointments[role_id] = candidate_id
 	appointment_history.append({"cycle": state.calendar.cycle, "role": role_id, "candidate": candidate_id, "previous": previous})
-	state.ruler_fatigue = mini(100, state.ruler_fatigue + 2)
+	state.add_fatigue(2)
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "council_appointment", "role": role_id, "candidate": candidate_id, "previous": previous})
 	return true
 

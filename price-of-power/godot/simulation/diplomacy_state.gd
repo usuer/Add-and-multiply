@@ -35,15 +35,16 @@ func pack_price(neighbor_id: String, good_id: String) -> int:
 
 func buy_pack(state: WorldState, neighbor_id: String, good_id: String) -> bool:
 	var price := pack_price(neighbor_id, good_id)
-	if price < 0 or state.state_treasury < price: return false
+	if not state.can_govern() or price < 0 or state.state_treasury < price: return false
 	state.state_treasury -= price
 	state.resources[good_id] = int(state.resources.get(good_id, 0)) + 10
 	relations[neighbor_id] = clampi(int(relations[neighbor_id]) + 1, -100, 100)
 	_log(state, neighbor_id, "trade_%s" % good_id)
+	state.add_fatigue(1)
 	return true
 
 func can_spy(state: WorldState, neighbor_id: String) -> bool:
-	if not NEIGHBORS.has(neighbor_id) or state.state_treasury < 5: return false
+	if not state.can_govern() or not NEIGHBORS.has(neighbor_id) or state.state_treasury < 5: return false
 	return not str(state.council.appointments.get("intelligence", "")).is_empty() or not state.justice.informants.is_empty()
 
 func spy(state: WorldState, neighbor_id: String) -> bool:
@@ -51,10 +52,11 @@ func spy(state: WorldState, neighbor_id: String) -> bool:
 	state.state_treasury -= 5
 	intelligence[neighbor_id] = mini(3, int(intelligence.get(neighbor_id, 0)) + 1)
 	_log(state, neighbor_id, "spy")
+	state.add_fatigue(2)
 	return true
 
 func threaten(state: WorldState, neighbor_id: String) -> bool:
-	if not NEIGHBORS.has(neighbor_id): return false
+	if not state.can_govern() or not NEIGHBORS.has(neighbor_id): return false
 	var our_power := int(state.resources.get("weapons", 0)) * 2 + state.public_order / 2
 	var their_power := int(NEIGHBORS[neighbor_id]["strength"])
 	relations[neighbor_id] = clampi(int(relations[neighbor_id]) - 10, -100, 100)
@@ -64,10 +66,11 @@ func threaten(state: WorldState, neighbor_id: String) -> bool:
 	else:
 		coerced_discount.erase(neighbor_id)
 		_log(state, neighbor_id, "threat_failed")
+	state.add_fatigue(3)
 	return true
 
 func can_sabotage(state: WorldState, neighbor_id: String) -> bool:
-	return NEIGHBORS.has(neighbor_id) and int(intelligence.get(neighbor_id, 0)) >= 2 and state.state_treasury >= 9
+	return state.can_govern() and NEIGHBORS.has(neighbor_id) and int(intelligence.get(neighbor_id, 0)) >= 2 and state.state_treasury >= 9
 
 func sabotage(state: WorldState, neighbor_id: String) -> bool:
 	if not can_sabotage(state, neighbor_id): return false
@@ -76,6 +79,7 @@ func sabotage(state: WorldState, neighbor_id: String) -> bool:
 	relations[neighbor_id] = clampi(int(relations[neighbor_id]) - 15, -100, 100)
 	state.facts["sabotage_%s" % neighbor_id] = true
 	_log(state, neighbor_id, "sabotage")
+	state.add_fatigue(3)
 	return true
 
 func last_action(neighbor_id: String) -> String:

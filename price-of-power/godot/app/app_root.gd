@@ -633,6 +633,13 @@ func _refresh_building_actions() -> void:
 		child.queue_free()
 	if selected_building == null:
 		return
+	if not state.can_govern():
+		var illness := Label.new()
+		illness.text = "Князь болен. Осматривать сведения можно после восстановления; действующие стройки, указы и поручения продолжают исполняться. Осталось периодов: %d." % state.incapacitated_periods
+		illness.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		illness.modulate = Color("e0a96b")
+		building_actions.add_child(illness)
+		return
 	if selected_building.building_id == &"castle":
 		_add_castle_navigation()
 		if castle_section == "council": _add_council_actions()
@@ -753,7 +760,7 @@ func _add_technology_actions() -> void:
 	building_actions.add_child(HSeparator.new())
 
 func _start_research(technology_id: String) -> void:
-	if state.technology.start(technology_id):
+	if state.technology.start(state, technology_id):
 		_refresh_ui("Исследование начато. Его скорость зависит от уровня школы.")
 		_refresh_building_actions()
 
@@ -1071,10 +1078,12 @@ func _on_load() -> void:
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
-	resource_label.text = "Казна %d    Личные %d    Жители %d\nЗдоровье %d    Порядок %d    Недовольство %d\nЗерно %d    Железо %d    Оружие %d" % [
+	resource_label.text = "Казна %d    Личные %d    Жители %d\nКнязь %d · усталость %d    Здоровье земель %d    Порядок %d    Недовольство %d\nЗерно %d    Железо %d    Оружие %d" % [
 		state.state_treasury,
 		state.family_treasury,
 		state.population.residents,
+		state.ruler_health,
+		state.ruler_fatigue,
 		state.public_health,
 		state.public_order,
 		state.population.unrest,

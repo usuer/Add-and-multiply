@@ -16,10 +16,11 @@ const TECHNOLOGIES: Dictionary = {
 func can_start(technology_id: String) -> bool:
 	return active_research.is_empty() and TECHNOLOGIES.has(technology_id) and technology_id not in unlocked
 
-func start(technology_id: String) -> bool:
-	if not can_start(technology_id): return false
+func start(state: WorldState, technology_id: String) -> bool:
+	if not state.can_govern() or not can_start(technology_id): return false
 	active_research = technology_id
 	progress = 0
+	state.add_fatigue(2)
 	return true
 
 func monthly_output(state: WorldState) -> int:

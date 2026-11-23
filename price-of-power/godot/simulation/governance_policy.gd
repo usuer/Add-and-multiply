@@ -13,14 +13,14 @@ const CATEGORIES: Dictionary = {
 @export var history: Array[Dictionary] = []
 
 func enact(state: WorldState, category_id: String, option_id: String) -> bool:
-	if not CATEGORIES.has(category_id) or not (CATEGORIES[category_id]["options"] as Dictionary).has(option_id):
+	if not state.can_govern() or not CATEGORIES.has(category_id) or not (CATEGORIES[category_id]["options"] as Dictionary).has(option_id):
 		return false
 	var previous := str(active.get(category_id, ""))
 	if previous == option_id:
 		return false
 	active[category_id] = option_id
 	history.append({"cycle": state.calendar.cycle, "category": category_id, "previous": previous, "option": option_id})
-	state.ruler_fatigue = mini(100, state.ruler_fatigue + 3)
+	state.add_fatigue(3)
 	_apply_immediate_reaction(state, category_id, option_id)
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "policy_changed", "category": category_id, "option": option_id})
 	return true

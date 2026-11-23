@@ -110,7 +110,7 @@ func definition(event_id: String) -> Dictionary:
 	return DEFINITIONS.get(event_id, {})
 
 func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
-	if event_id not in available_events(state.calendar.cycle):
+	if not state.can_govern() or event_id not in available_events(state.calendar.cycle):
 		return false
 	if not (definition(event_id).get("choices", {}) as Dictionary).has(choice_id):
 		return false
@@ -126,6 +126,7 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	if not can_choose(state, event_id, choice_id):
 		return false
 	var outcome := _apply_choice(state, event_id, choice_id)
+	state.add_fatigue(4)
 	resolved[event_id] = {"choice": choice_id, "cycle": state.calendar.cycle, "outcome": outcome}
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "story_event_resolved", "event": event_id, "choice": choice_id})
 	return true

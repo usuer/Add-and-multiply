@@ -20,7 +20,7 @@ func available_workers() -> int:
 	return maxi(0, workforce_total - assigned)
 
 func can_start(state: WorldState, project_id: String) -> bool:
-	if not PROJECTS.has(project_id) or active_projects.has(project_id): return false
+	if not state.can_govern() or not PROJECTS.has(project_id) or active_projects.has(project_id): return false
 	var project: Dictionary = PROJECTS[project_id]
 	return state.state_treasury >= int(project["gold"]) and int(state.resources.get("wood", 0)) >= int(project["wood"]) and int(state.resources.get("stone", 0)) >= int(project["stone"])
 
@@ -33,6 +33,7 @@ func start(state: WorldState, project_id: String) -> bool:
 	var initial_workers := mini(10, available_workers())
 	active_projects[project_id] = {"progress": 0, "workers": initial_workers, "target": int(project["work"]) * (int(levels.get(project_id, 0)) + 1)}
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "project_started", "project": project_id})
+	state.add_fatigue(2)
 	return true
 
 func change_workers(project_id: String, delta: int) -> bool:

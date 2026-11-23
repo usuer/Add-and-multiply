@@ -54,7 +54,7 @@ func required_grain() -> int:
 	return int(GRAIN_RESPONSES[grain_response]["grain"])
 
 func can_resolve(state: WorldState) -> bool:
-	if status != Status.READY:
+	if status != Status.READY or not state.can_govern():
 		return false
 	var available_gold := state.state_treasury if funding_source == "state" else state.family_treasury
 	return available_gold >= required_gold() and int(state.resources.get("grain", 0)) >= required_grain()
@@ -74,6 +74,7 @@ func resolve(state: WorldState) -> bool:
 	state.facts["father_funeral_completed"] = true
 	state.facts["grain_response"] = grain_response
 	state.facts["funeral_plan"] = funeral_plan
+	state.add_fatigue(5)
 	_apply_social_consequences(state)
 	state.opening_followup.prepare(self)
 	state.consequence_log.append({

@@ -8,6 +8,8 @@ const SAVE_VERSION: int = 1
 @export var state_treasury: int = 120
 @export var family_treasury: int = 45
 @export var ruler_fatigue: int = 8
+@export var ruler_health: int = 82
+@export var incapacitated_periods: int = 0
 @export var public_health: int = 64
 @export var public_order: int = 58
 @export var grain_crisis: GrainCrisis = GrainCrisis.new()
@@ -73,6 +75,7 @@ func _make_faction(id: String, title: String, disposition_value: int) -> Faction
 func advance_period() -> bool:
 	if not calendar.advance():
 		return false
+	_update_ruler_condition()
 	story_timeline.update(self)
 	if calendar.is_demo_complete():
 		campaign_outcome.generate(self)
@@ -94,18 +97,48 @@ func advance_period() -> bool:
 	})
 	return true
 
+func can_govern() -> bool:
+	return incapacitated_periods <= 0
+
+func add_fatigue(amount: int) -> void:
+	ruler_fatigue = clampi(ruler_fatigue + amount, 0, 100)
+	if ruler_fatigue >= 75 and not bool(facts.get("overwork_warning", false)):
+		facts["overwork_warning"] = true
+		story_timeline.reports.append({"cycle": calendar.cycle, "title": "Лекарь предупреждает о переутомлении", "text": "Вы слишком долго работаете без отдыха. Новые аудиенции и личные решения могут привести к болезни.", "read": false})
+
+func _update_ruler_condition() -> void:
+	if incapacitated_periods > 0:
+		incapacitated_periods -= 1
+		ruler_fatigue = maxi(0, ruler_fatigue - 12)
+		ruler_health = mini(100, ruler_health + 3)
+		if incapacitated_periods == 0:
+			story_timeline.reports.append({"cycle": calendar.cycle, "title": "Князь возвращается к делам", "text": "Лекарь разрешил снова принимать решения, но советует не возвращаться сразу к прежнему темпу.", "read": false})
+		return
+	if ruler_fatigue >= 80:
+		ruler_health = maxi(0, ruler_health - 10)
+	elif ruler_fatigue >= 65:
+		ruler_health = maxi(0, ruler_health - 4)
+	else:
+		ruler_health = mini(100, ruler_health + 1)
+	ruler_fatigue = maxi(0, ruler_fatigue - 6)
+	if ruler_health <= 30:
+		incapacitated_periods = 2
+		story_timeline.reports.append({"cycle": calendar.cycle, "title": "Князь слёг", "text": "Переутомление перешло в болезнь. Два периода новые личные решения принимать нельзя; текущие распоряжения продолжат исполняться.", "read": false})
+		consequence_log.append({"cycle": calendar.cycle, "kind": "ruler_incapacitated", "periods": 2})
+
 func assign_grain_investigation(delegate_id: String) -> bool:
-	if not grain_crisis.assign(delegate_id, calendar.cycle):
+	if not can_govern() or not grain_crisis.assign(delegate_id, calendar.cycle):
 		return false
 	consequence_log.append({
 		"cycle": calendar.cycle,
 		"kind": "grain_investigation_assigned",
 		"delegate": delegate_id
 	})
+	add_fatigue(2)
 	return true
 
 func spend_state(amount: int, reason: String) -> bool:
-	if amount < 0 or state_treasury < amount:
+	if not can_govern() or amount < 0 or state_treasury < amount:
 		return false
 	state_treasury -= amount
 	consequence_log.append({"cycle": calendar.cycle, "kind": "state_spending", "amount": amount, "reason": reason})
@@ -129,6 +162,8 @@ func to_data() -> Dictionary:
 		"state_treasury": state_treasury,
 		"family_treasury": family_treasury,
 		"ruler_fatigue": ruler_fatigue,
+		"ruler_health": ruler_health,
+		"incapacitated_periods": incapacitated_periods,
 		"public_health": public_health,
 		"public_order": public_order,
 		"grain_crisis": grain_crisis.to_data(),
@@ -165,6 +200,8 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.state_treasury = maxi(0, int(data.get("state_treasury", 120)))
 	state.family_treasury = maxi(0, int(data.get("family_treasury", 45)))
 	state.ruler_fatigue = clampi(int(data.get("ruler_fatigue", 8)), 0, 100)
+	state.ruler_health = clampi(int(data.get("ruler_health", 82)), 0, 100)
+	state.incapacitated_periods = maxi(0, int(data.get("incapacitated_periods", 0)))
 	state.public_health = clampi(int(data.get("public_health", 64)), 0, 100)
 	state.public_order = clampi(int(data.get("public_order", 58)), 0, 100)
 	state.grain_crisis.load_data(data.get("grain_crisis", {}))
