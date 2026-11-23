@@ -300,6 +300,7 @@ func _refresh_secretary_case() -> void:
 			secretary_case_body.add_child(reaction_label)
 		_add_opening_followup()
 		_add_available_story_events()
+		_add_campaign_outcome()
 		resolve_opening_button.visible = false
 		return
 
@@ -421,6 +422,31 @@ func _choose_story_event(event_id: String, choice_id: String) -> void:
 		var outcome := state.story_timeline.outcome(event_id)
 		_refresh_ui(outcome)
 		_refresh_secretary_case()
+
+func _add_campaign_outcome() -> void:
+	var outcome := state.campaign_outcome
+	if not outcome.generated:
+		return
+	secretary_case_body.add_child(HSeparator.new())
+	var marker := Label.new()
+	marker.text = "ИТОГ ПЕРВОЙ ГЛАВЫ"
+	marker.modulate = Color("d9bd72")
+	secretary_case_body.add_child(marker)
+	var title := Label.new()
+	title.text = outcome.title
+	title.add_theme_font_size_override("font_size", 23)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(title)
+	for line: String in outcome.summary_lines:
+		var summary := Label.new()
+		summary.text = line
+		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(summary)
+	var hook := Label.new()
+	hook.text = outcome.continuation_hook
+	hook.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hook.modulate = Color("e0a96b")
+	secretary_case_body.add_child(hook)
 
 func _add_choice_section(title: String, choices: Dictionary, selected_id: String, callback: Callable) -> void:
 	var heading := Label.new()
@@ -558,5 +584,7 @@ func _refresh_ui(message: String) -> void:
 		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
 			open_cases += 1
 		open_cases += state.story_timeline.unread_reports().size()
+		if state.campaign_outcome.generated:
+			open_cases += 1
 		cases_button.text = "Дела секретаря · %d" % open_cases
 

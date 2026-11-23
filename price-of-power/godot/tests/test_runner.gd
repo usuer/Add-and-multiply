@@ -11,9 +11,10 @@ func _initialize() -> void:
 	_test_followup_conversation_remembers_response()
 	_test_story_events_unlock_and_resolve_once()
 	_test_neglected_events_and_border_branch()
+	_test_campaign_generates_a_stateful_outcome()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 9 checks")
+		print("PASS Godot foundation: 10 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -140,6 +141,19 @@ func _test_neglected_events_and_border_branch() -> void:
 	_expect(bool(border.facts.get("northern_scouts_returned", false)), "Дозор должен вернуться через два периода")
 	_expect("scout_report" in border.story_timeline.available_events(border.calendar.cycle), "Возвращение дозора должно открыть новую военную развилку")
 	_expect(border.story_timeline.unread_reports().size() >= 1, "Возвращение дозора должно сопровождаться видимым отчётом")
+
+func _test_campaign_generates_a_stateful_outcome() -> void:
+	var state := WorldState.new()
+	state.facts["northern_posture"] = "ambush"
+	while state.advance_period():
+		pass
+	_expect(state.calendar.is_demo_complete(), "Кампания должна дойти до эпилога")
+	_expect(state.campaign_outcome.generated, "В конце кампании должен формироваться итог")
+	_expect(state.campaign_outcome.summary_lines.size() == 3, "Итог должен охватывать страну, семью и границу")
+	_expect(state.campaign_outcome.continuation_hook.contains("ловушка"), "Пограничная стратегия должна менять зацепку продолжения")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.campaign_outcome.generated, "Сформированный эпилог должен сохраняться")
+	_expect(restored.campaign_outcome.continuation_hook == state.campaign_outcome.continuation_hook, "Вариант продолжения не должен меняться после загрузки")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

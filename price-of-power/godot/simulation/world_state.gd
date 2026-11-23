@@ -12,6 +12,7 @@ const SAVE_VERSION: int = 1
 @export var opening_decision: OpeningDecision = OpeningDecision.new()
 @export var opening_followup: OpeningFollowup = OpeningFollowup.new()
 @export var story_timeline: StoryTimeline = StoryTimeline.new()
+@export var campaign_outcome: CampaignOutcome = CampaignOutcome.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -62,6 +63,8 @@ func advance_period() -> bool:
 	if not calendar.advance():
 		return false
 	story_timeline.update(self)
+	if calendar.is_demo_complete():
+		campaign_outcome.generate(self)
 	if grain_crisis.update(calendar.cycle):
 		consequence_log.append({
 			"cycle": calendar.cycle,
@@ -112,6 +115,7 @@ func to_data() -> Dictionary:
 		"opening_decision": opening_decision.to_data(),
 		"opening_followup": opening_followup.to_data(),
 		"story_timeline": story_timeline.to_data(),
+		"campaign_outcome": campaign_outcome.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -136,6 +140,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.opening_decision.load_data(data.get("opening_decision", {}))
 	state.opening_followup.load_data(data.get("opening_followup", {}))
 	state.story_timeline.load_data(data.get("story_timeline", {}))
+	state.campaign_outcome.load_data(data.get("campaign_outcome", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))
