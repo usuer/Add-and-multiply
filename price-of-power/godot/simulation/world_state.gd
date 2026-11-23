@@ -22,6 +22,7 @@ const SAVE_VERSION: int = 1
 @export var development: DevelopmentState = DevelopmentState.new()
 @export var army: ArmyState = ArmyState.new()
 @export var guide: CampaignGuide = CampaignGuide.new()
+@export var technology: TechnologyState = TechnologyState.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -83,6 +84,7 @@ func advance_period() -> bool:
 	if calendar.period == CampaignCalendar.Period.BEGINNING:
 		_apply_monthly_economy()
 		development.advance_month(self)
+		technology.advance_month(self)
 	consequence_log.append({
 		"cycle": calendar.cycle,
 		"kind": "period_advanced",
@@ -108,13 +110,13 @@ func spend_state(amount: int, reason: String) -> bool:
 	return true
 
 func _apply_monthly_economy() -> void:
-	state_treasury += 8 + council.monthly_economy_bonus() + policies.monthly_gold_modifier() + development.monthly_gold_bonus()
-	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus() + development.monthly_grain_bonus())
+	state_treasury += 8 + council.monthly_economy_bonus() + policies.monthly_gold_modifier() + development.monthly_gold_bonus() + technology.gold_bonus()
+	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus() + development.monthly_grain_bonus() + technology.grain_bonus())
 	resources["iron_ore"] = int(resources.get("iron_ore", 0)) + 3
 	resources["worked_iron"] = int(resources.get("worked_iron", 0)) + 1
-	resources["tools"] = int(resources.get("tools", 0)) + development.monthly_tools_bonus()
+	resources["tools"] = int(resources.get("tools", 0)) + development.monthly_tools_bonus() + technology.tools_bonus()
 	resources["weapons"] = int(resources.get("weapons", 0)) + policies.monthly_weapon_modifier()
-	public_health = clampi(public_health + policies.monthly_health_modifier() + development.monthly_health_bonus(), 0, 100)
+	public_health = clampi(public_health + policies.monthly_health_modifier() + development.monthly_health_bonus() + technology.health_bonus(), 0, 100)
 	public_order = clampi(public_order + policies.monthly_order_modifier(), 0, 100)
 
 func to_data() -> Dictionary:
@@ -139,6 +141,7 @@ func to_data() -> Dictionary:
 		"development": development.to_data(),
 		"army": army.to_data(),
 		"guide": guide.to_data(),
+		"technology": technology.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -173,6 +176,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.development.load_data(data.get("development", {}))
 	state.army.load_data(data.get("army", {}))
 	state.guide.load_data(data.get("guide", {}))
+	state.technology.load_data(data.get("technology", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

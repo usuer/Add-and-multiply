@@ -648,6 +648,8 @@ func _refresh_building_actions() -> void:
 	var project_id := _project_for_building(selected_building.building_id)
 	if not project_id.is_empty():
 		_add_development_actions(project_id)
+	if selected_building.building_id == &"school":
+		_add_technology_actions()
 	if selected_building.building_id == &"granary":
 		var heading := Label.new()
 		heading.text = "ДЕЛО О НЕХВАТКЕ ЗЕРНА"
@@ -714,6 +716,45 @@ func _start_project(project_id: String) -> void:
 func _change_project_workers(project_id: String, delta: int) -> void:
 	if state.development.change_workers(project_id, delta):
 		_refresh_ui("Число работников на проекте изменено.")
+		_refresh_building_actions()
+
+func _add_technology_actions() -> void:
+	var heading := Label.new()
+	heading.text = "ИССЛЕДОВАНИЯ"
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	if not state.technology.active_research.is_empty():
+		var technology_id := state.technology.active_research
+		var technology: Dictionary = TechnologyState.TECHNOLOGIES[technology_id]
+		var active := Label.new()
+		active.text = "%s · %d/%d знаний · +%d в месяц" % [technology["title"], state.technology.progress, technology["cost"], state.technology.monthly_output(state)]
+		active.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(active)
+	else:
+		for technology_id: String in TechnologyState.TECHNOLOGIES:
+			if technology_id in state.technology.unlocked: continue
+			var technology: Dictionary = TechnologyState.TECHNOLOGIES[technology_id]
+			var description := Label.new()
+			description.text = "%s — %s" % [technology["title"], technology["description"]]
+			description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			description.modulate = Color("b9c2b3")
+			building_actions.add_child(description)
+			var start := Button.new()
+			start.text = "Исследовать · %d знаний" % technology["cost"]
+			start.pressed.connect(_start_research.bind(technology_id))
+			building_actions.add_child(start)
+	if not state.technology.unlocked.is_empty():
+		var unlocked := Label.new()
+		var names: Array[String] = []
+		for technology_id: String in state.technology.unlocked: names.append(str(TechnologyState.TECHNOLOGIES[technology_id]["title"]))
+		unlocked.text = "Внедрено: " + ", ".join(names)
+		unlocked.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(unlocked)
+	building_actions.add_child(HSeparator.new())
+
+func _start_research(technology_id: String) -> void:
+	if state.technology.start(technology_id):
+		_refresh_ui("Исследование начато. Его скорость зависит от уровня школы.")
 		_refresh_building_actions()
 
 func _add_castle_navigation() -> void:

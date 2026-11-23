@@ -20,9 +20,10 @@ func _initialize() -> void:
 	_test_development_projects_use_workers_and_complete()
 	_test_army_uses_unit_specific_simultaneous_orders()
 	_test_campaign_guide_tracks_real_actions()
+	_test_technology_progress_and_practical_bonuses()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 18 checks")
+		print("PASS Godot foundation: 19 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -297,6 +298,25 @@ func _test_campaign_guide_tracks_real_actions() -> void:
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.guide.intro_seen, "Просмотр введения должен сохраняться")
 	_expect(restored.guide.completed_count(restored) == 2, "Цели должны восстанавливаться из реального состояния мира")
+
+func _test_technology_progress_and_practical_bonuses() -> void:
+	var state := WorldState.new()
+	_expect(state.technology.start("crop_rotation"), "Школа должна начинать выбранное исследование")
+	_expect(not state.technology.start("sanitation"), "Нельзя вести два крупных исследования одновременно")
+	for month in range(6): state.technology.advance_month(state)
+	_expect("crop_rotation" in state.technology.unlocked, "Накопленные знания должны завершать исследование")
+	var grain_before := int(state.resources["grain"])
+	state.calendar.period = CampaignCalendar.Period.END
+	state.advance_period()
+	_expect(int(state.resources["grain"]) == grain_before - 2, "Аграрная технология должна уменьшать месячные потери зерна")
+	var restored := WorldState.from_data(state.to_data())
+	_expect("crop_rotation" in restored.technology.unlocked, "Открытые технологии должны сохраняться")
+
+	var logistics := WorldState.new()
+	logistics.technology.unlocked.append("field_logistics")
+	logistics.army.begin_border_battle("fortified")
+	logistics.army.supplies += logistics.technology.campaign_supply_bonus()
+	_expect(logistics.army.supplies == 90, "Походные ведомости должны давать армии дополнительный провиант")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()
