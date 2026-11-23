@@ -14,6 +14,12 @@ var building_title: Label
 var building_description: Label
 var building_status: Label
 var building_actions: VBoxContainer
+var secretary_panel: PanelContainer
+var secretary_case_body: VBoxContainer
+var funeral_choice_label: Label
+var grain_choice_label: Label
+var funding_choice_label: Label
+var resolve_opening_button: Button
 
 func _ready() -> void:
 	_create_environment()
@@ -101,6 +107,7 @@ func _create_ui() -> void:
 	margin.add_theme_constant_override("margin_bottom", 24)
 	layer.add_child(margin)
 	_create_building_panel(layer)
+	_create_secretary_panel(layer)
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
@@ -131,6 +138,11 @@ func _create_ui() -> void:
 	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	header_row.add_child(resource_label)
+	var cases_button := Button.new()
+	cases_button.text = "Дела секретаря · 1"
+	cases_button.custom_minimum_size = Vector2(155, 44)
+	cases_button.pressed.connect(_open_secretary)
+	header_row.add_child(cases_button)
 
 	var actions := VBoxContainer.new()
 	header_row.add_child(actions)
@@ -199,6 +211,156 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	building_actions = VBoxContainer.new()
 	building_actions.add_theme_constant_override("separation", 7)
 	column.add_child(building_actions)
+
+func _create_secretary_panel(layer: CanvasLayer) -> void:
+	secretary_panel = PanelContainer.new()
+	secretary_panel.visible = false
+	secretary_panel.set_anchors_preset(Control.PRESET_CENTER)
+	secretary_panel.position = Vector2(-390, -330)
+	secretary_panel.size = Vector2(780, 660)
+	layer.add_child(secretary_panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	secretary_panel.add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 12)
+	margin.add_child(root)
+
+	var top := HBoxContainer.new()
+	root.add_child(top)
+	var heading := Label.new()
+	heading.text = "СЕКРЕТАРЬ КНЯЗЯ"
+	heading.add_theme_font_size_override("font_size", 14)
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(heading)
+	var close := Button.new()
+	close.text = "Вернуться к карте"
+	close.pressed.connect(_close_secretary)
+	top.add_child(close)
+
+	var title := Label.new()
+	title.text = "Похороны князя и просьба об открытии амбаров"
+	title.add_theme_font_size_override("font_size", 27)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(title)
+	var introduction := Label.new()
+	introduction.text = "Милорд, двор ожидает решения о церемонии. Одновременно из Долинной области пришла просьба о зерне. Мы можем разделить источники средств и не обязаны ограничиваться простым отказом."
+	introduction.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(introduction)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(scroll)
+	secretary_case_body = VBoxContainer.new()
+	secretary_case_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	secretary_case_body.add_theme_constant_override("separation", 12)
+	scroll.add_child(secretary_case_body)
+
+	resolve_opening_button = Button.new()
+	resolve_opening_button.text = "Скрепить решение печатью"
+	resolve_opening_button.custom_minimum_size = Vector2(0, 48)
+	resolve_opening_button.pressed.connect(_resolve_opening_decision)
+	root.add_child(resolve_opening_button)
+
+func _open_secretary() -> void:
+	building_panel.visible = false
+	secretary_panel.visible = true
+	_refresh_secretary_case()
+
+func _close_secretary() -> void:
+	secretary_panel.visible = false
+
+func _refresh_secretary_case() -> void:
+	for child in secretary_case_body.get_children():
+		child.queue_free()
+	var decision := state.opening_decision
+	if decision.status == OpeningDecision.Status.RESOLVED:
+		var result_heading := Label.new()
+		result_heading.text = "РЕШЕНИЕ ПРИНЯТО"
+		result_heading.modulate = Color("d9bd72")
+		secretary_case_body.add_child(result_heading)
+		var result := Label.new()
+		result.text = decision.observed_outcome
+		result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(result)
+		resolve_opening_button.visible = false
+		return
+
+	_add_choice_section("1 · Церемония", OpeningDecision.FUNERAL_PLANS, decision.funeral_plan, _choose_funeral)
+	funeral_choice_label = Label.new()
+	funeral_choice_label.text = _chosen_title(OpeningDecision.FUNERAL_PLANS, decision.funeral_plan)
+	secretary_case_body.add_child(funeral_choice_label)
+	_add_choice_section("2 · Помощь области", OpeningDecision.GRAIN_RESPONSES, decision.grain_response, _choose_grain)
+	grain_choice_label = Label.new()
+	grain_choice_label.text = _chosen_title(OpeningDecision.GRAIN_RESPONSES, decision.grain_response)
+	secretary_case_body.add_child(grain_choice_label)
+
+	var funding_heading := Label.new()
+	funding_heading.text = "3 · Источник средств"
+	funding_heading.add_theme_font_size_override("font_size", 18)
+	secretary_case_body.add_child(funding_heading)
+	var funding_row := HBoxContainer.new()
+	secretary_case_body.add_child(funding_row)
+	for source: String in ["state", "family"]:
+		var button := Button.new()
+		button.text = "Государственная казна" if source == "state" else "Личные средства семьи"
+		button.disabled = decision.funding_source == source
+		button.pressed.connect(_choose_funding.bind(source))
+		funding_row.add_child(button)
+	funding_choice_label = Label.new()
+	funding_choice_label.text = "Выбрано: %s" % ("государственная казна" if decision.funding_source == "state" else "личные средства семьи")
+	secretary_case_body.add_child(funding_choice_label)
+	var warning := Label.new()
+	warning.text = "Секретарь проверит наличие средств перед подписью. Будущая реакция людей и скрытые последствия заранее не показываются."
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warning.modulate = Color("aebbad")
+	secretary_case_body.add_child(warning)
+	resolve_opening_button.visible = true
+	resolve_opening_button.disabled = not decision.can_resolve(state)
+
+func _add_choice_section(title: String, choices: Dictionary, selected_id: String, callback: Callable) -> void:
+	var heading := Label.new()
+	heading.text = title
+	heading.add_theme_font_size_override("font_size", 18)
+	secretary_case_body.add_child(heading)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 7)
+	secretary_case_body.add_child(row)
+	for choice_id: String in choices:
+		var button := Button.new()
+		button.text = str(choices[choice_id]["title"])
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.disabled = selected_id == choice_id
+		button.pressed.connect(callback.bind(choice_id))
+		row.add_child(button)
+
+func _chosen_title(choices: Dictionary, selected_id: String) -> String:
+	if selected_id.is_empty() or not choices.has(selected_id):
+		return "Решение пока не выбрано"
+	return "Выбрано: %s" % choices[selected_id]["title"]
+
+func _choose_funeral(plan_id: String) -> void:
+	state.opening_decision.choose_funeral(plan_id)
+	_refresh_secretary_case()
+
+func _choose_grain(response_id: String) -> void:
+	state.opening_decision.choose_grain(response_id)
+	_refresh_secretary_case()
+
+func _choose_funding(source: String) -> void:
+	state.opening_decision.choose_funding(source)
+	_refresh_secretary_case()
+
+func _resolve_opening_decision() -> void:
+	if not state.opening_decision.resolve(state):
+		_refresh_ui("Не хватает выбранного источника средств или зерна")
+	else:
+		_refresh_ui("Печать поставлена. Секретарь передал распоряжения исполнителям.")
+	_refresh_secretary_case()
 
 func _on_building_selected(building: CityBuilding) -> void:
 	if selected_building != null:
