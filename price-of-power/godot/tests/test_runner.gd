@@ -21,9 +21,10 @@ func _initialize() -> void:
 	_test_army_uses_unit_specific_simultaneous_orders()
 	_test_campaign_guide_tracks_real_actions()
 	_test_technology_progress_and_practical_bonuses()
+	_test_population_migration_and_rebellion_pressure()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 19 checks")
+		print("PASS Godot foundation: 20 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -317,6 +318,29 @@ func _test_technology_progress_and_practical_bonuses() -> void:
 	logistics.army.begin_border_battle("fortified")
 	logistics.army.supplies += logistics.technology.campaign_supply_bonus()
 	_expect(logistics.army.supplies == 90, "Походные ведомости должны давать армии дополнительный провиант")
+
+func _test_population_migration_and_rebellion_pressure() -> void:
+	var stable := WorldState.new()
+	stable.public_health = 80
+	stable.public_order = 80
+	(stable.factions["rural"] as FactionState).disposition = 20
+	var stable_before := stable.population.residents
+	stable.population.advance_month(stable)
+	_expect(stable.population.residents > stable_before, "Безопасное и здоровое княжество должно привлекать переселенцев")
+
+	var harsh := WorldState.new()
+	harsh.public_health = 30
+	harsh.public_order = 25
+	(harsh.factions["rural"] as FactionState).disposition = -25
+	harsh.policies.active["mobilization"] = "total"
+	harsh.policies.active["labor"] = "extended"
+	var harsh_before := harsh.population.residents
+	for month in range(7): harsh.population.advance_month(harsh)
+	_expect(harsh.population.residents < harsh_before, "Болезни, мобилизация и тяжёлый труд должны вызывать эмиграцию")
+	_expect(harsh.population.rebellion_active, "Длительное высокое давление должно приводить к организованному бунту")
+	_expect(harsh.story_timeline.unread_reports().size() >= 1, "Начало бунта должно сопровождаться постоянным отчётом")
+	var restored := WorldState.from_data(harsh.to_data())
+	_expect(restored.population.rebellion_active, "Состояние бунта должно сохраняться")
 
 func _test_save_round_trip() -> void:
 	var state := WorldState.new()

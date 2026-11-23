@@ -23,6 +23,7 @@ const SAVE_VERSION: int = 1
 @export var army: ArmyState = ArmyState.new()
 @export var guide: CampaignGuide = CampaignGuide.new()
 @export var technology: TechnologyState = TechnologyState.new()
+@export var population: PopulationState = PopulationState.new()
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -85,6 +86,7 @@ func advance_period() -> bool:
 		_apply_monthly_economy()
 		development.advance_month(self)
 		technology.advance_month(self)
+		population.advance_month(self)
 	consequence_log.append({
 		"cycle": calendar.cycle,
 		"kind": "period_advanced",
@@ -142,6 +144,7 @@ func to_data() -> Dictionary:
 		"army": army.to_data(),
 		"guide": guide.to_data(),
 		"technology": technology.to_data(),
+		"population": population.to_data(),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -177,6 +180,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.army.load_data(data.get("army", {}))
 	state.guide.load_data(data.get("guide", {}))
 	state.technology.load_data(data.get("technology", {}))
+	state.population.load_data(data.get("population", {}))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

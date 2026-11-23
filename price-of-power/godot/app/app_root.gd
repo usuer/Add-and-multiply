@@ -1071,11 +1071,13 @@ func _on_load() -> void:
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
-	resource_label.text = "Казна %d    Личные средства %d    Здоровье %d    Порядок %d\nЗерно %d    Железо %d    Оружие %d" % [
+	resource_label.text = "Казна %d    Личные %d    Жители %d\nЗдоровье %d    Порядок %d    Недовольство %d\nЗерно %d    Железо %d    Оружие %d" % [
 		state.state_treasury,
 		state.family_treasury,
+		state.population.residents,
 		state.public_health,
 		state.public_order,
+		state.population.unrest,
 		int(state.resources.get("grain", 0)),
 		int(state.resources.get("worked_iron", 0)),
 		int(state.resources.get("weapons", 0))
