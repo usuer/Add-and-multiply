@@ -16,6 +16,11 @@ func _run() -> void:
 		app.call("_intro_next")
 	await process_frame
 	_check_header(app, "при запуске")
+	app.call("_show_pause_menu")
+	await process_frame
+	_check_pause_menu(app)
+	app.call("_hide_pause_menu")
+	await process_frame
 	app.call("_on_illustrated_building_selected", &"granary")
 	await process_frame
 	_check_building_panel(app)
@@ -159,7 +164,7 @@ func _check_policy_cards(app: Node) -> void:
 func _check_header(app: Node, stage: String) -> void:
 	var visible_rect := root.get_visible_rect()
 	var buttons: Array[Button] = []
-	for caption in ["Дела секретаря", "Завершить период", "Новая", "Сохр.", "Загр.", "Выход"]:
+	for caption in ["Дела секретаря", "Завершить период", "Новая", "Сохр.", "Загр.", "Выход", "Меню"]:
 		var button := _find_button(app, caption)
 		if button == null:
 			failures.append("Нет кнопки «%s» %s" % [caption, stage])
@@ -180,6 +185,17 @@ func _check_exit_confirmation(app: Node) -> void:
 	app.call("_cancel_exit_confirmation")
 	if bool(app.get("exit_confirmation")) or button.text != "Выход":
 		failures.append("Отмена подтверждения должна возвращать обычную кнопку выхода")
+
+func _check_pause_menu(app: Node) -> void:
+	var overlay := app.get("pause_overlay") as Control
+	var panel := app.get("pause_panel") as PanelContainer
+	if overlay == null or not overlay.visible:
+		failures.append("Игровое меню должно открываться поверх игры")
+	if panel == null or not root.get_visible_rect().encloses(panel.get_global_rect()):
+		failures.append("Игровое меню должно полностью помещаться на минимальном экране")
+	for caption in ["Продолжить", "Сохранить кампанию", "Загрузить сохранение", "На весь экран", "Сохранить и выйти"]:
+		if _find_button(overlay, caption) == null:
+			failures.append("В игровом меню нет действия «%s»" % caption)
 
 func _find_button(node: Node, caption: String) -> Button:
 	if node is Button and (node as Button).text.begins_with(caption):

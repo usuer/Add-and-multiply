@@ -31,6 +31,11 @@ var funding_choice_label: Label
 var resolve_opening_button: Button
 var cases_button: Button
 var exit_button: Button
+var menu_button: Button
+var pause_overlay: Control
+var pause_panel: PanelContainer
+var pause_exit_button: Button
+var pause_fullscreen_button: Button
 var castle_section: String = "council"
 var selected_person: String = "spouse"
 var intro_overlay: Control
@@ -86,9 +91,12 @@ func _ready() -> void:
 		_show_intro()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		_toggle_pause_menu()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and event.alt_pressed and event.keycode == KEY_ENTER:
-		var window := get_window()
-		window.mode = Window.MODE_WINDOWED if window.mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN] else Window.MODE_FULLSCREEN
+		_toggle_fullscreen()
 		get_viewport().set_input_as_handled()
 
 func _create_environment() -> void:
@@ -177,6 +185,7 @@ func _create_ui() -> void:
 	_create_building_panel(layer)
 	_create_secretary_panel(layer)
 	_create_intro_overlay(layer)
+	_create_pause_menu(layer)
 
 	var root := VBoxContainer.new()
 	interface_root = root
@@ -237,6 +246,12 @@ func _create_ui() -> void:
 	exit_button.tooltip_text = "Сохранить текущую кампанию и выйти из игры"
 	exit_button.pressed.connect(_on_exit_requested)
 	header_row.add_child(exit_button)
+	menu_button = Button.new()
+	menu_button.text = "Меню"
+	menu_button.custom_minimum_size = Vector2(64, 44)
+	menu_button.tooltip_text = "Игровое меню · Esc"
+	menu_button.pressed.connect(_toggle_pause_menu)
+	header_row.add_child(menu_button)
 
 	resource_label = Label.new()
 	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -350,6 +365,101 @@ func _create_intro_overlay(layer: CanvasLayer) -> void:
 	intro_next_button.custom_minimum_size = Vector2(190, 46)
 	intro_next_button.pressed.connect(_intro_next)
 	navigation.add_child(intro_next_button)
+
+func _create_pause_menu(layer: CanvasLayer) -> void:
+	pause_overlay = Control.new()
+	pause_overlay.visible = false
+	pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pause_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(pause_overlay)
+	var shade := ColorRect.new()
+	shade.color = Color(0.01, 0.02, 0.018, 0.88)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pause_overlay.add_child(shade)
+	pause_panel = PanelContainer.new()
+	pause_panel.set_anchors_preset(Control.PRESET_CENTER)
+	pause_panel.position = Vector2(-220, -265)
+	pause_panel.size = Vector2(440, 530)
+	pause_panel.add_theme_stylebox_override("panel", _panel_style())
+	pause_overlay.add_child(pause_panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 34)
+	margin.add_theme_constant_override("margin_top", 30)
+	margin.add_theme_constant_override("margin_right", 34)
+	margin.add_theme_constant_override("margin_bottom", 30)
+	pause_panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	margin.add_child(column)
+	var marker := Label.new()
+	marker.text = "ЦЕНА ВЛАСТИ"
+	marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	marker.modulate = Color("d9bd72")
+	column.add_child(marker)
+	var title := Label.new()
+	title.text = "Игровое меню"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 30)
+	column.add_child(title)
+	var hint := Label.new()
+	hint.text = "Esc — вернуться в игру · Alt+Enter — полный экран"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.modulate = Color("b9c2b3")
+	column.add_child(hint)
+	column.add_child(HSeparator.new())
+	for item: Dictionary in [
+		{"text": "Продолжить", "callable": _hide_pause_menu},
+		{"text": "Сохранить кампанию", "callable": _pause_save},
+		{"text": "Загрузить сохранение", "callable": _pause_load}
+	]:
+		var button := Button.new()
+		button.text = item["text"]
+		button.custom_minimum_size = Vector2(0, 48)
+		button.pressed.connect(item["callable"])
+		column.add_child(button)
+	pause_fullscreen_button = Button.new()
+	pause_fullscreen_button.custom_minimum_size = Vector2(0, 48)
+	pause_fullscreen_button.pressed.connect(_toggle_fullscreen)
+	column.add_child(pause_fullscreen_button)
+	pause_exit_button = Button.new()
+	pause_exit_button.text = "Сохранить и выйти"
+	pause_exit_button.custom_minimum_size = Vector2(0, 48)
+	pause_exit_button.pressed.connect(_on_exit_requested)
+	column.add_child(pause_exit_button)
+
+func _toggle_pause_menu() -> void:
+	if pause_overlay.visible:
+		_hide_pause_menu()
+	else:
+		_show_pause_menu()
+
+func _show_pause_menu() -> void:
+	_cancel_exit_confirmation()
+	_refresh_fullscreen_caption()
+	pause_overlay.visible = true
+
+func _hide_pause_menu() -> void:
+	_cancel_exit_confirmation()
+	pause_overlay.visible = false
+
+func _pause_save() -> void:
+	_on_save()
+
+func _pause_load() -> void:
+	_on_load()
+	_hide_pause_menu()
+
+func _toggle_fullscreen() -> void:
+	var window := get_window()
+	window.mode = Window.MODE_WINDOWED if window.mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN] else Window.MODE_FULLSCREEN
+	_refresh_fullscreen_caption()
+
+func _refresh_fullscreen_caption() -> void:
+	if not is_instance_valid(pause_fullscreen_button):
+		return
+	var fullscreen := get_window().mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]
+	pause_fullscreen_button.text = "Оконный режим" if fullscreen else "На весь экран"
 
 func _show_intro() -> void:
 	intro_page = 0
@@ -1561,6 +1671,8 @@ func _on_exit_requested() -> void:
 	if not exit_confirmation:
 		exit_confirmation = true
 		exit_button.text = "Точно?"
+		if is_instance_valid(pause_exit_button):
+			pause_exit_button.text = "Точно сохранить и выйти?"
 		_refresh_ui("Нажмите «Точно?» ещё раз в течение четырёх секунд. Перед выходом игра создаст автосохранение.")
 		get_tree().create_timer(4.0).timeout.connect(_cancel_exit_confirmation)
 		return
@@ -1575,6 +1687,8 @@ func _cancel_exit_confirmation() -> void:
 	exit_confirmation = false
 	if is_instance_valid(exit_button):
 		exit_button.text = "Выход"
+	if is_instance_valid(pause_exit_button):
+		pause_exit_button.text = "Сохранить и выйти"
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_node_ready():
