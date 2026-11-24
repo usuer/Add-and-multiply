@@ -11,6 +11,7 @@ func _initialize() -> void:
 	_test_followup_conversation_remembers_response()
 	_test_opening_context_branches_into_second_seal_story()
 	_test_story_events_unlock_and_resolve_once()
+	_test_act_two_characters_remember_causal_choices()
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
@@ -31,7 +32,7 @@ func _initialize() -> void:
 	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 27 checks")
+		print("PASS Godot foundation: 28 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -163,6 +164,44 @@ func _test_story_events_unlock_and_resolve_once() -> void:
 	_expect(not poor_state.story_timeline.choose(poor_state, "granary_roof", "repair"), "Недоступный платный вариант должен блокироваться")
 	_expect(poor_state.state_treasury == 2, "Отклонённый вариант не должен списывать часть суммы")
 	_expect(poor_state.story_timeline.choose(poor_state, "granary_roof", "inspect"), "При нехватке денег должен оставаться осмысленный бесплатный путь")
+
+func _test_act_two_characters_remember_causal_choices() -> void:
+	var workshop := WorldState.new()
+	while workshop.calendar.cycle < 4:
+		workshop.advance_period()
+	_expect(workshop.story_timeline.choose(workshop, "smiths_dispute", "mediate"), "На четвёртом цикле должна открываться проверка оружейного двора")
+	_expect(bool(workshop.facts.get("zlata_met", false)), "Проверка счетов должна знакомить игрока со Златой")
+	_expect((workshop.characters["zlata"] as CharacterState).respect == 10, "Злата должна запомнить доверенную ей независимую проверку")
+	workshop.facts["second_seal_investigation"] = "quiet"
+	workshop.advance_period()
+	_expect(bool(workshop.facts.get("missing_armory_payment", false)), "Проверка Златы должна через ход найти пропавший платёж")
+	_expect(_reports_contain(workshop.story_timeline, "одной рукой"), "Отчёт Златы должен логично связать платёж с поддельным приказом")
+
+	var letter := WorldState.new()
+	while letter.calendar.cycle < 5:
+		letter.advance_period()
+	_expect(letter.story_timeline.choose(letter, "aglaia_letter", "deal"), "Дело письма должно позволять заключить частную сделку с Аглаей")
+	_expect((letter.characters["aglaia"] as CharacterState).trust == 4, "Аглая должна помнить оказанное доверие")
+	letter.advance_period()
+	_expect(bool(letter.facts.get("aglaia_grey_guest", false)), "Аглая должна через ход передать обещанное имя")
+	_expect(_reports_contain(letter.story_timeline, "северными монетами"), "Сведения Аглаи должны давать конкретную зацепку, а не абстрактную награду")
+
+	var speech := WorldState.new()
+	while speech.calendar.cycle < 7:
+		speech.advance_period()
+	_expect(speech.story_timeline.choose(speech, "market_speech", "disperse"), "Мирное собрание должно допускать силовой разгон")
+	var miron := speech.characters["miron"] as CharacterState
+	_expect(miron.grievance == 8 and miron.resentment == 8, "Мирон должен накапливать конкретную обиду после разгона")
+	var restored := WorldState.from_data(speech.to_data())
+	var restored_miron := restored.characters["miron"] as CharacterState
+	_expect(restored_miron.grievance == 8, "Причина будущего конфликта Мирона должна сохраняться")
+	_expect(restored.characters.size() >= WorldState.CORE_CAST.size(), "Сохранение должно содержать полный постоянный состав персонажей")
+
+func _reports_contain(timeline: StoryTimeline, fragment: String) -> bool:
+	for report: Dictionary in timeline.reports:
+		if str(report.get("title", "")).contains(fragment) or str(report.get("text", "")).contains(fragment):
+			return true
+	return false
 
 func _test_neglected_events_and_border_branch() -> void:
 	var neglected := WorldState.new()

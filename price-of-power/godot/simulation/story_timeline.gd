@@ -14,8 +14,18 @@ const DEFINITIONS: Dictionary = {
 	},
 	"smiths_dispute": {
 		"cycle": 4, "title": "Кузнецы закрыли ворота", "location": "Ремесленный квартал",
-		"summary": "Мастера отказываются выдавать заказанные инструменты. Старшина говорит о долгах казны, канцлер — о завышенных счетах.",
-		"choices": {"mediate": "Собрать обе стороны за одним столом", "pay": "Погасить спорную часть долга", "seize": "Изъять заказ по княжескому праву"}
+		"summary": "Оружейный двор Ратибора остановился: восемьдесят мастеров и работников не получили жалованье. Борин показывает ведомость об оплате, но денег у людей нет. Злата Радич предлагает независимо сверить книги казны и мастерских.",
+		"choices": {"mediate": "Поручить Злате сверить обе книги", "pay": "Выплатить людям спорную сумму сейчас", "seize": "Ввести стражу и забрать государственный заказ"}
+	},
+	"aglaia_letter": {
+		"cycle": 5, "title": "Письмо в рукаве", "location": "Дом семи фонарей",
+		"summary": "Стража задержала работницу Аглаи Лис. В её рукаве нашли письмо о зерновых обозах, подписанное словами «вторая рука». Аглая утверждает, что письмо девушке подбросил один из посетителей, и требует разговора без посторонних.",
+		"choices": {"question": "Отдельно допросить девушку и Аглаю", "deal": "Дать Аглае ночь, чтобы найти владельца письма", "guard": "Передать письмо и задержанную Дарену"}
+	},
+	"market_speech": {
+		"cycle": 7, "title": "Мирон на Рыночной площади", "location": "Городской рынок",
+		"summary": "Бывший судья Мирон Светоч собрал горожан и требует объяснить, почему в книгах Долинной области было зерно, которого не оказалось в амбарах. Толпа пока слушает спокойно; он предлагает князю ответить публично.",
+		"choices": {"listen": "Прийти без знаков власти и сначала выслушать", "answer": "Выйти к людям и рассказать, что уже известно", "disperse": "Приказать страже прекратить собрание"}
 	},
 	"border_courier": {
 		"cycle": 6, "title": "Гонец с северной дороги", "location": "Северные ворота",
@@ -56,15 +66,39 @@ func update(state: WorldState) -> void:
 	_resolve_neglected_events(state)
 
 func _apply_delayed_results(state: WorldState) -> void:
-	if not resolved.has("border_courier"):
-		return
-	var record: Dictionary = resolved["border_courier"]
-	if str(record.get("choice", "")) == "scouts" and not bool(record.get("followup_applied", false)) and state.calendar.cycle >= int(record.get("cycle", 0)) + 2:
-		state.facts["northern_scouts_returned"] = true
-		record["followup_applied"] = true
-		resolved["border_courier"] = record
-		state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "scouts_returned"})
-		_add_report(state.calendar.cycle, "Дозор вернулся", "Разведчики принесли карту чужих лагерей. В военном зале ждут вашего решения.")
+	if resolved.has("border_courier"):
+		var record: Dictionary = resolved["border_courier"]
+		if str(record.get("choice", "")) == "scouts" and not bool(record.get("followup_applied", false)) and state.calendar.cycle >= int(record.get("cycle", 0)) + 2:
+			state.facts["northern_scouts_returned"] = true
+			record["followup_applied"] = true
+			resolved["border_courier"] = record
+			state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "scouts_returned"})
+			_add_report(state.calendar.cycle, "Дозор вернулся", "Разведчики принесли карту чужих лагерей. В военном зале ждут вашего решения.")
+	if resolved.has("smiths_dispute"):
+		var smiths: Dictionary = resolved["smiths_dispute"]
+		if str(smiths.get("choice", "")) == "mediate" and not bool(smiths.get("followup_applied", false)) and state.calendar.cycle >= int(smiths.get("cycle", 0)) + 1:
+			smiths["followup_applied"] = true
+			resolved["smiths_dispute"] = smiths
+			state.facts["missing_armory_payment"] = true
+			var link_text := "Злата нашла перевод на несуществующий перевозочный двор. Получатель вписан после составления ведомости."
+			if not str(state.facts.get("second_seal_investigation", "")).is_empty():
+				link_text += " Марек сравнил росчерк с приказом об освобождении заключённого: оба исправления сделаны одной рукой."
+			_add_report(state.calendar.cycle, "Злата закончила сверку счетов", link_text)
+	if resolved.has("aglaia_letter"):
+		var letter: Dictionary = resolved["aglaia_letter"]
+		if not bool(letter.get("followup_applied", false)) and state.calendar.cycle >= int(letter.get("cycle", 0)) + 1:
+			var choice := str(letter.get("choice", ""))
+			if choice == "deal":
+				state.facts["aglaia_grey_guest"] = true
+				_add_report(state.calendar.cycle, "Аглая выполнила обещание", "До рассвета она прислала имя: письмо оставил приезжий, называвший себя торговцем шерстью. Он расспрашивал о дворцовых писцах и платил новыми северными монетами.")
+			elif choice == "question":
+				state.facts["aglaia_grey_guest"] = true
+				_add_report(state.calendar.cycle, "Показания сошлись не полностью", "Работница и Аглая одинаково описали приезжего в сером плаще, но назвали разное время его ухода. Либо одна из них ошибается, либо Аглая скрывает вторую встречу.")
+			elif choice == "guard":
+				state.facts["aglaia_witness_silent"] = true
+				_add_report(state.calendar.cycle, "Задержанная изменила показания", "После ночи в управлении стражи девушка заявила, что сама украла письмо у неизвестного клиента. Дарен считает признание достаточным; имя посетителя так и не появилось в деле.")
+			letter["followup_applied"] = true
+			resolved["aglaia_letter"] = letter
 
 func _resolve_neglected_events(state: WorldState) -> void:
 	for event_id: String in DEFINITIONS:
@@ -105,6 +139,14 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 			state.resources["tools"] = maxi(0, int(state.resources.get("tools", 0)) - 2)
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -5, "Княжеский двор две недели не отвечал на остановку кузниц.")
 			return "Спор оставался без ответа, и кузнецы разошлись по частным заказам."
+		"aglaia_letter":
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "ignored_arrest", "Княжеский двор оставил её работницу в руках стражи и не выслушал объяснение.", {"trust": -4, "resentment": 4})
+			state.facts["aglaia_letter"] = "lost"
+			return "Задержанную перевели в городскую тюрьму. Через два дня письмо исчезло из описи, а девушка отказалась от прежних показаний."
+		"market_speech":
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "ignored_speech", "Князь не ответил на публичный вопрос о пропавшем зерне.", {"respect": -2, "grievance": 3})
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -2, "Вопрос Мирона о зерновых книгах остался без ответа двора.")
+			return "Не получив ответа, Мирон повторил свои вопросы через неделю. На этот раз слушателей пришло вдвое больше."
 		"border_courier":
 			(state.factions["military"] as FactionState).react(state.calendar.cycle, -3, "Пограничное донесение пролежало без приказа.")
 			return "Пока донесение ждало решения, неизвестные всадники ушли с собранными сведениями."
@@ -166,15 +208,53 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			return "Троих стражников заперли до допроса. Они настаивают, что исполнили безупречный документ; остальные караулы теперь требуют письменного подтверждения даже обычных распоряжений."
 		"smiths_dispute:mediate":
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 3, "Князь лично выслушал спор ремесленников с казной.")
-			return "Стороны согласились открыть книги. Работа возобновилась на три дня, пока писцы сверяют счета."
+			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "first_commission", "Вы доверили ей независимо сверить счета оружейного двора и казны.", {"respect": 4, "trust": 2})
+			state.facts["zlata_met"] = true
+			state.facts["smith_payment_audit"] = true
+			return "Злата согласилась проверить обе книги при представителях работников. Она сразу нашла странность: казна отмечает выплату на два дня раньше, чем Ратибор выставил окончательный счёт."
 		"smiths_dispute:pay":
 			state.state_treasury -= 8
 			state.resources["tools"] = int(state.resources.get("tools", 0)) + 4
-			return "Кузницы снова дымят, и первая партия инструментов уже ушла в мастерские. Канцлер считает, что вы создали опасный пример."
+			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "workmen_paid", "Вы предпочли немедленно заплатить работникам, не дожидаясь спора чиновников.", {"respect": 2})
+			state.facts["zlata_met"] = true
+			return "Людям выдали жалованье, и горны снова зажгли. Злата предупреждает: повторная выплата спасла заказ, но не ответила, куда ушли первые деньги."
 		"smiths_dispute:seize":
 			state.resources["tools"] = int(state.resources.get("tools", 0)) + 5
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -8, "Княжеская стража изъяла товар из кузниц во время спора об оплате.")
-			return "Стража забрала заказ без драки. К вечеру в ремесленном квартале погасли почти все горны."
+			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "workshop_seizure", "Вы забрали заказ силой, пока рабочие требовали жалованье.", {"trust": -5, "resentment": 6})
+			state.facts["zlata_met"] = true
+			return "Стража забрала заказ без драки. К вечеру погасли почти все горны, а Злата начала собирать владельцев мастерских на отдельное совещание."
+		"aglaia_letter:question":
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "first_audience", "Вы выслушали её и задержанную раздельно, не обещая освобождения.", {"respect": 3})
+			state.facts["aglaia_met"] = true
+			state.facts["aglaia_letter"] = "statements_compared"
+			return "Девушка сказала, что письмо сунул ей в рукав пьяный посетитель, когда в зал вошла стража. Аглая назвала его приметы, но отказалась назвать постоянного клиента, который может их подтвердить."
+		"aglaia_letter:deal":
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "private_deal", "Вы дали ей одну ночь самой найти человека, оставив свободу её работнице.", {"trust": 4, "respect": 2})
+			state.facts["aglaia_met"] = true
+			state.facts["aglaia_letter"] = "aglaia_searching"
+			return "Аглая забрала девушку и пообещала имя до рассвета. Дарен считает, что вы отпустили единственного свидетеля; Аглая теперь обязана вам ответом."
+		"aglaia_letter:guard":
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "letter_case", "Вы передали ему письмо и полную власть вести допрос.", {"trust": 3, "respect": 2})
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "worker_imprisoned", "Вы отказались разговаривать и оставили её работницу у стражи.", {"trust": -4, "resentment": 4})
+			state.facts["aglaia_met"] = true
+			state.facts["aglaia_letter"] = "with_guard"
+			return "Дарен увёз письмо и задержанную в управление стражи. Аглая ушла без спора, но до вечера трое её постоянных гостей отменили встречи с дворцовыми чиновниками."
+		"market_speech:listen":
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "market_listener", "Неизвестный ему человек выслушал речь до конца и не попытался её сорвать.", {"respect": 2})
+			state.facts["miron_met_in_disguise"] = true
+			return "Без княжеских знаков вы услышали не только Мирона, но и ответы толпы. Людей злит не сама нехватка зерна, а то, что никто не назвал виновного. Мирон пока не показал, узнал ли вас."
+		"market_speech:answer":
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "public_answer", "Вы пришли на площадь и ответили перед толпой, не приказывая ему замолчать.", {"respect": 5, "trust": 2})
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 3, "Князь лично ответил на вопросы о пропавшем зерне.")
+			state.facts["miron_public_debate"] = true
+			return "Вы рассказали о проверке книг и приказе с печатью умершего князя. Мирон признал ответ, но спросил, почему двор сообщил об этом только после публичного требования."
+		"market_speech:disperse":
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "speech_dispersed", "Вы разогнали мирное собрание вместо ответа.", {"trust": -7, "resentment": 8, "grievance": 8})
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -7, "Стража разогнала людей, требовавших объяснить недостачу зерна.")
+			state.public_order = maxi(0, state.public_order - 3)
+			state.facts["miron_speech_dispersed"] = true
+			return "Стража очистила площадь без серьёзной драки. Мирон ушёл сам, прежде чем его схватили; к вечеру по городу разошёлся список вопросов, на которые князь не ответил."
 		"border_courier:scouts":
 			state.facts["northern_scouts_sent"] = true
 			return "Дозор ушёл налегке и вернётся с ответом позже. Капитан просит пока не распускать слухи в городе."

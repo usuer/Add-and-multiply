@@ -2,6 +2,22 @@ class_name WorldState
 extends Resource
 
 const SAVE_VERSION: int = 1
+const CORE_CAST: Dictionary = {
+	"spouse": {"name": "Княгиня Элина", "affection": 34, "respect": 28, "trust": 24, "courage": 68, "conscience": 72, "ambition": 64, "violence": 12},
+	"sister": {"name": "Лада, сестра князя", "affection": 48, "respect": 16, "trust": 31, "courage": 61, "conscience": 84, "ambition": 32, "violence": 8},
+	"secretary": {"name": "Марек, секретарь", "affection": 8, "respect": 42, "trust": 37, "courage": 46, "conscience": 59, "ambition": 55, "violence": 18},
+	"radomir": {"name": "Радомир Седой", "affection": 5, "respect": 24, "trust": 22, "courage": 86, "conscience": 63, "ambition": 38, "violence": 61},
+	"borin": {"name": "Борин Вежа", "affection": 0, "respect": 26, "trust": 11, "courage": 42, "conscience": 39, "ambition": 67, "violence": 24},
+	"daren": {"name": "Дарен Клин", "affection": 0, "respect": 17, "trust": 12, "courage": 72, "conscience": 48, "ambition": 58, "violence": 54},
+	"zlata": {"name": "Злата Радич", "affection": 0, "respect": 6, "trust": 0, "courage": 65, "conscience": 57, "ambition": 82, "violence": 22},
+	"miron": {"name": "Мирон Светоч", "affection": -2, "respect": 4, "trust": -6, "courage": 78, "conscience": 76, "ambition": 62, "violence": 16},
+	"aglaia": {"name": "Аглая Лис", "affection": 0, "respect": 9, "trust": 0, "courage": 70, "conscience": 44, "ambition": 77, "violence": 31},
+	"tikhon": {"name": "Тихон Лучин", "affection": 0, "respect": 5, "trust": 2, "courage": 35, "conscience": 79, "ambition": 48, "violence": 3},
+	"vardan": {"name": "Вардан Речной", "affection": -4, "respect": 2, "trust": -14, "courage": 74, "conscience": 21, "ambition": 88, "violence": 73},
+	"savva": {"name": "Савва Лунь", "affection": 0, "respect": 0, "trust": -4, "courage": 29, "conscience": 61, "ambition": 28, "violence": 7},
+	"heir": {"name": "Всеволод, наследник", "affection": 62, "respect": 18, "trust": 56, "courage": 40, "conscience": 70, "ambition": 35, "violence": 5},
+	"daughter": {"name": "Милица, дочь князя", "affection": 68, "respect": 4, "trust": 61, "courage": 37, "conscience": 78, "ambition": 18, "violence": 2}
+}
 
 @export var seed: String = "Арден-1248"
 @export var calendar: CampaignCalendar = CampaignCalendar.new()
@@ -41,12 +57,7 @@ const SAVE_VERSION: int = 1
 @export var factions: Dictionary = {}
 
 func _init() -> void:
-	if characters.is_empty():
-		characters = {
-			"spouse": _make_character("spouse", "Княгиня Элина", 34, 28, 24),
-			"sister": _make_character("sister", "Лада, сестра князя", 48, 16, 31),
-			"secretary": _make_character("secretary", "Марек, секретарь", 8, 42, 37)
-		}
+	_ensure_core_cast()
 	if factions.is_empty():
 		factions = {
 			"nobility": _make_faction("nobility", "Знать", 5),
@@ -55,6 +66,18 @@ func _init() -> void:
 			"military": _make_faction("military", "Войско", 7),
 			"rural": _make_faction("rural", "Жители областей", -3)
 		}
+
+func _ensure_core_cast() -> void:
+	for character_id: String in CORE_CAST:
+		if characters.has(character_id):
+			continue
+		var profile: Dictionary = CORE_CAST[character_id]
+		var character := _make_character(character_id, str(profile["name"]), int(profile["affection"]), int(profile["respect"]), int(profile["trust"]))
+		character.courage = int(profile["courage"])
+		character.conscience = int(profile["conscience"])
+		character.ambition = int(profile["ambition"])
+		character.violence_acceptance = int(profile["violence"])
+		characters[character_id] = character
 
 func _make_character(id: String, title: String, affection_value: int, respect_value: int, trust_value: int) -> CharacterState:
 	var character := CharacterState.new()
@@ -224,10 +247,11 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.characters.clear()
 	for id: String in (data.get("characters", {}) as Dictionary):
 		state.characters[id] = CharacterState.from_data(data["characters"][id])
+	state._ensure_core_cast()
 	state.factions.clear()
 	for id: String in (data.get("factions", {}) as Dictionary):
 		state.factions[id] = FactionState.from_data(data["factions"][id])
-	if state.characters.is_empty() or state.factions.is_empty():
+	if state.factions.is_empty():
 		state._init()
 	return state
 
