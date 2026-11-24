@@ -67,6 +67,7 @@ func _run() -> void:
 	await process_frame
 	_check_header(app, "при повторном открытии секретаря")
 	await _check_common_desktop_sizes(app)
+	_check_exit_confirmation(app)
 	if failures.is_empty():
 		print("PASS UI layout: header remains usable at 1024x700")
 		quit(0)
@@ -158,7 +159,7 @@ func _check_policy_cards(app: Node) -> void:
 func _check_header(app: Node, stage: String) -> void:
 	var visible_rect := root.get_visible_rect()
 	var buttons: Array[Button] = []
-	for caption in ["Дела секретаря", "Завершить период", "Новая", "Сохр.", "Загр."]:
+	for caption in ["Дела секретаря", "Завершить период", "Новая", "Сохр.", "Загр.", "Выход"]:
 		var button := _find_button(app, caption)
 		if button == null:
 			failures.append("Нет кнопки «%s» %s" % [caption, stage])
@@ -170,6 +171,15 @@ func _check_header(app: Node, stage: String) -> void:
 	for index in range(buttons.size() - 1):
 		if buttons[index].get_global_rect().intersects(buttons[index + 1].get_global_rect()):
 			failures.append("Кнопки «%s» и «%s» пересекаются %s" % [buttons[index].text, buttons[index + 1].text, stage])
+
+func _check_exit_confirmation(app: Node) -> void:
+	app.call("_on_exit_requested")
+	var button := app.get("exit_button") as Button
+	if not bool(app.get("exit_confirmation")) or button == null or button.text != "Точно?":
+		failures.append("Первое нажатие выхода должно запрашивать подтверждение, а не закрывать игру")
+	app.call("_cancel_exit_confirmation")
+	if bool(app.get("exit_confirmation")) or button.text != "Выход":
+		failures.append("Отмена подтверждения должна возвращать обычную кнопку выхода")
 
 func _find_button(node: Node, caption: String) -> Button:
 	if node is Button and (node as Button).text.begins_with(caption):

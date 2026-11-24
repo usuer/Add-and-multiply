@@ -30,6 +30,7 @@ var grain_choice_label: Label
 var funding_choice_label: Label
 var resolve_opening_button: Button
 var cases_button: Button
+var exit_button: Button
 var castle_section: String = "council"
 var selected_person: String = "spouse"
 var intro_overlay: Control
@@ -48,6 +49,7 @@ var modal_shade: ColorRect
 var panel_tween: Tween
 var selected_army_unit: String = "retinue"
 var new_campaign_confirmation: bool = false
+var exit_confirmation: bool = false
 
 const PEOPLE_ORDER: Array[String] = ["spouse", "sister", "secretary", "radomir", "daren", "borin", "zlata", "miron", "aglaia", "tikhon", "savva", "vardan"]
 const PEOPLE_ROLES: Dictionary = {
@@ -74,6 +76,7 @@ const INTRO_PAGES: Array[Dictionary] = [
 ]
 
 func _ready() -> void:
+	get_tree().auto_accept_quit = false
 	_create_environment()
 	_create_capital_placeholder()
 	_create_camera()
@@ -228,6 +231,12 @@ func _create_ui() -> void:
 		button.custom_minimum_size = Vector2(64, 44)
 		button.pressed.connect(item["callable"])
 		header_row.add_child(button)
+	exit_button = Button.new()
+	exit_button.text = "Выход"
+	exit_button.custom_minimum_size = Vector2(68, 44)
+	exit_button.tooltip_text = "Сохранить текущую кампанию и выйти из игры"
+	exit_button.pressed.connect(_on_exit_requested)
+	header_row.add_child(exit_button)
 
 	resource_label = Label.new()
 	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1547,6 +1556,29 @@ func _on_new_campaign() -> void:
 	state = WorldState.new()
 	_show_intro()
 	_refresh_ui("Начата новая кампания. Предыдущее ручное сохранение не удалено.")
+
+func _on_exit_requested() -> void:
+	if not exit_confirmation:
+		exit_confirmation = true
+		exit_button.text = "Точно?"
+		_refresh_ui("Нажмите «Точно?» ещё раз в течение четырёх секунд. Перед выходом игра создаст автосохранение.")
+		get_tree().create_timer(4.0).timeout.connect(_cancel_exit_confirmation)
+		return
+	var error := CampaignSaveService.save_campaign(state, CampaignSaveService.AUTOSAVE_PATH)
+	if error != OK:
+		_cancel_exit_confirmation()
+		_refresh_ui("Не удалось создать автосохранение. Выход отменён: %s" % error_string(error))
+		return
+	get_tree().quit()
+
+func _cancel_exit_confirmation() -> void:
+	exit_confirmation = false
+	if is_instance_valid(exit_button):
+		exit_button.text = "Выход"
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_node_ready():
+		_on_exit_requested()
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
