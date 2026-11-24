@@ -37,10 +37,35 @@ const DEFINITIONS: Dictionary = {
 		"summary": "Дозор вернулся с зарисовками лагерей. За границей собирают обоз и лёгкую конницу. Это ещё не объявление войны, но уже не случайная разведка.",
 		"choices": {"fortify": "Укрепить переправы и поднять гарнизоны", "parley": "Предложить тайную встречу на границе", "trap": "Оставить путь открытым и готовить засаду"}
 	},
+	"savva_at_chapel": {
+		"cycle": 9, "title": "Савва просит один разговор", "location": "Заброшенная часовня",
+		"summary": "Марек получил записку от пропавшего писца Саввы Луня. Тот обещает вернуть вторую печать и назвать человека, оплатившего побег его брата, если князь придёт без городской стражи. Радомир готов дать скрытое прикрытие; Дарен настаивает на немедленном аресте.",
+		"choices": {"meet": "Прийти со скрытым прикрытием Радомира", "arrest": "Послать Дарена взять Савву живым", "safe_passage": "Дать Савве письменное обещание безопасного допроса"}
+	},
 	"fever_outbreak": {
 		"cycle": 10, "title": "Горячка в нижнем городе", "location": "Речной квартал",
 		"summary": "За три дня слегли семьи кожевников и двое лодочников. Причина неизвестна; слухи уже называют воду, чужеземцев и Божий гнев.",
 		"choices": {"quarantine": "Перекрыть квартал и доставлять пищу внутрь", "clinics": "Открыть временные лечебницы", "conceal": "Не объявлять тревогу до точного диагноза"}
+	},
+	"family_warning": {
+		"cycle": 11, "title": "Печать в детской", "location": "Семейные покои",
+		"summary": "Элина нашла у девятилетнего Всеволода кусок воска с оттиском второй печати. Сын говорит, что его дал «старый друг деда» и попросил спрятать до игры в тайного посланника. Незнакомец сумел пройти во внутренний двор, не вызвав тревоги охраны.",
+		"choices": {"evacuate": "Тайно вывезти детей в загородную обитель", "double_guard": "Оставить семью во дворце и сменить внутреннюю охрану", "bait": "Попросить Всеволода продолжить игру под наблюдением"}
+	},
+	"fathers_ledger": {
+		"cycle": 13, "title": "Книга отцовских платежей", "location": "Личный архив князя",
+		"summary": "За фальшивой стенкой найден счёт вашего отца. В нём — выплаты северным офицерам, городским старостам и человеку с пометкой «В. Речной». Эти деньги, вероятно, сорвали прошлую войну, но часть зерновых недостач началась именно здесь.",
+		"choices": {"publish": "Открыть книгу совету и городским судьям", "inner_circle": "Показать только Элине, Мареку и Радомиру", "continue_scheme": "Сохранить тайну и использовать старые связи отца"}
+	},
+	"vardan_offer": {
+		"cycle": 15, "title": "Предложение Вардана", "location": "Старый речной причал",
+		"summary": "Вардан Речной больше не скрывается. Он предлагает вернуть вторую печать и остановить северные поставки оружия в обмен на место в совете и неприкосновенность своих людей. Он утверждает, что служил вашему отцу и лишь продолжил то, за что прежний князь ему платил.",
+		"choices": {"accept": "Принять сделку и впустить Вардана в совет", "counterfeit": "Согласиться для вида и подготовить задержание", "refuse": "Отказаться и объявить его врагом княжества"}
+	},
+	"night_of_second_seal": {
+		"cycle": 17, "title": "Ночь второй печати", "location": "Столица и северные ворота",
+		"summary": "Одновременно звонят колокола у речных складов и северных ворот. По поддельным приказам часть стражи оставила посты, а вооружённые люди Вардана выводят зерно к реке. За границей показались огни военного обоза. Это не случайный налёт: противник проверяет, кому в столице ещё подчиняются.",
+		"choices": {"capital": "Удержать столицу и склады, оставив границу Радомиру", "border": "Возглавить войско у ворот, доверив город Дарену", "expose": "Обнародовать книгу и приказы, призвав горожан не подчиняться печати"}
 	}
 }
 
@@ -147,6 +172,10 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "ignored_speech", "Князь не ответил на публичный вопрос о пропавшем зерне.", {"respect": -2, "grievance": 3})
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -2, "Вопрос Мирона о зерновых книгах остался без ответа двора.")
 			return "Не получив ответа, Мирон повторил свои вопросы через неделю. На этот раз слушателей пришло вдвое больше."
+		"savva_at_chapel":
+			state.facts["savva_fate"] = "vanished"
+			(state.characters["savva"] as CharacterState).remember(state.calendar.cycle, "abandoned_contact", "Князь не ответил на последнюю просьбу о разговоре.", {"trust": -8, "grievance": 5})
+			return "У часовни нашли погасший костёр и кровь на камне, но не тело. Через день второй печатью заверили продажу княжеской земли на севере."
 		"border_courier":
 			(state.factions["military"] as FactionState).react(state.calendar.cycle, -3, "Пограничное донесение пролежало без приказа.")
 			return "Пока донесение ждало решения, неизвестные всадники ушли с собранными сведениями."
@@ -154,10 +183,50 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 			state.public_health = maxi(0, state.public_health - 14)
 			state.facts["fever_policy"] = "neglected"
 			return "Пока совет ждал приказа, горячка вышла из речного квартала и добралась до городских казарм."
+		"family_warning":
+			state.facts["family_security"] = "breached"
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "children_left_exposed", "После находки в детской вы не изменили охрану семьи.", {"trust": -7, "resentment": 4})
+			return "Элина сама увезла детей из столицы и отказалась сообщить маршрут дворцовой канцелярии. Во внутренних покоях она больше не доверяет вашей охране."
+		"fathers_ledger":
+			state.facts["fathers_ledger"] = "stolen_page"
+			return "До решения из книги вырвали страницу с последними выплатами. Доступ к архиву имели трое слуг и члены княжеской семьи."
+		"vardan_offer":
+			state.facts["vardan_stance"] = "unanswered"
+			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "offer_ignored", "Князь не ответил на предложение и оставил ему свободу действовать первым.", {"respect": -3})
+			return "Не получив ответа, Вардан исчез с причала. В ту же ночь с речного склада вывезли оружие по приказу со второй печатью."
+		"night_of_second_seal":
+			state.facts["second_seal_crisis"] = "command_collapsed"
+			state.public_order = maxi(0, state.public_order - 18)
+			return "Противоречивые приказы парализовали гарнизон. Люди Вардана ушли с зерном, а северный отряд занял переправу без большого боя."
 	return "Дело слишком долго оставалось без решения, и обстоятельства решили его за вас."
 
 func definition(event_id: String) -> Dictionary:
 	return DEFINITIONS.get(event_id, {})
+
+func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
+	var event: Dictionary = definition(event_id).duplicate(true)
+	if event_id == "savva_at_chapel":
+		var clues: Array[String] = []
+		if bool(state.facts.get("missing_armory_payment", false)):
+			clues.append("исправление в оружейной ведомости")
+		if bool(state.facts.get("aglaia_grey_guest", false)):
+			clues.append("северные монеты приезжего Аглаи")
+		if not clues.is_empty():
+			event["summary"] = str(event["summary"]) + " С его запиской совпадает %s." % " и ".join(clues)
+	if event_id == "family_warning" and str(state.facts.get("second_seal_investigation", "")) == "public":
+		event["summary"] = str(event["summary"]) + " Это произошло несмотря на объявленный по всему городу розыск печати."
+	if event_id == "vardan_offer":
+		if str(state.facts.get("savva_fate", "")) in ["protected_witness", "voluntary_witness"]:
+			event["summary"] = str(event["summary"]) + " Савва готов опровергнуть его слова, но только если вы гарантируете защиту его брату."
+		if str(state.facts.get("fathers_ledger", "")) == "published":
+			event["summary"] = str(event["summary"]) + " После публикации книги Вардан уже потерял часть покровителей."
+	if event_id == "night_of_second_seal":
+		var posture := str(state.facts.get("northern_posture", "unprepared"))
+		if posture == "fortified":
+			event["summary"] = str(event["summary"]) + " Укреплённые переправы задержат чужой обоз, но гарнизоны ждут команды."
+		elif posture == "ambush":
+			event["summary"] = str(event["summary"]) + " Засада у переправы ещё не раскрыта, и Радомир просит не выдавать её преждевременно."
+	return event
 
 func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	if not state.can_govern() or event_id not in available_events(state.calendar.cycle):
@@ -170,6 +239,7 @@ func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	if event_id == "scout_report" and choice_id == "fortify": required_gold = 12
 	if event_id == "fever_outbreak" and choice_id == "quarantine": required_gold = 6
 	if event_id == "fever_outbreak" and choice_id == "clinics": required_gold = 10
+	if event_id == "fathers_ledger" and choice_id == "continue_scheme": required_gold = 6
 	return state.state_treasury >= required_gold
 
 func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
@@ -279,6 +349,22 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.army.supplies += state.technology.campaign_supply_bonus()
 			(state.factions["military"] as FactionState).react(state.calendar.cycle, 3, "Князь доверил войску подготовку скрытой обороны переправы.")
 			return "На вид переправа осталась беззащитной. Ночью дружина начала занимать лесные балки по обе стороны дороги."
+		"savva_at_chapel:meet":
+			state.facts["savva_fate"] = "protected_witness"
+			state.facts["second_seal_holder"] = "vardan"
+			(state.characters["savva"] as CharacterState).remember(state.calendar.cycle, "chapel_meeting", "Вы пришли выслушать его и не отдали городской страже.", {"trust": 8, "respect": 3})
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "hidden_cover", "Вы доверили ему незаметно прикрыть опасную встречу.", {"trust": 3})
+			return "Савва признался: печать он взял, чтобы освободить брата, но побег оплатил Вардан Речной. Когда Савва попытался вернуть печать, она уже была у людей Вардана. Стрела из темноты ранила Савву; люди Радомира вынесли его живым."
+		"savva_at_chapel:arrest":
+			state.facts["savva_fate"] = "in_guard_custody"
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "chapel_arrest", "Вы поручили ему взять похитителя печати живым.", {"trust": 4, "respect": 2})
+			(state.characters["savva"] as CharacterState).remember(state.calendar.cycle, "chapel_arrest", "Вместо разговора вы прислали стражу.", {"trust": -8, "resentment": 5})
+			return "Дарен взял Савву без боя, но неизвестный стрелок убил одного стражника и унёс сумку писца. На допросе Савва назвал Вардана Речного, однако доказательство осталось в украденной сумке."
+		"savva_at_chapel:safe_passage":
+			state.facts["savva_fate"] = "voluntary_witness"
+			state.facts["second_seal_holder"] = "vardan"
+			(state.characters["savva"] as CharacterState).remember(state.calendar.cycle, "safe_passage", "Вы дали ему возможность явиться самому и отвечать без пытки.", {"trust": 10, "respect": 5})
+			return "Савва пришёл во дворец через кухонные ворота и отдал список поддельных приказов. Печать у Вардана Речного; тот купил побег брата, чтобы заставить Савву изготовить ещё два документа."
 		"fever_outbreak:quarantine":
 			state.state_treasury -= 6
 			state.public_health = mini(100, state.public_health + 2)
@@ -295,6 +381,68 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.public_health = maxi(0, state.public_health - 9)
 			state.facts["fever_policy"] = "concealed"
 			return "Рынок продолжил работу. Через несколько дней похожий жар обнаружили уже за пределами речного квартала."
+		"family_warning:evacuate":
+			state.facts["family_security"] = "country_cloister"
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "children_evacuated", "Вы поставили безопасность детей выше видимости спокойствия во дворце.", {"trust": 4, "affection": 2})
+			return "Элина уехала с детьми под видом паломничества. Во дворце никто не знает точного места, но отсутствие наследника скоро заметят послы и знать."
+		"family_warning:double_guard":
+			state.facts["family_security"] = "new_guard"
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "palace_guard_replaced", "Вы потребовали заменить его людей во внутренних покоях после провала охраны.", {"respect": -2, "resentment": 3})
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "family_guarded", "Вы оставили семью рядом, но полностью сменили внутреннюю охрану.", {"trust": 2})
+			return "Ночную смену разоружили прямо во дворе. У одного стражника нашли серебро северной чеканки; он клянётся, что получил его за карточный долг."
+		"family_warning:bait":
+			state.facts["family_security"] = "child_bait"
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "son_used_as_bait", "Вы сознательно оставили сына приманкой для человека, проникшего во дворец.", {"trust": -10, "affection": -5, "resentment": 7})
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "nursery_trap", "Вы позволили ему устроить ловушку во внутренних покоях.", {"trust": 3})
+			return "Всеволоду велели вести себя как обычно. Ночью за восковой фигуркой пришла дворцовая прачка; при задержании она назвала имя Вардана и попросила защитить её сына. Элина не простила способ, которым добыто признание."
+		"fathers_ledger:publish":
+			state.facts["fathers_ledger"] = "published"
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "ledger_disclosed", "Вы добровольно открыли суду доказательства тайных сделок собственной семьи.", {"respect": 8, "trust": 5})
+			(state.factions["nobility"] as FactionState).react(state.calendar.cycle, -7, "Князь открыл суду тайные платежи прежнего правителя и влиятельных домов.")
+			return "Судьи сняли копии книги. Мирон публично признал, что вы не спрятали вину отца; знать требует закрыть разбирательство ради безопасности государства."
+		"fathers_ledger:inner_circle":
+			state.facts["fathers_ledger"] = "inner_circle"
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "ledger_confidence", "Вы доверили ей опасную правду о наследии отца.", {"trust": 5})
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "ledger_confidence", "Вы включили его в узкий круг, решающий судьбу старой сети.", {"trust": 4})
+			return "Марек составил список живых получателей. Элина заметила, что три выплаты совпадают с поездками Вардана, а Радомир узнал имя северного офицера, которого встречал на прошлой войне."
+		"fathers_ledger:continue_scheme":
+			state.facts["fathers_ledger"] = "network_reactivated"
+			state.state_treasury = maxi(0, state.state_treasury - 6)
+			(state.characters["borin"] as CharacterState).remember(state.calendar.cycle, "secret_fund", "Вы поручили ему возобновить скрытые выплаты из старой книги.", {"trust": 5, "respect": 3})
+			return "Борин отправил первые шесть монет старым путём. Один адресат ответил условной фразой отца: сеть ещё жива, но теперь её участники знают, что вы приняли правила прежнего князя."
+		"vardan_offer:accept":
+			state.facts["vardan_stance"] = "inside_council"
+			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "council_bargain", "Вы признали его силу и дали место у власти вместо суда.", {"respect": 8, "trust": 3})
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "vardan_accepted", "Вы впустили в совет человека, чьи люди проникли к детям.", {"trust": -7, "resentment": 5})
+			return "Вардан вернул печать при свидетелях и занял кресло советника по речной торговле. Его люди прекратили вывоз зерна, но уже к вечеру к нему потянулись просители, прежде ожидавшие княжеской аудиенции."
+		"vardan_offer:counterfeit":
+			state.facts["vardan_stance"] = "false_bargain"
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "vardan_trap", "Вы доверили ему тайную подготовку задержания Вардана.", {"trust": 4})
+			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "false_bargain", "Вы согласились на сделку, намереваясь арестовать его после передачи печати.", {"grievance": 8})
+			return "Вардан принял согласие слишком спокойно и назначил обмен через два дня. Дарен готовит людей, но предупреждает: если Вардан ждёт обмана, место встречи станет ловушкой для обеих сторон."
+		"vardan_offer:refuse":
+			state.facts["vardan_stance"] = "open_enemy"
+			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "declared_enemy", "Вы отвергли сделку и публично назвали его врагом княжества.", {"resentment": 10, "grievance": 10})
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "vardan_refused", "Вы отказались узаконить власть Вардана ценой прекращения кризиса.", {"respect": 3})
+			return "Объявление зачитали на площадях и у ворот. Вардан лишился возможности действовать открыто, зато теперь его людям нечего терять."
+		"night_of_second_seal:capital":
+			state.facts["second_seal_crisis"] = "capital_held"
+			state.public_order = mini(100, state.public_order + 4)
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "border_command", "Вы доверили ему самостоятельно удержать северную границу, пока спасали столицу.", {"trust": 6, "respect": 4})
+			return "К рассвету склады отбиты, а поддельные приказы собраны. Радомир удержал ворота, но отступил от дальней переправы и потерял часть обоза: столицу спасли ценой земли на севере."
+		"night_of_second_seal:border":
+			state.facts["second_seal_crisis"] = "border_held"
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "capital_command", "Вы оставили ему столицу и семью, пока лично повели войско к воротам.", {"trust": 6, "respect": 5})
+			state.resources["grain"] = maxi(0, int(state.resources.get("grain", 0)) - 10)
+			return "Ваше появление остановило колебание гарнизона, и северный обоз не прошёл ворота. Дарен удержал дворец, но люди Вардана сожгли речной склад и увели часть зерна."
+		"night_of_second_seal:expose":
+			state.facts["second_seal_crisis"] = "false_orders_rejected"
+			var miron_support := (state.characters["miron"] as CharacterState).respect >= 8
+			if miron_support:
+				state.public_order = mini(100, state.public_order + 8)
+				return "Мирон прочитал имена из книги на Рыночной площади, а цеховые старшины отказались выполнять приказы со второй печатью. Заговор лишился толпы и укрытий; у ворот ещё идёт бой, но столица выбрала сторону."
+			state.public_order = maxi(0, state.public_order - 5)
+			return "Книгу читали вслух прямо под колоколами. Одни горожане отказались подчиняться печати, другие увидели доказательство, что княжеский дом годами покупал их вождей. Заговор расколот, но вместе с ним расколота и площадь."
 	return "Распоряжение принято. Его последствия станут понятны позже."
 
 func outcome(event_id: String) -> String:

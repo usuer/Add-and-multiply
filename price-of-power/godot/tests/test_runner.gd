@@ -12,6 +12,7 @@ func _initialize() -> void:
 	_test_opening_context_branches_into_second_seal_story()
 	_test_story_events_unlock_and_resolve_once()
 	_test_act_two_characters_remember_causal_choices()
+	_test_middle_act_connects_clues_family_and_fathers_legacy()
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
@@ -32,7 +33,7 @@ func _initialize() -> void:
 	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 28 checks")
+		print("PASS Godot foundation: 29 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -203,6 +204,38 @@ func _reports_contain(timeline: StoryTimeline, fragment: String) -> bool:
 			return true
 	return false
 
+func _test_middle_act_connects_clues_family_and_fathers_legacy() -> void:
+	var state := WorldState.new()
+	state.facts["missing_armory_payment"] = true
+	state.facts["aglaia_grey_guest"] = true
+	while state.calendar.cycle < 9:
+		state.advance_period()
+	var chapel := state.story_timeline.contextual_definition(state, "savva_at_chapel")
+	_expect(str(chapel.get("summary", "")).contains("оружейной ведомости") and str(chapel.get("summary", "")).contains("северные монеты"), "Встреча с Саввой должна явно собирать ранее найденные улики")
+	_expect(state.story_timeline.choose(state, "savva_at_chapel", "safe_passage"), "Савве должно быть можно гарантировать безопасный допрос")
+	_expect(str(state.facts.get("second_seal_holder", "")) == "vardan", "Показания Саввы должны логично вывести расследование на Вардана")
+	_expect((state.characters["savva"] as CharacterState).trust == 6, "Добровольная явка должна улучшать доверие Саввы с учётом исходного отношения")
+	while state.calendar.cycle < 11:
+		state.advance_period()
+	_expect(state.story_timeline.choose(state, "family_warning", "double_guard"), "Угроза семье должна давать защитный вариант без использования ребёнка как приманки")
+	_expect(str(state.facts.get("family_security", "")) == "new_guard", "Решение по семье должно сохраняться для дальнейшей развилки")
+	while state.calendar.cycle < 13:
+		state.advance_period()
+	_expect(state.story_timeline.choose(state, "fathers_ledger", "inner_circle"), "Книгу отца должно быть можно передать узкому кругу")
+	_expect((state.characters["spouse"] as CharacterState).trust == 31, "Доверие Элины должно учитывать и охрану семьи, и доверенную тайну")
+	while state.calendar.cycle < 15:
+		state.advance_period()
+	var offer := state.story_timeline.contextual_definition(state, "vardan_offer")
+	_expect(str(offer.get("summary", "")).contains("Савва готов опровергнуть"), "Защищённый Савва должен стать живым свидетелем в сцене с Варданом")
+	_expect(state.story_timeline.choose(state, "vardan_offer", "refuse"), "Игрок должен иметь возможность отказаться легализовать власть Вардана")
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	var crisis := state.story_timeline.contextual_definition(state, "night_of_second_seal")
+	_expect(str(crisis.get("summary", "")).contains("не случайный налёт"), "Финальный кризис должен объяснять политическую цель нападения")
+	_expect(state.story_timeline.choose(state, "night_of_second_seal", "capital"), "В финальном кризисе должно быть можно разделить командование с Радомиром")
+	_expect(str(state.facts.get("second_seal_crisis", "")) == "capital_held", "Финальный выбор должен сохранять конкретный исход для эпилога")
+	_expect((state.characters["radomir"] as CharacterState).trust == 32, "Доверие Радомира должно учитывать и допуск к книге отца, и самостоятельное командование границей")
+
 func _test_neglected_events_and_border_branch() -> void:
 	var neglected := WorldState.new()
 	var grain_before := int(neglected.resources["grain"])
@@ -232,7 +265,7 @@ func _test_campaign_generates_a_stateful_outcome() -> void:
 		pass
 	_expect(state.calendar.is_demo_complete(), "Кампания должна дойти до эпилога")
 	_expect(state.campaign_outcome.generated, "В конце кампании должен формироваться итог")
-	_expect(state.campaign_outcome.summary_lines.size() == 3, "Итог должен охватывать страну, семью и границу")
+	_expect(state.campaign_outcome.summary_lines.size() == 4, "Итог должен охватывать страну, семью, границу и распределение власти")
 	_expect(state.campaign_outcome.continuation_hook.contains("ловушка"), "Пограничная стратегия должна менять зацепку продолжения")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.campaign_outcome.generated, "Сформированный эпилог должен сохраняться")

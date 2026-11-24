@@ -22,6 +22,7 @@ func generate(state: WorldState) -> void:
 	summary_lines.append(_realm_summary(state, rural, guilds))
 	summary_lines.append(_family_summary(state))
 	summary_lines.append(_border_summary(northern_posture))
+	summary_lines.append(_power_summary(state))
 	continuation_hook = _build_hook(state, northern_posture)
 
 func _realm_summary(state: WorldState, rural: FactionState, guilds: FactionState) -> String:
@@ -46,7 +47,25 @@ func _border_summary(posture: String) -> String:
 		"ambush": return "Дружина скрыта у переправы. Если чужая колонна войдёт в долину, первый большой бой начнётся на выбранной вами земле."
 	return "Север остался без ясной политики. Чужие лазутчики знают о княжестве больше, чем княжество — об их хозяине."
 
+func _power_summary(state: WorldState) -> String:
+	match str(state.facts.get("second_seal_crisis", "unresolved")):
+		"capital_held": return "Столица удержана, но северная земля оставлена ради неё. Радомир получил самостоятельную военную власть — и теперь отвечает не только перед вами, но и перед людьми, которых спас."
+		"border_held": return "Северные ворота удержаны под вашим личным командованием. В столице победу помнят вместе с дымом сгоревших складов."
+		"false_orders_rejected": return "Вторая печать потеряла силу, когда люди перестали верить одному оттиску. Цена этой победы — открытая правда о тайных сделках княжеского дома."
+		"command_collapsed": return "Ночь поддельных приказов показала: одной печати оказалось достаточно, чтобы власть перестала понимать саму себя."
+	return "Вторая печать остаётся не просто украденной вещью, а доказательством того, что приказ действует лишь пока люди признают стоящую за ним власть."
+
 func _build_hook(state: WorldState, posture: String) -> String:
+	var crisis := str(state.facts.get("second_seal_crisis", ""))
+	var vardan := str(state.facts.get("vardan_stance", ""))
+	if crisis == "capital_held":
+		return "Продолжение: с оставленной северной земли прибывают семьи, обвиняющие столицу в спасении за их счёт; среди беженцев скрывается человек со второй печатью."
+	if crisis == "border_held":
+		return "Продолжение: на пепелище речного склада найден список дворцовых чиновников. Одно имя вписано рукой человека из ближайшего семейного круга."
+	if crisis == "false_orders_rejected":
+		return "Продолжение: город требует суда над участниками старой сети, но северный посол предлагает обменять Вардана на мир и возвращение захваченной переправы."
+	if vardan == "inside_council":
+		return "Продолжение: новый советник Вардан приносит доказательство измены одного из ваших людей — и требует право лично провести допрос."
 	if posture == "ambush":
 		return "Продолжение: ночной колокол у переправы — ловушка захлопнулась, но в колонне замечено знамя человека, которого считали союзником вашего отца."
 	if posture == "parley":

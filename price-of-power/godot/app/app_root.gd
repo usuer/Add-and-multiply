@@ -628,7 +628,7 @@ func _add_available_story_events() -> void:
 	agenda_heading.modulate = Color("d9bd72")
 	secretary_case_body.add_child(agenda_heading)
 	for event_id: String in available:
-		var event := state.story_timeline.definition(event_id)
+		var event := state.story_timeline.contextual_definition(state, event_id)
 		var card := PanelContainer.new()
 		card.add_theme_stylebox_override("panel", _card_style())
 		secretary_case_body.add_child(card)
