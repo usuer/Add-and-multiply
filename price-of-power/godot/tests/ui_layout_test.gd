@@ -21,6 +21,23 @@ func _run() -> void:
 	_check_building_panel(app)
 	app.call("_close_building_panel")
 	await process_frame
+	app.call("_on_illustrated_building_selected", &"castle")
+	await process_frame
+	_check_council_cards(app)
+	app.call("_appoint_councillor", "steward", "vesna")
+	await process_frame
+	var council_state: WorldState = app.get("state") as WorldState
+	if str(council_state.council.appointments["steward"]) != "vesna":
+		failures.append("Назначение из карточки совета должно менять управляющего")
+	app.call("_set_castle_section", "policies")
+	await process_frame
+	_check_policy_cards(app)
+	app.call("_enact_policy", "labor", "protected")
+	await process_frame
+	if str(council_state.policies.active["labor"]) != "protected":
+		failures.append("Изменение правила через карточку должно вступать в силу")
+	app.call("_close_building_panel")
+	await process_frame
 	var state: WorldState = app.get("state") as WorldState
 	state.opening_decision.choose_funeral("solemn")
 	state.opening_decision.choose_grain("partial")
@@ -82,6 +99,35 @@ func _check_secretary_summary(app: Node, expected_cases: int) -> void:
 		failures.append("После вступления секретарь должен показывать актуальную повестку, а не старый заголовок")
 	if introduction == null or not introduction.text.contains("Новых дел: %d" % expected_cases):
 		failures.append("Канцелярия должна кратко показывать число новых дел: ожидалось %d" % expected_cases)
+
+func _check_council_cards(app: Node) -> void:
+	var labels: Array[String] = []
+	_collect_label_text(app.get("building_actions") as Node, labels)
+	for marker in ["Сильная сторона:", "Риск:", "Связи:"]:
+		var found := false
+		for value in labels:
+			if value.begins_with(marker):
+				found = true
+				break
+		if not found:
+			failures.append("Карточки советников должны показывать раздел «%s»" % marker)
+
+func _collect_label_text(node: Node, output: Array[String]) -> void:
+	if node is Label:
+		output.append((node as Label).text)
+	for child in node.get_children():
+		_collect_label_text(child, output)
+
+func _check_policy_cards(app: Node) -> void:
+	var labels: Array[String] = []
+	_collect_label_text(app.get("building_actions") as Node, labels)
+	var has_active_rule := false
+	for value in labels:
+		if value.begins_with("Действует:"):
+			has_active_rule = true
+			break
+	if not has_active_rule:
+		failures.append("Экран правил должен явно отделять действующий указ от альтернатив")
 
 func _check_header(app: Node, stage: String) -> void:
 	var visible_rect := root.get_visible_rect()

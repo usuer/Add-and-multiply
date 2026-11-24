@@ -13,10 +13,13 @@ func _initialize() -> void:
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
+	_test_council_candidates_have_visible_tradeoffs()
 	_test_physician_changes_epidemic_outcome()
 	_test_governance_policies_change_monthly_results()
+	_test_governance_rules_explain_each_choice()
 	_test_justice_cases_use_evidence_and_capacity()
 	_test_diplomacy_prices_intelligence_and_pressure()
+	_test_neighbors_have_distinct_political_interests()
 	_test_development_projects_use_workers_and_complete()
 	_test_army_uses_unit_specific_simultaneous_orders()
 	_test_campaign_guide_tracks_real_actions()
@@ -27,7 +30,7 @@ func _initialize() -> void:
 	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 23 checks")
+		print("PASS Godot foundation: 26 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -183,6 +186,12 @@ func _test_council_appointments_affect_government() -> void:
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.council.appointments["steward"] == "vesna", "Назначения должны сохраняться")
 
+func _test_council_candidates_have_visible_tradeoffs() -> void:
+	for candidate_id: String in CouncilState.CANDIDATES:
+		var candidate: Dictionary = CouncilState.CANDIDATES[candidate_id]
+		for field in ["temperament", "strength", "risk", "connections"]:
+			_expect(not str(candidate.get(field, "")).is_empty(), "У кандидата %s должно быть заполнено поле %s" % [candidate_id, field])
+
 func _test_physician_changes_epidemic_outcome() -> void:
 	var prepared := WorldState.new()
 	prepared.council.appoint(prepared, "physician", "mira")
@@ -215,6 +224,14 @@ func _test_governance_policies_change_monthly_results() -> void:
 	_expect(int(state.resources["weapons"]) == weapons_before + 4, "Всеобщая мобилизация должна ускорять вооружение")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(restored.policies.active["mobilization"] == "total", "Действующие правила должны сохраняться")
+
+func _test_governance_rules_explain_each_choice() -> void:
+	for category_id: String in GovernancePolicy.CATEGORIES:
+		var category: Dictionary = GovernancePolicy.CATEGORIES[category_id]
+		_expect(not str(category.get("sphere", "")).is_empty(), "У правила %s должна быть указана сфера" % category_id)
+		_expect(not str(category.get("question", "")).is_empty(), "У правила %s должен быть понятный вопрос" % category_id)
+		for option_id: String in category["options"]:
+			_expect(not str((category["descriptions"] as Dictionary).get(option_id, "")).is_empty(), "Вариант %s:%s должен иметь объяснение" % [category_id, option_id])
 
 func _test_justice_cases_use_evidence_and_capacity() -> void:
 	var state := WorldState.new()
@@ -250,6 +267,15 @@ func _test_diplomacy_prices_intelligence_and_pressure() -> void:
 	_expect(state.diplomacy.sabotage(state, "velgrad"), "Подготовленная диверсия должна выполняться")
 	var restored := WorldState.from_data(state.to_data())
 	_expect(bool(restored.facts.get("sabotage_velgrad", false)), "Проведённая операция должна сохраняться в мире")
+
+func _test_neighbors_have_distinct_political_interests() -> void:
+	var leaders: Dictionary = {}
+	for neighbor_id: String in DiplomacyState.NEIGHBORS:
+		var neighbor: Dictionary = DiplomacyState.NEIGHBORS[neighbor_id]
+		for field in ["leader", "goal", "fear", "character"]:
+			_expect(not str(neighbor.get(field, "")).is_empty(), "У соседа %s должно быть заполнено поле %s" % [neighbor_id, field])
+		leaders[str(neighbor["leader"])] = true
+	_expect(leaders.size() == DiplomacyState.NEIGHBORS.size(), "У соседних государств должны быть разные правители")
 
 func _test_development_projects_use_workers_and_complete() -> void:
 	var state := WorldState.new()

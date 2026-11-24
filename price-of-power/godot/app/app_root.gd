@@ -956,17 +956,58 @@ func _add_policy_actions() -> void:
 	for category_id: String in GovernancePolicy.CATEGORIES:
 		var category: Dictionary = GovernancePolicy.CATEGORIES[category_id]
 		var current := str(state.policies.active[category_id])
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", _card_style())
+		building_actions.add_child(card)
+		var margin := MarginContainer.new()
+		margin.add_theme_constant_override("margin_left", 14)
+		margin.add_theme_constant_override("margin_top", 12)
+		margin.add_theme_constant_override("margin_right", 14)
+		margin.add_theme_constant_override("margin_bottom", 14)
+		card.add_child(margin)
+		var content := VBoxContainer.new()
+		content.add_theme_constant_override("separation", 7)
+		margin.add_child(content)
+		var sphere := Label.new()
+		sphere.text = str(category["sphere"])
+		sphere.modulate = Color("d9bd72")
+		content.add_child(sphere)
 		var category_label := Label.new()
-		category_label.text = "%s · сейчас: %s" % [category["title"], category["options"][current]]
+		category_label.text = str(category["title"])
+		category_label.add_theme_font_size_override("font_size", 19)
 		category_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		building_actions.add_child(category_label)
+		content.add_child(category_label)
+		var question := Label.new()
+		question.text = str(category["question"])
+		question.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		question.modulate = Color("b9c2b3")
+		content.add_child(question)
+		var active_rule := Label.new()
+		active_rule.text = "Действует: %s\n%s" % [category["options"][current], category["descriptions"][current]]
+		active_rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		active_rule.add_theme_stylebox_override("normal", _active_rule_style())
+		content.add_child(active_rule)
 		for option_id: String in category["options"]:
 			if option_id == current: continue
 			var button := Button.new()
-			button.text = str(category["options"][option_id])
+			button.text = "%s\n%s" % [category["options"][option_id], category["descriptions"][option_id]]
+			button.custom_minimum_size = Vector2(0, 58)
+			button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			button.pressed.connect(_enact_policy.bind(category_id, option_id))
-			building_actions.add_child(button)
-		building_actions.add_child(HSeparator.new())
+			content.add_child(button)
+
+func _active_rule_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.11, 0.18, 0.10, 0.92)
+	style.border_color = Color("8da567")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(7)
+	style.content_margin_left = 10
+	style.content_margin_top = 8
+	style.content_margin_right = 10
+	style.content_margin_bottom = 8
+	return style
 
 func _enact_policy(category_id: String, option_id: String) -> void:
 	if state.policies.enact(state, category_id, option_id):
@@ -1016,25 +1057,51 @@ func _add_diplomacy_actions() -> void:
 	building_actions.add_child(heading)
 	for neighbor_id: String in DiplomacyState.NEIGHBORS:
 		var neighbor: Dictionary = DiplomacyState.NEIGHBORS[neighbor_id]
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", _card_style())
+		building_actions.add_child(card)
+		var card_margin := MarginContainer.new()
+		card_margin.add_theme_constant_override("margin_left", 14)
+		card_margin.add_theme_constant_override("margin_top", 12)
+		card_margin.add_theme_constant_override("margin_right", 14)
+		card_margin.add_theme_constant_override("margin_bottom", 14)
+		card.add_child(card_margin)
+		var card_content := VBoxContainer.new()
+		card_content.add_theme_constant_override("separation", 7)
+		card_margin.add_child(card_content)
 		var title := Label.new()
 		title.text = "%s · %s" % [neighbor["name"], state.diplomacy.relation_label(neighbor_id)]
 		title.add_theme_font_size_override("font_size", 18)
 		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		building_actions.add_child(title)
+		card_content.add_child(title)
+		var leader := Label.new()
+		leader.text = str(neighbor["leader"])
+		leader.modulate = Color("d9bd72")
+		card_content.add_child(leader)
 		var profile := Label.new()
-		profile.text = "%s\n%s" % [neighbor["character"], state.diplomacy.known_strength(neighbor_id)]
+		profile.text = "%s\nИзвестно о войске: %s" % [neighbor["character"], state.diplomacy.known_strength(neighbor_id)]
 		profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		profile.modulate = Color("b9c2b3")
-		building_actions.add_child(profile)
+		card_content.add_child(profile)
+		if int(state.diplomacy.intelligence.get(neighbor_id, 0)) >= 1:
+			var intent := Label.new()
+			intent.text = "Их интерес: %s\nИх опасение: %s" % [neighbor["goal"], neighbor["fear"]]
+			intent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			intent.modulate = Color("c7d0c3")
+			card_content.add_child(intent)
+		var trade_heading := Label.new()
+		trade_heading.text = "ТОРГОВЫЕ ПРЕДЛОЖЕНИЯ"
+		trade_heading.modulate = Color("d9bd72")
+		card_content.add_child(trade_heading)
 		for good_id: String in neighbor["goods"]:
 			var trade := Button.new()
 			trade.text = "Купить 10 %s · %d монет" % [_resource_name(good_id), state.diplomacy.pack_price(neighbor_id, good_id)]
 			trade.disabled = state.state_treasury < state.diplomacy.pack_price(neighbor_id, good_id)
 			trade.pressed.connect(_buy_diplomatic_pack.bind(neighbor_id, good_id))
-			building_actions.add_child(trade)
+			card_content.add_child(trade)
 		var actions := HBoxContainer.new()
 		actions.add_theme_constant_override("separation", 4)
-		building_actions.add_child(actions)
+		card_content.add_child(actions)
 		var spy := Button.new()
 		spy.text = "Разведать"
 		spy.disabled = not state.diplomacy.can_spy(state, neighbor_id)
@@ -1049,7 +1116,6 @@ func _add_diplomacy_actions() -> void:
 		sabotage.disabled = not state.diplomacy.can_sabotage(state, neighbor_id)
 		sabotage.pressed.connect(_sabotage_neighbor.bind(neighbor_id))
 		actions.add_child(sabotage)
-		building_actions.add_child(HSeparator.new())
 
 func _resource_name(good_id: String) -> String:
 	return {"grain": "зерна", "wood": "древесины", "tools": "инструментов", "worked_iron": "железа", "weapons": "оружия"}.get(good_id, good_id)
@@ -1177,27 +1243,87 @@ func _add_council_actions() -> void:
 	heading.text = "СОВЕТ КНЯЗЯ"
 	heading.modulate = Color("d9bd72")
 	building_actions.add_child(heading)
+	var explanation := Label.new()
+	explanation.text = "Каждый кандидат полезен по-своему и приносит собственные обязательства. Точные последствия проявятся в работе."
+	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	explanation.modulate = Color("b9c2b3")
+	building_actions.add_child(explanation)
 	for role_id: String in CouncilState.ROLES:
 		var current_id := str(state.council.appointments.get(role_id, ""))
+		var role_card := PanelContainer.new()
+		role_card.add_theme_stylebox_override("panel", _card_style())
+		building_actions.add_child(role_card)
+		var role_margin := MarginContainer.new()
+		role_margin.add_theme_constant_override("margin_left", 14)
+		role_margin.add_theme_constant_override("margin_top", 12)
+		role_margin.add_theme_constant_override("margin_right", 14)
+		role_margin.add_theme_constant_override("margin_bottom", 14)
+		role_card.add_child(role_margin)
+		var role_content := VBoxContainer.new()
+		role_content.add_theme_constant_override("separation", 7)
+		role_margin.add_child(role_content)
 		var role_label := Label.new()
-		role_label.text = "%s: %s" % [CouncilState.ROLES[role_id], CouncilState.CANDIDATES[current_id]["name"] if CouncilState.CANDIDATES.has(current_id) else "должность свободна"]
-		role_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		building_actions.add_child(role_label)
+		role_label.text = str(CouncilState.ROLES[role_id]).to_upper()
+		role_label.modulate = Color("d9bd72")
+		role_content.add_child(role_label)
+		var incumbent := Label.new()
+		incumbent.text = "Сейчас: %s" % [CouncilState.CANDIDATES[current_id]["name"] if CouncilState.CANDIDATES.has(current_id) else "должность свободна"]
+		incumbent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		role_content.add_child(incumbent)
 		for candidate_id: String in state.council.candidates_for(role_id):
 			if candidate_id == current_id:
 				continue
 			var candidate: Dictionary = CouncilState.CANDIDATES[candidate_id]
-			var profile := Label.new()
-			profile.text = "%s — %s" % [candidate["name"], candidate["profile"]]
-			profile.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			profile.modulate = Color("b9c2b3")
-			building_actions.add_child(profile)
+			role_content.add_child(HSeparator.new())
+			var identity := HBoxContainer.new()
+			identity.add_theme_constant_override("separation", 10)
+			role_content.add_child(identity)
+			var initials := Label.new()
+			initials.text = _candidate_initials(str(candidate["name"]))
+			initials.custom_minimum_size = Vector2(46, 46)
+			initials.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			initials.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			initials.add_theme_font_size_override("font_size", 18)
+			initials.add_theme_stylebox_override("normal", _portrait_badge_style())
+			identity.add_child(initials)
+			var identity_text := VBoxContainer.new()
+			identity_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			identity.add_child(identity_text)
+			var name_label := Label.new()
+			name_label.text = str(candidate["name"])
+			name_label.add_theme_font_size_override("font_size", 18)
+			identity_text.add_child(name_label)
+			var temperament := Label.new()
+			temperament.text = str(candidate["temperament"])
+			temperament.modulate = Color("b9c2b3")
+			identity_text.add_child(temperament)
+			for line in ["Сильная сторона: %s" % candidate["strength"], "Риск: %s" % candidate["risk"], "Связи: %s" % candidate["connections"]]:
+				var detail := Label.new()
+				detail.text = line
+				detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				detail.modulate = Color("c7d0c3")
+				role_content.add_child(detail)
 			var button := Button.new()
-			button.text = "Назначить: %s" % candidate["name"]
+			button.text = "Назначить на должность"
+			button.custom_minimum_size = Vector2(0, 42)
 			button.tooltip_text = str(candidate["profile"])
 			button.pressed.connect(_appoint_councillor.bind(role_id, candidate_id))
-			building_actions.add_child(button)
-	building_actions.add_child(HSeparator.new())
+			role_content.add_child(button)
+
+func _candidate_initials(candidate_name: String) -> String:
+	var parts := candidate_name.split(" ", false)
+	var result := ""
+	for part in parts.slice(0, 2):
+		result += part.left(1).to_upper()
+	return result
+
+func _portrait_badge_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("263d31")
+	style.border_color = Color("b99b54")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(23)
+	return style
 
 func _appoint_councillor(role_id: String, candidate_id: String) -> void:
 	if state.council.appoint(state, role_id, candidate_id):
