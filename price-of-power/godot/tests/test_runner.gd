@@ -33,9 +33,10 @@ func _initialize() -> void:
 	_test_ruler_overwork_causes_temporary_incapacity()
 	_test_atomic_autosave_fallback()
 	_test_battle_view_builds_animated_formations()
+	_test_location_conversations_are_stateful()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 31 checks")
+		print("PASS Godot foundation: 32 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -45,6 +46,18 @@ func _initialize() -> void:
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
+
+func _test_location_conversations_are_stateful() -> void:
+	var state := WorldState.new()
+	var people: Array[String] = state.conversations.people_at("castle", state)
+	_expect(people == ["spouse", "sister", "secretary", "borin"], "В тронном зале должны находиться четыре постоянных собеседника")
+	var trust_before := (state.characters["spouse"] as CharacterState).trust
+	var response: String = state.conversations.choose(state, "spouse", "share")
+	_expect(not response.is_empty(), "Личный разговор должен возвращать осмысленный ответ")
+	_expect((state.characters["spouse"] as CharacterState).trust == trust_before + 2, "Разговор должен менять отношение персонажа")
+	_expect("share" not in state.conversations.available_options("spouse"), "Обсуждённая тема не должна сразу повторяться")
+	var restored := WorldState.from_data(state.to_data())
+	_expect("share" not in restored.conversations.available_options("spouse"), "Память разговора должна сохраняться вместе с кампанией")
 
 func _test_calendar_has_eighteen_cycles() -> void:
 	var calendar := CampaignCalendar.new()

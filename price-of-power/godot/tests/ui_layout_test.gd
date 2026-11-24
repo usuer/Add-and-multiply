@@ -28,6 +28,18 @@ func _run() -> void:
 	await process_frame
 	app.call("_on_illustrated_building_selected", &"castle")
 	await process_frame
+	await _check_location_sizes(app, 4)
+	app.call("_open_character_dialogue", "spouse")
+	await process_frame
+	_check_character_dialogue(app)
+	var outside_click := InputEventMouseButton.new()
+	outside_click.button_index = MOUSE_BUTTON_LEFT
+	outside_click.pressed = true
+	(app.get("location_scene") as Control).call("_on_dialogue_shade_input", outside_click)
+	if (app.get("location_scene") as Control).get("dialogue_layer").visible:
+		failures.append("Нажатие по затемнённой области должно закрывать разговор")
+	app.call("_open_location_management", "castle")
+	await process_frame
 	_check_council_cards(app)
 	app.call("_appoint_councillor", "steward", "vesna")
 	await process_frame
@@ -46,6 +58,11 @@ func _run() -> void:
 		failures.append("Изменение правила через карточку должно вступать в силу")
 	app.call("_close_building_panel")
 	await process_frame
+	app.call("_close_location_scene")
+	app.call("_on_illustrated_building_selected", &"barracks")
+	await process_frame
+	_check_location_scene(app, 2)
+	app.call("_close_location_scene")
 	var state: WorldState = app.get("state") as WorldState
 	state.opening_decision.choose_funeral("solemn")
 	state.opening_decision.choose_grain("partial")
@@ -101,6 +118,49 @@ func _check_building_panel(app: Node) -> void:
 		failures.append("Карточка здания должна показывать художественное приближение объекта")
 	if context == null or context.text != "ЗАПАСЫ И СНАБЖЕНИЕ":
 		failures.append("Карточка амбара должна объяснять назначение места")
+
+func _check_location_scene(app: Node, expected_people: int) -> void:
+	var scene := app.get("location_scene") as Control
+	if scene == null or not scene.visible or not root.get_visible_rect().encloses(scene.get_global_rect()):
+		failures.append("Локация должна открываться отдельной полноэкранной игровой сценой")
+		return
+	var background := scene.get("background") as TextureRect
+	if background == null or background.texture == null:
+		failures.append("У отдельной локации должен быть собственный фон")
+	var actors: Dictionary = scene.get("person_actors")
+	if actors.size() != expected_people:
+		failures.append("В локации ожидалось %d отдельных персонажей, найдено %d" % [expected_people, actors.size()])
+	var actor_rects: Array[Rect2] = []
+	for person_id: String in actors:
+		var actor := actors[person_id] as Control
+		if not root.get_visible_rect().encloses(actor.get_global_rect()):
+			failures.append("Персонаж %s вышел за границы экрана" % person_id)
+		for other_rect: Rect2 in actor_rects:
+			if actor.get_global_rect().intersects(other_rect):
+				failures.append("Персонажи в локации перекрывают друг друга")
+		actor_rects.append(actor.get_global_rect())
+
+func _check_location_sizes(app: Node, expected_people: int) -> void:
+	for window_size in [Vector2i(1024, 700), Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1920, 1080), Vector2i(2560, 1440)]:
+		root.size = window_size
+		await process_frame
+		await process_frame
+		_check_location_scene(app, expected_people)
+	root.size = Vector2i(1024, 700)
+	await process_frame
+
+func _check_character_dialogue(app: Node) -> void:
+	var scene := app.get("location_scene") as Control
+	var layer := scene.get("dialogue_layer") as Control
+	var panel := scene.get("dialogue_panel") as PanelContainer
+	if layer == null or not layer.visible:
+		failures.append("Нажатие на персонажа должно открывать разговор")
+	if panel == null or not root.get_visible_rect().encloses(panel.get_global_rect()):
+		failures.append("Диалог должен полностью помещаться на экране")
+	var actors: Dictionary = scene.get("person_actors")
+	var spouse := actors.get("spouse") as Control
+	if spouse == null or spouse.get("display_name") == "":
+		failures.append("Персонаж в локации должен иметь видимое имя и отдельное состояние")
 
 func _check_secretary_summary(app: Node, expected_cases: int) -> void:
 	var title := app.get("secretary_title") as Label

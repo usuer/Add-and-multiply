@@ -1,6 +1,8 @@
 class_name WorldState
 extends Resource
 
+const CONVERSATIONS_SCRIPT := preload("res://simulation/character_conversations.gd")
+
 const SAVE_VERSION: int = 1
 const CORE_CAST: Dictionary = {
 	"spouse": {"name": "Княгиня Элина", "affection": 34, "respect": 28, "trust": 24, "courage": 68, "conscience": 72, "ambition": 64, "violence": 12},
@@ -32,6 +34,7 @@ const CORE_CAST: Dictionary = {
 @export var opening_decision: OpeningDecision = OpeningDecision.new()
 @export var opening_followup: OpeningFollowup = OpeningFollowup.new()
 @export var story_timeline: StoryTimeline = StoryTimeline.new()
+@export var conversations: Resource = CONVERSATIONS_SCRIPT.new()
 @export var campaign_outcome: CampaignOutcome = CampaignOutcome.new()
 @export var council: CouncilState = CouncilState.new()
 @export var policies: GovernancePolicy = GovernancePolicy.new()
@@ -193,6 +196,7 @@ func to_data() -> Dictionary:
 		"opening_decision": opening_decision.to_data(),
 		"opening_followup": opening_followup.to_data(),
 		"story_timeline": story_timeline.to_data(),
+		"conversations": conversations.to_data(),
 		"campaign_outcome": campaign_outcome.to_data(),
 		"council": council.to_data(),
 		"policies": policies.to_data(),
@@ -231,6 +235,7 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.opening_decision.load_data(data.get("opening_decision", {}))
 	state.opening_followup.load_data(data.get("opening_followup", {}))
 	state.story_timeline.load_data(data.get("story_timeline", {}))
+	state.conversations.load_data(data.get("conversations", {}))
 	state.campaign_outcome.load_data(data.get("campaign_outcome", {}))
 	state.council.load_data(data.get("council", {}))
 	state.policies.load_data(data.get("policies", {}))

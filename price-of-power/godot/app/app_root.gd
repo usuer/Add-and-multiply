@@ -3,6 +3,8 @@ extends Node3D
 const CAPITAL_CAMERA := preload("res://world/capital_camera.gd")
 const CITY_BUILDING := preload("res://world/city_building.gd")
 const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
+const LOCATION_SCENE := preload("res://world/location_scene.gd")
+const LOCATION_CATALOG := preload("res://world/location_catalog.gd")
 const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
 const FATHER_LAST_NIGHT_ART: Texture2D = preload("res://assets/art/fathers_last_night.png")
 const USE_3D_PLACEHOLDERS: bool = false
@@ -53,6 +55,9 @@ var intro_picture: TextureRect
 var intro_page: int = 0
 var objectives_label: Label
 var illustrated_map: IllustratedCapitalMap
+var location_scene: Control
+var selected_location_id: String = ""
+var management_from_location: bool = false
 var battle_view: Control
 var interface_root: VBoxContainer
 var modal_shade: ColorRect
@@ -98,7 +103,12 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-		_toggle_pause_menu()
+		if location_scene != null and location_scene.visible and location_scene.dialogue_layer.visible:
+			location_scene.close_dialogue()
+		elif location_scene != null and location_scene.visible:
+			_close_location_scene()
+		else:
+			_toggle_pause_menu()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and event.alt_pressed and event.keycode == KEY_ENTER:
@@ -347,6 +357,14 @@ func _create_ui() -> void:
 	notice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	notice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	footer.add_child(notice_label)
+	location_scene = LOCATION_SCENE.new()
+	location_scene.visible = false
+	location_scene.z_index = 50
+	location_scene.back_requested.connect(_close_location_scene)
+	location_scene.person_selected.connect(_open_character_dialogue)
+	location_scene.option_selected.connect(_choose_character_dialogue)
+	location_scene.management_requested.connect(_open_location_management)
+	layer.add_child(location_scene)
 
 func _create_modal_shade(layer: CanvasLayer) -> void:
 	modal_shade = ColorRect.new()
@@ -354,6 +372,8 @@ func _create_modal_shade(layer: CanvasLayer) -> void:
 	modal_shade.color = Color(0.01, 0.02, 0.018, 0.78)
 	modal_shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal_shade.z_index = 60
+	modal_shade.gui_input.connect(_on_modal_shade_input)
 	layer.add_child(modal_shade)
 
 func _panel_style() -> StyleBoxFlat:
@@ -375,6 +395,7 @@ func _create_intro_overlay(layer: CanvasLayer) -> void:
 	intro_overlay.visible = false
 	intro_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	intro_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	intro_overlay.z_index = 110
 	layer.add_child(intro_overlay)
 	var shade := ColorRect.new()
 	shade.color = Color(0.025, 0.045, 0.04, 0.88)
@@ -431,6 +452,7 @@ func _create_pause_menu(layer: CanvasLayer) -> void:
 	pause_overlay.visible = false
 	pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_overlay.z_index = 100
 	layer.add_child(pause_overlay)
 	var shade := ColorRect.new()
 	shade.color = Color(0.01, 0.02, 0.018, 0.88)
@@ -562,6 +584,7 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	building_panel.position = Vector2(-488, -325)
 	building_panel.size = Vector2(460, 650)
 	building_panel.add_theme_stylebox_override("panel", _panel_style())
+	building_panel.z_index = 70
 	layer.add_child(building_panel)
 
 	var panel_margin := MarginContainer.new()
@@ -618,6 +641,7 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 	secretary_panel.position = Vector2(-430, -350)
 	secretary_panel.size = Vector2(860, 700)
 	secretary_panel.add_theme_stylebox_override("panel", _panel_style())
+	secretary_panel.z_index = 70
 	layer.add_child(secretary_panel)
 
 	var margin := MarginContainer.new()
@@ -1015,6 +1039,9 @@ func _building_context(building_id: StringName) -> String:
 
 func _on_illustrated_building_selected(building_id: StringName) -> void:
 	_play_ui_sound("click")
+	if LOCATION_CATALOG.has_location(String(building_id)) and not (building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE):
+		_open_location_scene(String(building_id))
+		return
 	for child: Node in get_children():
 		if child is CityBuilding and (child as CityBuilding).building_id == building_id:
 			var show_battle := building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE
@@ -1028,6 +1055,65 @@ func _on_illustrated_building_selected(building_id: StringName) -> void:
 				if battle_view != null: battle_view.visible = false
 			_on_building_selected(child as CityBuilding)
 			return
+
+func _open_location_scene(location_id: String) -> void:
+	selected_location_id = location_id
+	management_from_location = false
+	building_panel.visible = false
+	secretary_panel.visible = false
+	modal_shade.visible = false
+	var definition: Dictionary = LOCATION_CATALOG.definition(location_id)
+	if definition.is_empty():
+		return
+	var texture := load(str(definition["texture"])) as Texture2D
+	var title := str(definition["title"])
+	var hotspots := definition.get("hotspots", {}) as Dictionary
+	var people: Array[String] = state.conversations.people_at(location_id, state)
+	location_scene.configure(location_id, title, texture, hotspots, people, state.characters, state.conversations.PROFILES)
+	location_scene.visible = true
+	_play_ui_sound("click")
+
+func _close_location_scene() -> void:
+	location_scene.close_dialogue()
+	location_scene.visible = false
+	selected_location_id = ""
+	management_from_location = false
+	illustrated_map.visible = true
+	illustrated_map.reset_overview()
+
+func _open_character_dialogue(person_id: String) -> void:
+	if not state.characters.has(person_id):
+		return
+	var option_data: Dictionary = {}
+	for option_id: String in state.conversations.available_options(person_id):
+		option_data[option_id] = state.conversations.option(person_id, option_id)
+	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data)
+	_play_ui_sound("click")
+
+func _choose_character_dialogue(person_id: String, option_id: String) -> void:
+	var response: String = state.conversations.choose(state, person_id, option_id)
+	if response.is_empty():
+		return
+	var option_data: Dictionary = {}
+	for available_id: String in state.conversations.available_options(person_id):
+		option_data[available_id] = state.conversations.option(person_id, available_id)
+	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data, response)
+	_play_ui_sound("decision")
+	_refresh_ui("Разговор с %s сохранён в памяти персонажа." % (state.characters[person_id] as CharacterState).display_name)
+
+func _open_location_management(location_id: String) -> void:
+	for child: Node in get_children():
+		if child is CityBuilding and String((child as CityBuilding).building_id) == location_id:
+			management_from_location = true
+			_on_building_selected(child as CityBuilding)
+			return
+
+func _on_modal_shade_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if building_panel.visible:
+			_close_building_panel()
+		elif secretary_panel.visible:
+			_close_secretary()
 
 func _ensure_battle_view() -> void:
 	if battle_view != null: return
@@ -1689,6 +1775,10 @@ func _close_building_panel() -> void:
 	if selected_building != null:
 		selected_building.set_highlighted(false)
 	selected_building = null
+	if management_from_location and location_scene.visible:
+		management_from_location = false
+		modal_shade.visible = false
+		return
 	modal_shade.visible = secretary_panel.visible
 	if battle_view != null: battle_view.visible = false
 	illustrated_map.visible = true
