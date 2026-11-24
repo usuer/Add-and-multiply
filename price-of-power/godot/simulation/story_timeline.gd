@@ -7,6 +7,11 @@ const DEFINITIONS: Dictionary = {
 		"summary": "После ночного дождя смотритель обнаружил мокрые балки. Зерно пока цело, но следующая непогода может пройти сквозь кровлю.",
 		"choices": {"repair": "Послать плотников немедленно", "inspect": "Сначала проверить смету и виновных", "relocate": "Перенести зерно по соседним складам"}
 	},
+	"dead_prince_order": {
+		"cycle": 3, "title": "Приказ, подписанный после смерти", "location": "Городская стража",
+		"summary": "Дарен Клин принёс приказ о переводе заключённого Саввы Лунина. На документе стоит печать вашего отца, однако приказ датирован утром после его смерти. Заключённый по дороге бежал; писец Савва Лунь, его старший брат, сегодня не вышел на службу.",
+		"choices": {"quiet": "Тихо проверить канцелярию и семью Саввы", "public": "Объявить печать поддельной и начать открытый розыск", "guard": "Задержать стражников, исполнивших невозможный приказ"}
+	},
 	"smiths_dispute": {
 		"cycle": 4, "title": "Кузнецы закрыли ворота", "location": "Ремесленный квартал",
 		"summary": "Мастера отказываются выдавать заказанные инструменты. Старшина говорит о долгах казны, канцлер — о завышенных счетах.",
@@ -93,6 +98,9 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 			state.resources["grain"] = maxi(0, int(state.resources.get("grain", 0)) - 12)
 			state.facts["granary_roof"] = "collapsed"
 			return "После нового ливня часть кровли рухнула. Намокшее зерно пришлось выбросить."
+		"dead_prince_order":
+			state.facts["second_seal_investigation"] = "trail_cold"
+			return "Пока двор не отвечал, семья Саввы исчезла из дома. В печи канцелярии нашли обгоревшие черновики приказов, но самого писца уже никто не видел."
 		"smiths_dispute":
 			state.resources["tools"] = maxi(0, int(state.resources.get("tools", 0)) - 2)
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -5, "Княжеский двор две недели не отвечал на остановку кузниц.")
@@ -144,6 +152,18 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.resources["grain"] = maxi(0, int(state.resources["grain"]) - 2)
 			state.facts["granary_roof"] = "grain_relocated"
 			return "Зерно разнесли по частным складам. Часть просыпали в дороге, а купцы теперь знают точный размер княжеских запасов."
+		"dead_prince_order:quiet":
+			state.facts["second_seal_investigation"] = "quiet"
+			state.facts["savva_family_watched"] = true
+			return "Дарен оставил двух людей наблюдать за домом Саввы, а Марек поднял списки тех, кто имел доступ к кабинету старого князя. О пропавшей печати в городе пока не знают."
+		"dead_prince_order:public":
+			state.facts["second_seal_investigation"] = "public"
+			(state.factions["nobility"] as FactionState).react(state.calendar.cycle, -2, "Двор узнал, что от имени умершего князя продолжают выходить приказы.")
+			return "На воротах вывесили описание Саввы и предупреждение о поддельной печати. Теперь старые приказы будут проверять внимательнее — и тот, у кого находится печать, тоже знает о розыске."
+		"dead_prince_order:guard":
+			state.facts["second_seal_investigation"] = "guard_detained"
+			state.public_order = maxi(0, state.public_order - 2)
+			return "Троих стражников заперли до допроса. Они настаивают, что исполнили безупречный документ; остальные караулы теперь требуют письменного подтверждения даже обычных распоряжений."
 		"smiths_dispute:mediate":
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 3, "Князь лично выслушал спор ремесленников с казной.")
 			return "Стороны согласились открыть книги. Работа возобновилась на три дня, пока писцы сверяют счета."

@@ -95,10 +95,13 @@ func _check_building_panel(app: Node) -> void:
 func _check_secretary_summary(app: Node, expected_cases: int) -> void:
 	var title := app.get("secretary_title") as Label
 	var introduction := app.get("secretary_introduction") as Label
+	var scroll := app.get("secretary_scroll") as ScrollContainer
 	if title == null or title.text != "Дела княжеской канцелярии":
 		failures.append("После вступления секретарь должен показывать актуальную повестку, а не старый заголовок")
 	if introduction == null or not introduction.text.contains("Новых дел: %d" % expected_cases):
 		failures.append("Канцелярия должна кратко показывать число новых дел: ожидалось %d" % expected_cases)
+	if scroll == null or scroll.horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED:
+		failures.append("Канцелярия не должна требовать горизонтальной прокрутки")
 
 func _check_council_cards(app: Node) -> void:
 	var labels: Array[String] = []

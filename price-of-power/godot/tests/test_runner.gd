@@ -9,6 +9,7 @@ func _initialize() -> void:
 	_test_opening_decision_is_composite_and_atomic()
 	_test_opening_decision_creates_social_memory()
 	_test_followup_conversation_remembers_response()
+	_test_opening_context_branches_into_second_seal_story()
 	_test_story_events_unlock_and_resolve_once()
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
@@ -30,7 +31,7 @@ func _initialize() -> void:
 	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 26 checks")
+		print("PASS Godot foundation: 27 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -117,6 +118,33 @@ func _test_followup_conversation_remembers_response() -> void:
 	_expect(state.opening_followup.choose(state, "apologize"), "Доступный ответ должен завершать разговор")
 	_expect((state.characters["spouse"] as CharacterState).memories.size() == before + 1, "Ответ должен остаться в памяти собеседника")
 	_expect(not state.opening_followup.choose(state, "duty"), "Нельзя ответить в завершённом разговоре второй раз")
+
+func _test_opening_context_branches_into_second_seal_story() -> void:
+	for choice_id: String in OpeningDecision.FUNERAL_PLANS:
+		_expect(not str(OpeningDecision.FUNERAL_PLANS[choice_id].get("description", "")).is_empty(), "План похорон %s должен объяснять содержание решения" % choice_id)
+	for choice_id: String in OpeningDecision.GRAIN_RESPONSES:
+		_expect(not str(OpeningDecision.GRAIN_RESPONSES[choice_id].get("description", "")).is_empty(), "Ответ области %s должен объяснять практический смысл" % choice_id)
+
+	var delayed := WorldState.new()
+	delayed.opening_decision.choose_funeral("solemn")
+	delayed.opening_decision.choose_grain("defer")
+	delayed.opening_decision.choose_funding("state")
+	_expect(delayed.opening_decision.resolve(delayed), "Решение дождаться проверки должно выполняться")
+	_expect(delayed.opening_followup.spoken_text.contains("уехали без зерна"), "Лада должна обсуждать конкретный отказ в помощи")
+	_expect("verify_first" in delayed.opening_followup.response_ids, "Ответы Ладе должны соответствовать задержке обоза")
+
+	var relieved := WorldState.new()
+	relieved.opening_decision.choose_funeral("solemn")
+	relieved.opening_decision.choose_grain("partial")
+	relieved.opening_decision.choose_funding("state")
+	_expect(relieved.opening_decision.resolve(relieved), "Частичная помощь должна выполняться")
+	_expect(relieved.opening_followup.spoken_text.contains("отправляешь зерно"), "Лада должна признавать уже принятое решение о помощи")
+	_expect("investigate" in relieved.opening_followup.response_ids, "После помощи разговор должен вести к расследованию недостачи")
+	relieved.advance_period()
+	relieved.advance_period()
+	_expect("dead_prince_order" in relieved.story_timeline.available_events(relieved.calendar.cycle), "На третьем цикле должен появляться приказ с печатью умершего князя")
+	_expect(relieved.story_timeline.choose(relieved, "dead_prince_order", "quiet"), "Должно быть можно начать тихое расследование второй печати")
+	_expect(str(relieved.facts.get("second_seal_investigation", "")) == "quiet", "Выбор должен сохранять направление расследования")
 
 func _test_story_events_unlock_and_resolve_once() -> void:
 	var state := WorldState.new()

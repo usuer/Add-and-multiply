@@ -16,14 +16,19 @@ func prepare(decision: OpeningDecision) -> void:
 		return
 	if decision.funding_source == "family":
 		actor_id = "spouse"
-		title = "Разговор после совета"
-		spoken_text = "Элина ждёт вас у погасшего камина. «Я не спорю с самим решением. Но семейная казна — это безопасность детей и дома. Мне важно знать: ты всё ещё считаешь меня частью таких решений?»"
+		title = "Элина ждёт объяснения о семейных деньгах"
+		spoken_text = "После совета Элина закрывает дверь в семейные покои. «Ты оплатил из наших денег похороны и всё, что потребовалось для решения по зерну. Я не говорю, что людям не надо помогать. Я спрашиваю, почему узнала об этом после того, как ты поставил печать»."
 		response_ids.assign(["apologize", "duty", "promise"])
 	else:
 		actor_id = "sister"
-		title = "Сестра просит объяснения"
-		spoken_text = "Лада задерживается после совета. «Люди запомнят не сумму расходов, а то, кого ты услышал первым. Скажи честно: что для тебя было главным?»"
-		response_ids.assign(["people", "order", "family"])
+		if decision.grain_response == "defer":
+			title = "Лада спрашивает о просителях из Долинной области"
+			spoken_text = "После совета Лада догоняет вас в коридоре. «Старосты уехали без зерна. Ты сказал ждать, пока проверят книги. Сколько, по-твоему, они смогут ждать?»"
+			response_ids.assign(["verify_first", "reserve_fear", "admit_delay"])
+		else:
+			title = "Лада спрашивает о помощи Долинной области"
+			spoken_text = "После совета Лада остаётся у двери. «Я слышала, что ты отправляешь зерно в Долинную область. Хорошо. Но в книгах всё равно недостача. Ты будешь искать, кто её устроил?»"
+			response_ids.assign(["investigate", "relief_first", "delegate"])
 	status = Status.AVAILABLE
 
 func response_title(response_id: String) -> String:
@@ -33,7 +38,13 @@ func response_title(response_id: String) -> String:
 		"promise": "Пообещать вернуть средства семье",
 		"people": "Люди не должны платить за нашу медлительность",
 		"order": "Сначала нужно сохранить порядок",
-		"family": "Я хотел достойно проводить отца"
+		"family": "Я хотел достойно проводить отца",
+		"verify_first": "Если запас уже украли, новый обоз тоже может не дойти",
+		"reserve_fear": "Я не могу опустошить амбары, не зная, сколько зерна осталось",
+		"admit_delay": "Я не знаю. Возможно, я слишком долго сомневаюсь",
+		"investigate": "Да. Помощь не отменяет расследования",
+		"relief_first": "Сначала обоз должен дойти до людей",
+		"delegate": "Поручу проверку тому, кто не связан с казной"
 	}.get(response_id, "")
 
 func choose(state: WorldState, response_id: String) -> bool:
@@ -61,6 +72,27 @@ func choose(state: WorldState, response_id: String) -> bool:
 		"family":
 			actor.remember(state.calendar.cycle, "private_conversation", "Вы признались, что думали прежде всего о семье и памяти отца.", {"affection": 3})
 			closing_text = "Лада берёт вас за руку. «Это честный ответ. Только княжество не даст нам долго оставаться просто детьми своего отца»."
+		"verify_first":
+			actor.remember(state.calendar.cycle, "private_conversation", "Вы объяснили задержку опасением новой кражи зерна.", {"respect": 2})
+			state.facts["grain_investigation_promised"] = true
+			closing_text = "Лада кивает. «Тогда найди виновного быстро. Пустая миска не становится полнее от правильного расследования»."
+		"reserve_fear":
+			actor.remember(state.calendar.cycle, "private_conversation", "Вы признались, что боитесь оставить княжество без резерва.", {"trust": 1})
+			closing_text = "«Этого я хотя бы понимаю», — отвечает Лада. «Но старостам нужно было сказать то же самое, а не отправлять их молча»."
+		"admit_delay":
+			actor.remember(state.calendar.cycle, "private_conversation", "Вы признали, что сомнения могли оставить людей без помощи.", {"trust": 3, "resentment": -1})
+			closing_text = "Лада выдыхает. «Тогда ещё можно исправить. Только не жди, пока они снова приедут просить»."
+		"investigate":
+			actor.remember(state.calendar.cycle, "private_conversation", "Вы пообещали расследовать недостачу после отправки помощи.", {"trust": 3, "respect": 1})
+			state.facts["grain_investigation_promised"] = true
+			closing_text = "«Хорошо. Я попрошу старост записать, сколько зерна действительно дошло до каждой деревни»."
+		"relief_first":
+			actor.remember(state.calendar.cycle, "private_conversation", "Вы поставили доставку помощи выше немедленного поиска виновных.", {"affection": 2})
+			closing_text = "Лада кивает. «Тогда я дождусь обоз у южной дороги и пришлю тебе весть»."
+		"delegate":
+			actor.remember(state.calendar.cycle, "private_conversation", "Вы решили провести независимую проверку зерновых книг.", {"respect": 3})
+			state.facts["independent_grain_audit_promised"] = true
+			closing_text = "«Только не Борину», — сразу говорит Лада. «Если ошиблись его люди, они же не должны проверять сами себя»."
 	status = Status.RESOLVED
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "opening_followup_resolved", "actor": actor_id, "response": response_id})
 	state.add_fatigue(2)

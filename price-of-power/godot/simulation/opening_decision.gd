@@ -4,16 +4,16 @@ extends Resource
 enum Status { WAITING, READY, RESOLVED }
 
 const FUNERAL_PLANS: Dictionary = {
-	"modest": {"title": "Сдержанная церемония", "cost": 4},
-	"solemn": {"title": "Достойные княжеские похороны", "cost": 10},
-	"grand": {"title": "Великая церемония для всего региона", "cost": 18}
+	"modest": {"title": "Сдержанная семейная церемония", "description": "Короткое прощание в храме без большого приёма и дальних гостей.", "cost": 4},
+	"solemn": {"title": "Достойные княжеские похороны", "description": "Положенный обряд, городская процессия и поминальный стол для прибывших вассалов.", "cost": 10},
+	"grand": {"title": "Большое прощание со старым князем", "description": "Созвать представителей всех областей и показать, что переход власти проходит без смуты.", "cost": 18}
 }
 
 const GRAIN_RESPONSES: Dictionary = {
-	"partial": {"title": "Открыть часть амбаров", "grain": 8, "gold": 0},
-	"full": {"title": "Отправить большой обоз", "grain": 18, "gold": 2},
-	"purchase": {"title": "Купить зерно у купеческой республики", "grain": 0, "gold": 14},
-	"defer": {"title": "Дождаться результатов проверки", "grain": 0, "gold": 0}
+	"partial": {"title": "Отправить восемь мер сейчас", "description": "Хватит ближайшим к городу деревням примерно на две недели; остальные продолжат ждать.", "grain": 8, "gold": 0},
+	"full": {"title": "Отправить большой обоз", "description": "Выдать зерно из княжеского запаса и оплатить охрану с подводами.", "grain": 18, "gold": 2},
+	"purchase": {"title": "Купить зерно за границей", "description": "Сохранить местный резерв, но срочно заплатить сарнским купцам за привозное зерно.", "grain": 0, "gold": 14},
+	"defer": {"title": "Сначала проверить областные книги", "description": "Не выдавать зерно, пока писцы не выяснят, куда делся прежний запас. Деревни пока помощи не получат.", "grain": 0, "gold": 0}
 }
 
 @export var status: Status = Status.WAITING
@@ -132,7 +132,7 @@ func _build_outcome() -> String:
 	var funeral_text := str(FUNERAL_PLANS[funeral_plan]["title"])
 	var grain_text := str(GRAIN_RESPONSES[grain_response]["title"])
 	var source_text := "государственной казны" if funding_source == "state" else "личных средств семьи"
-	return "%s проведены за счёт %s. Решение по области: %s. Реакции людей проявятся в следующих периодах." % [funeral_text, source_text, grain_text]
+	return "Похороны: %s. Помощь Долинной области: %s. Денежные расходы обоих распоряжений оплачены из %s; выданное зерно взято из княжеских амбаров. Реакции людей проявятся позднее." % [funeral_text, grain_text, source_text]
 
 func _update_readiness() -> void:
 	status = Status.READY if not funeral_plan.is_empty() and not grain_response.is_empty() else Status.WAITING

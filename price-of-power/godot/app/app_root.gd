@@ -22,6 +22,7 @@ var building_status: Label
 var building_actions: VBoxContainer
 var secretary_panel: PanelContainer
 var secretary_case_body: VBoxContainer
+var secretary_scroll: ScrollContainer
 var secretary_title: Label
 var secretary_introduction: Label
 var funeral_choice_label: Label
@@ -451,13 +452,14 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 	secretary_introduction.modulate = Color("b9c2b3")
 	root.add_child(secretary_introduction)
 
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(scroll)
+	secretary_scroll = ScrollContainer.new()
+	secretary_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	secretary_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root.add_child(secretary_scroll)
 	secretary_case_body = VBoxContainer.new()
 	secretary_case_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	secretary_case_body.add_theme_constant_override("separation", 12)
-	scroll.add_child(secretary_case_body)
+	secretary_scroll.add_child(secretary_case_body)
 
 	resolve_opening_button = Button.new()
 	resolve_opening_button.text = "Скрепить решение печатью"
@@ -513,24 +515,41 @@ func _refresh_secretary_case() -> void:
 	secretary_title.text = "Первые решения нового князя"
 	secretary_introduction.text = "Определите церемонию, помощь области и источник средств. Точные последствия заранее неизвестны."
 
-	_add_choice_section("1 · Церемония", OpeningDecision.FUNERAL_PLANS, decision.funeral_plan, _choose_funeral)
+	var funeral_context := Label.new()
+	funeral_context.text = "Отец умер этой ночью. До полудня нужно решить, как простится с ним княжеский дом и приглашать ли представителей дальних областей."
+	funeral_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	funeral_context.modulate = Color("c7d0c3")
+	secretary_case_body.add_child(funeral_context)
+	_add_choice_section("1 · Похороны старого князя", OpeningDecision.FUNERAL_PLANS, decision.funeral_plan, _choose_funeral)
 	funeral_choice_label = Label.new()
 	funeral_choice_label.text = _chosen_title(OpeningDecision.FUNERAL_PLANS, decision.funeral_plan)
 	secretary_case_body.add_child(funeral_choice_label)
-	_add_choice_section("2 · Помощь области", OpeningDecision.GRAIN_RESPONSES, decision.grain_response, _choose_grain)
+	var grain_context := Label.new()
+	grain_context.text = "Из Долинной области приехали трое старост. После двух слабых урожаев, паводка и падежа скота запасов нескольких деревень хватит примерно на две недели. В областных книгах зерно числится, но старосты утверждают, что амбары почти пусты."
+	grain_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	grain_context.modulate = Color("c7d0c3")
+	secretary_case_body.add_child(grain_context)
+	_add_choice_section("2 · Что ответить Долинной области", OpeningDecision.GRAIN_RESPONSES, decision.grain_response, _choose_grain)
 	grain_choice_label = Label.new()
 	grain_choice_label.text = _chosen_title(OpeningDecision.GRAIN_RESPONSES, decision.grain_response)
 	secretary_case_body.add_child(grain_choice_label)
 
 	var funding_heading := Label.new()
-	funding_heading.text = "3 · Источник средств"
+	funding_heading.text = "3 · Кто оплатит денежные расходы"
 	funding_heading.add_theme_font_size_override("font_size", 18)
 	secretary_case_body.add_child(funding_heading)
-	var funding_row := HBoxContainer.new()
+	var funding_explanation := Label.new()
+	funding_explanation.text = "Выбранный источник оплатит похороны, а также покупку зерна или перевозку обоза, если они предусмотрены решением. Само зерно для обоза берётся из государственных амбаров."
+	funding_explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	funding_explanation.modulate = Color("b9c2b3")
+	secretary_case_body.add_child(funding_explanation)
+	var funding_row := VBoxContainer.new()
+	funding_row.add_theme_constant_override("separation", 6)
 	secretary_case_body.add_child(funding_row)
 	for source: String in ["state", "family"]:
 		var button := Button.new()
 		button.text = "Государственная казна" if source == "state" else "Личные средства семьи"
+		button.custom_minimum_size = Vector2(0, 44)
 		button.disabled = decision.funding_source == source
 		button.pressed.connect(_choose_funding.bind(source))
 		funding_row.add_child(button)
@@ -683,13 +702,16 @@ func _add_choice_section(title: String, choices: Dictionary, selected_id: String
 	heading.text = title
 	heading.add_theme_font_size_override("font_size", 18)
 	secretary_case_body.add_child(heading)
-	var row := HBoxContainer.new()
+	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
 	secretary_case_body.add_child(row)
 	for choice_id: String in choices:
 		var button := Button.new()
-		button.text = str(choices[choice_id]["title"])
+		button.text = "%s\n%s" % [choices[choice_id]["title"], choices[choice_id].get("description", "")]
+		button.custom_minimum_size = Vector2(0, 62)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.disabled = selected_id == choice_id
 		button.pressed.connect(callback.bind(choice_id))
 		row.add_child(button)
