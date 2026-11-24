@@ -29,6 +29,9 @@ func _run() -> void:
 	var council_state: WorldState = app.get("state") as WorldState
 	if str(council_state.council.appointments["steward"]) != "vesna":
 		failures.append("Назначение из карточки совета должно менять управляющего")
+	app.call("_set_castle_section", "people")
+	await process_frame
+	_check_people_dossier(app)
 	app.call("_set_castle_section", "policies")
 	await process_frame
 	_check_policy_cards(app)
@@ -55,6 +58,7 @@ func _run() -> void:
 	await process_frame
 	_check_header(app, "после отправки плотников")
 	_check_secretary_summary(app, 0)
+	_check_story_history(app)
 	app.call("_close_secretary")
 	app.call("_on_advance_period")
 	await process_frame
@@ -114,6 +118,25 @@ func _check_council_cards(app: Node) -> void:
 				break
 		if not found:
 			failures.append("Карточки советников должны показывать раздел «%s»" % marker)
+
+func _check_people_dossier(app: Node) -> void:
+	var labels: Array[String] = []
+	_collect_label_text(app.get("building_actions") as Node, labels)
+	var joined := "\n".join(labels)
+	if not joined.contains("ЛЮДИ ВОКРУГ ВЛАСТИ"):
+		failures.append("В замке должен открываться отдельный раздел персонажей")
+	if not joined.contains("Наблюдаемое отношение:") or not joined.contains("ЧТО ЭТОТ ЧЕЛОВЕК ПОМНИТ"):
+		failures.append("Досье персонажа должно объяснять отношение и память без скрытых чисел")
+
+func _check_story_history(app: Node) -> void:
+	var labels: Array[String] = []
+	_collect_label_text(app.get("secretary_case_body") as Node, labels)
+	var found := false
+	for value: String in labels:
+		if value.begins_with("ЛЕТОПИСЬ РЕШЕНИЙ"):
+			found = true
+	if not found:
+		failures.append("После решения канцелярия должна показывать компактную летопись")
 
 func _collect_label_text(node: Node, output: Array[String]) -> void:
 	if node is Label:

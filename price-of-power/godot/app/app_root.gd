@@ -31,6 +31,7 @@ var funding_choice_label: Label
 var resolve_opening_button: Button
 var cases_button: Button
 var castle_section: String = "council"
+var selected_person: String = "spouse"
 var intro_overlay: Control
 var intro_title: Label
 var intro_body: Label
@@ -47,6 +48,22 @@ var modal_shade: ColorRect
 var panel_tween: Tween
 var selected_army_unit: String = "retinue"
 var new_campaign_confirmation: bool = false
+
+const PEOPLE_ORDER: Array[String] = ["spouse", "sister", "secretary", "radomir", "daren", "borin", "zlata", "miron", "aglaia", "tikhon", "savva", "vardan"]
+const PEOPLE_ROLES: Dictionary = {
+	"spouse": "Княгиня, жена и распорядительница семейного двора",
+	"sister": "Сестра князя, связанная с областными старостами",
+	"secretary": "Личный секретарь и хранитель канцелярских дел",
+	"radomir": "Воевода полевого войска",
+	"daren": "Начальник городской стражи",
+	"borin": "Казначей и распорядитель государственных счетов",
+	"zlata": "Владелица мастерских и представитель городских нанимателей",
+	"miron": "Бывший судья и влиятельный публичный оратор",
+	"aglaia": "Хозяйка Дома семи фонарей и сети частных знакомств",
+	"tikhon": "Изобретатель и мастер опытных механизмов",
+	"savva": "Дворцовый писец, связанный с похищением второй печати",
+	"vardan": "Речной торговец и организатор собственной силовой сети"
+}
 
 const INTRO_PAGES: Array[Dictionary] = [
 	{"title": "Последняя ночь старого князя", "body": "Отец зовёт вас незадолго до рассвета. Лекари уже вышли из комнаты. На столе лежат зерновые книги, сломанная печать и карта северных дорог. «Я оставляю тебе не трон, а множество обещаний, данных разным людям», — говорит он."},
@@ -509,6 +526,7 @@ func _refresh_secretary_case() -> void:
 			secretary_case_body.add_child(reaction_label)
 		_add_opening_followup()
 		_add_available_story_events()
+		_add_story_history()
 		_add_campaign_outcome()
 		resolve_opening_button.visible = false
 		return
@@ -657,6 +675,34 @@ func _add_available_story_events() -> void:
 			choice.disabled = not state.story_timeline.can_choose(state, event_id, choice_id)
 			choice.pressed.connect(_choose_story_event.bind(event_id, choice_id))
 			card_content.add_child(choice)
+
+func _add_story_history() -> void:
+	var history := state.story_timeline.resolved_history(6)
+	if history.is_empty():
+		return
+	secretary_case_body.add_child(HSeparator.new())
+	var heading := Label.new()
+	heading.text = "ЛЕТОПИСЬ РЕШЕНИЙ · ПОСЛЕДНИЕ %d" % history.size()
+	heading.modulate = Color("d9bd72")
+	secretary_case_body.add_child(heading)
+	var explanation := Label.new()
+	explanation.text = "Нажмите запись, чтобы снова увидеть уже известный результат."
+	explanation.modulate = Color("aebbad")
+	secretary_case_body.add_child(explanation)
+	for record: Dictionary in history:
+		var entry := Button.new()
+		entry.text = "Ход %d · %s\n%s" % [int(record["cycle"]), str(record["title"]), str(record["choice"])]
+		entry.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		entry.custom_minimum_size = Vector2(0, 58)
+		entry.tooltip_text = str(record["outcome"])
+		entry.pressed.connect(_show_story_record.bind(record))
+		secretary_case_body.add_child(entry)
+
+func _show_story_record(record: Dictionary) -> void:
+	var result := str(record.get("outcome", ""))
+	if result.is_empty():
+		result = "Подробный результат этого решения пока не известен."
+	_refresh_ui(result)
 
 func _card_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -829,7 +875,8 @@ func _refresh_building_actions() -> void:
 		_add_castle_navigation()
 		if castle_section == "council": _add_council_actions()
 		elif castle_section == "policies": _add_policy_actions()
-		else: _add_justice_actions()
+		elif castle_section == "justice": _add_justice_actions()
+		else: _add_people_actions()
 		return
 	if selected_building.building_id == &"embassy":
 		_add_diplomacy_actions()
@@ -953,9 +1000,9 @@ func _add_castle_navigation() -> void:
 	var navigation := HBoxContainer.new()
 	navigation.add_theme_constant_override("separation", 6)
 	building_actions.add_child(navigation)
-	for section: String in ["council", "policies", "justice"]:
+	for section: String in ["council", "people", "policies", "justice"]:
 		var button := Button.new()
-		button.text = {"council": "Совет", "policies": "Правила", "justice": "Суд"}[section]
+		button.text = {"council": "Совет", "people": "Люди", "policies": "Правила", "justice": "Суд"}[section]
 		button.disabled = castle_section == section
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.pressed.connect(_set_castle_section.bind(section))
@@ -965,6 +1012,93 @@ func _add_castle_navigation() -> void:
 func _set_castle_section(section: String) -> void:
 	castle_section = section
 	_refresh_building_actions()
+
+func _add_people_actions() -> void:
+	var heading := Label.new()
+	heading.text = "ЛЮДИ ВОКРУГ ВЛАСТИ"
+	heading.modulate = Color("d9bd72")
+	building_actions.add_child(heading)
+	var note := Label.new()
+	note.text = "Здесь показано только то, что князь уже мог заметить. Скрытые цели и будущие поступки персонажей не раскрываются."
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.modulate = Color("b9c2b3")
+	building_actions.add_child(note)
+	if not state.characters.has(selected_person) or selected_person not in PEOPLE_ORDER:
+		selected_person = "spouse"
+	var selector := OptionButton.new()
+	selector.custom_minimum_size = Vector2(0, 44)
+	var selected_index := 0
+	for person_id: String in PEOPLE_ORDER:
+		if not state.characters.has(person_id):
+			continue
+		var index := selector.item_count
+		selector.add_item((state.characters[person_id] as CharacterState).display_name)
+		selector.set_item_metadata(index, person_id)
+		if person_id == selected_person:
+			selected_index = index
+	selector.select(selected_index)
+	selector.item_selected.connect(_select_person.bind(selector))
+	building_actions.add_child(selector)
+
+	var person: CharacterState = state.characters[selected_person]
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _card_style())
+	building_actions.add_child(card)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	card.add_child(margin)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 8)
+	margin.add_child(content)
+	var name_label := Label.new()
+	name_label.text = person.display_name
+	name_label.add_theme_font_size_override("font_size", 22)
+	content.add_child(name_label)
+	var role := Label.new()
+	role.text = str(PEOPLE_ROLES.get(selected_person, "Участник княжеского двора"))
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role.modulate = Color("c7d0c3")
+	content.add_child(role)
+	var relation := Label.new()
+	relation.text = "Наблюдаемое отношение: %s" % _visible_relationship(person)
+	relation.modulate = Color("d9bd72")
+	content.add_child(relation)
+	content.add_child(HSeparator.new())
+	var memory_heading := Label.new()
+	memory_heading.text = "ЧТО ЭТОТ ЧЕЛОВЕК ПОМНИТ"
+	memory_heading.modulate = Color("b9c2b3")
+	content.add_child(memory_heading)
+	if person.memories.is_empty():
+		var empty := Label.new()
+		empty.text = "Заметных личных решений между вами пока не было."
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(empty)
+	else:
+		var first := maxi(0, person.memories.size() - 3)
+		for index in range(person.memories.size() - 1, first - 1, -1):
+			var memory: Dictionary = person.memories[index]
+			var line := Label.new()
+			line.text = "Ход %d · %s" % [int(memory.get("cycle", 0)), str(memory.get("summary", ""))]
+			line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			content.add_child(line)
+
+func _select_person(index: int, selector: OptionButton) -> void:
+	selected_person = str(selector.get_item_metadata(index))
+	_refresh_building_actions()
+
+func _visible_relationship(person: CharacterState) -> String:
+	if person.resentment >= 15 or person.trust <= -12:
+		return "открытое недоверие; у него есть причины действовать против вас"
+	if person.resentment >= 6 or person.trust < 0:
+		return "настороженность; прежние решения не забыты"
+	if person.trust >= 28 and person.respect >= 25:
+		return "устойчивая личная и политическая опора"
+	if person.trust >= 12 or person.respect >= 18:
+		return "рабочее доверие, которое ещё можно потерять"
+	return "вы присматриваетесь друг к другу"
 
 func _add_policy_actions() -> void:
 	var heading := Label.new()

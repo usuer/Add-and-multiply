@@ -14,6 +14,7 @@ func _initialize() -> void:
 	_test_act_two_characters_remember_causal_choices()
 	_test_middle_act_connects_clues_family_and_fathers_legacy()
 	_test_every_story_choice_has_working_outcome()
+	_test_story_history_preserves_choices_and_results()
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
@@ -34,7 +35,7 @@ func _initialize() -> void:
 	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 30 checks")
+		print("PASS Godot foundation: 31 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -261,6 +262,21 @@ func _test_every_story_choice_has_working_outcome() -> void:
 				state.story_timeline.resolved["border_courier"] = {"choice": "envoy", "cycle": 6}
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
+
+func _test_story_history_preserves_choices_and_results() -> void:
+	var state := WorldState.new()
+	state.calendar.cycle = 2
+	_expect(state.story_timeline.choose(state, "granary_roof", "inspect"), "Первое решение должно попасть в летопись")
+	state.calendar.cycle = 3
+	_expect(state.story_timeline.choose(state, "dead_prince_order", "public"), "Второе решение должно попасть в летопись")
+	var history := state.story_timeline.resolved_history(6)
+	_expect(history.size() == 2, "Летопись должна показывать все решения в пределах установленного лимита")
+	_expect(str(history[0].get("event_id", "")) == "dead_prince_order", "Летопись должна начинаться с самого свежего решения")
+	_expect(str(history[0].get("choice", "")).contains("Объявить печать"), "Летопись должна хранить понятный текст выбранного действия")
+	_expect(not str(history[0].get("outcome", "")).is_empty(), "Из летописи должен повторно открываться фактический результат")
+	_expect(state.story_timeline.resolved_history(1).size() == 1, "Компактная летопись должна соблюдать лимит и не превращаться в полотно")
+	var restored := WorldState.from_data(state.to_data())
+	_expect(restored.story_timeline.resolved_history(6).size() == 2, "Летопись решений должна сохраняться вместе с кампанией")
 
 func _test_neglected_events_and_border_branch() -> void:
 	var neglected := WorldState.new()

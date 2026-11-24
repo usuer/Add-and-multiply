@@ -178,6 +178,27 @@ func mark_reports_read() -> void:
 	for index in range(reports.size()):
 		reports[index]["read"] = true
 
+func resolved_history(limit: int = 6) -> Array[Dictionary]:
+	var history: Array[Dictionary] = []
+	for event_id: String in resolved:
+		if not DEFINITIONS.has(event_id):
+			continue
+		var record: Dictionary = resolved[event_id]
+		var event: Dictionary = DEFINITIONS[event_id]
+		var choice_id := str(record.get("choice", ""))
+		var choice_title := "Оставлено без ответа" if choice_id == "neglected" else str((event.get("choices", {}) as Dictionary).get(choice_id, choice_id))
+		history.append({
+			"event_id": event_id,
+			"cycle": int(record.get("cycle", 0)),
+			"title": str(event.get("title", event_id)),
+			"choice": choice_title,
+			"outcome": str(record.get("outcome", ""))
+		})
+	history.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["cycle"]) > int(b["cycle"]))
+	if limit > 0 and history.size() > limit:
+		history.resize(limit)
+	return history
+
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
 		"granary_roof":
