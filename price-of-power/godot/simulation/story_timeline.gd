@@ -37,6 +37,11 @@ const DEFINITIONS: Dictionary = {
 		"summary": "Дозор вернулся с зарисовками лагерей. За границей собирают обоз и лёгкую конницу. Это ещё не объявление войны, но уже не случайная разведка.",
 		"choices": {"fortify": "Укрепить переправы и поднять гарнизоны", "parley": "Предложить тайную встречу на границе", "trap": "Оставить путь открытым и готовить засаду"}
 	},
+	"border_consequence": {
+		"cycle": 8, "title": "Север отвечает делом", "location": "Пограничная канцелярия",
+		"summary": "Прошло два периода после первого донесения. Ответ соседа и состояние дальних застав требуют нового решения.",
+		"choices": {"inspect": "Лично выехать к заставам с малой охраной", "local_watch": "Вооружить местных старост и создать цепь сигнальных костров", "reopen_talks": "Отправить второго посланника с предложением взаимной проверки границы"}
+	},
 	"savva_at_chapel": {
 		"cycle": 9, "title": "Савва просит один разговор", "location": "Заброшенная часовня",
 		"summary": "Марек получил записку от пропавшего писца Саввы Луня. Тот обещает вернуть вторую печать и назвать человека, оплатившего побег его брата, если князь придёт без городской стражи. Радомир готов дать скрытое прикрытие; Дарен настаивает на немедленном аресте.",
@@ -52,20 +57,40 @@ const DEFINITIONS: Dictionary = {
 		"summary": "Элина нашла у девятилетнего Всеволода кусок воска с оттиском второй печати. Сын говорит, что его дал «старый друг деда» и попросил спрятать до игры в тайного посланника. Незнакомец сумел пройти во внутренний двор, не вызвав тревоги охраны.",
 		"choices": {"evacuate": "Тайно вывезти детей в загородную обитель", "double_guard": "Оставить семью во дворце и сменить внутреннюю охрану", "bait": "Попросить Всеволода продолжить игру под наблюдением"}
 	},
+	"tikhon_pump": {
+		"cycle": 12, "title": "Тихон и машина против горячки", "location": "Двор старой красильни",
+		"summary": "Изобретатель Тихон Лучин собрал ручной насос, который может подавать чистую воду выше речных стоков. Машина гремит, течёт на соединениях и пока обслуживает один двор. Тихон просит не верить ему на слово, а дать людей для открытого испытания.",
+		"choices": {"field_test": "Испытать насос в больном квартале", "workshop": "Дать Тихону мастерскую и месяц на доработку", "dismiss": "Отказать: во время горячки нужны лекари, а не опытная машина"}
+	},
 	"fathers_ledger": {
 		"cycle": 13, "title": "Книга отцовских платежей", "location": "Личный архив князя",
 		"summary": "За фальшивой стенкой найден счёт вашего отца. В нём — выплаты северным офицерам, городским старостам и человеку с пометкой «В. Речной». Эти деньги, вероятно, сорвали прошлую войну, но часть зерновых недостач началась именно здесь.",
 		"choices": {"publish": "Открыть книгу совету и городским судьям", "inner_circle": "Показать только Элине, Мареку и Радомиру", "continue_scheme": "Сохранить тайну и использовать старые связи отца"}
+	},
+	"aglaia_invitation": {
+		"cycle": 14, "title": "Закрытый вечер у Аглаи", "location": "Дом семи фонарей",
+		"summary": "Аглая приглашает вас на закрытый вечер без советников и знаков власти. Среди гостей будет управляющий Вардана и двое северных купцов. Она прямо предупреждает: вы получите возможность слушать, но само появление женатого князя в её доме станет оружием, если о нём узнают.",
+		"choices": {"attend": "Прийти тайно и самому слушать гостей", "agent": "Послать подготовленного человека вместо себя", "decline": "Отказаться и провести вечер с Элиной и детьми"}
 	},
 	"vardan_offer": {
 		"cycle": 15, "title": "Предложение Вардана", "location": "Старый речной причал",
 		"summary": "Вардан Речной больше не скрывается. Он предлагает вернуть вторую печать и остановить северные поставки оружия в обмен на место в совете и неприкосновенность своих людей. Он утверждает, что служил вашему отцу и лишь продолжил то, за что прежний князь ему платил.",
 		"choices": {"accept": "Принять сделку и впустить Вардана в совет", "counterfeit": "Согласиться для вида и подготовить задержание", "refuse": "Отказаться и объявить его врагом княжества"}
 	},
+	"divided_command": {
+		"cycle": 16, "title": "Два командира — один приказ", "location": "Военный двор",
+		"summary": "Радомир требует подчинить городскую стражу военному штабу до конца угрозы. Дарен отвечает, что солдаты не знают переулков и спровоцируют город. Оба согласны служить, но каждый считает другого опасным для столицы. Без ясной цепи командования следующий общий приказ они истолкуют по-разному.",
+		"choices": {"radomir": "Передать общее командование Радомиру", "daren": "Оставить столицу Дарену, а войско — Радомиру", "joint": "Создать совместный штаб с обязательной двойной подписью"}
+	},
 	"night_of_second_seal": {
 		"cycle": 17, "title": "Ночь второй печати", "location": "Столица и северные ворота",
 		"summary": "Одновременно звонят колокола у речных складов и северных ворот. По поддельным приказам часть стражи оставила посты, а вооружённые люди Вардана выводят зерно к реке. За границей показались огни военного обоза. Это не случайный налёт: противник проверяет, кому в столице ещё подчиняются.",
 		"choices": {"capital": "Удержать столицу и склады, оставив границу Радомиру", "border": "Возглавить войско у ворот, доверив город Дарену", "expose": "Обнародовать книгу и приказы, призвав горожан не подчиняться печати"}
+	},
+	"new_rule": {
+		"cycle": 18, "title": "Первое утро после второй печати", "location": "Большой зал совета",
+		"summary": "Бой закончился, но прежний порядок уже не вернётся. В зале ждут пленные люди Вардана, цеховые старшины, военные и семьи погибших. Все хотят услышать не только кого накажут, но и кто отныне сможет проверять княжеский приказ.",
+		"choices": {"law": "Учредить открытый суд и реестр всех княжеских приказов", "mercy": "Предложить рядовым участникам амнистию за показания", "purge": "Провести закрытую чистку двора и служб безопасности"}
 	}
 }
 
@@ -81,10 +106,12 @@ func available_events(cycle: int) -> Array[String]:
 	return result
 
 func _is_unlocked(event_id: String, cycle: int) -> bool:
-	if event_id != "scout_report":
-		return true
 	var border: Dictionary = resolved.get("border_courier", {})
-	return str(border.get("choice", "")) == "scouts" and cycle >= int(border.get("cycle", 999)) + 2
+	if event_id == "scout_report":
+		return str(border.get("choice", "")) == "scouts" and cycle >= int(border.get("cycle", 999)) + 2
+	if event_id == "border_consequence":
+		return str(border.get("choice", "")) in ["envoy", "dismiss"] and cycle >= int(border.get("cycle", 999)) + 2
+	return true
 
 func update(state: WorldState) -> void:
 	_apply_delayed_results(state)
@@ -179,6 +206,10 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 		"border_courier":
 			(state.factions["military"] as FactionState).react(state.calendar.cycle, -3, "Пограничное донесение пролежало без приказа.")
 			return "Пока донесение ждало решения, неизвестные всадники ушли с собранными сведениями."
+		"border_consequence":
+			state.facts["northern_posture"] = "unprepared"
+			(state.factions["military"] as FactionState).react(state.calendar.cycle, -4, "Повторное сообщение с границы снова осталось без решения.")
+			return "Пограничники оставили дальние посты и стянулись к ближайшей крепости. Северная дорога теперь никем не наблюдается."
 		"fever_outbreak":
 			state.public_health = maxi(0, state.public_health - 14)
 			state.facts["fever_policy"] = "neglected"
@@ -187,17 +218,29 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 			state.facts["family_security"] = "breached"
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "children_left_exposed", "После находки в детской вы не изменили охрану семьи.", {"trust": -7, "resentment": 4})
 			return "Элина сама увезла детей из столицы и отказалась сообщить маршрут дворцовой канцелярии. Во внутренних покоях она больше не доверяет вашей охране."
+		"tikhon_pump":
+			(state.characters["tikhon"] as CharacterState).remember(state.calendar.cycle, "proposal_ignored", "Княжеский двор не ответил на предложение испытать насос во время горячки.", {"trust": -3, "respect": -2})
+			return "Тихон разобрал насос, чтобы расплатиться с помощниками. Один кожевник выкупил трубы для своей мастерской; проверить устройство теперь невозможно."
 		"fathers_ledger":
 			state.facts["fathers_ledger"] = "stolen_page"
 			return "До решения из книги вырвали страницу с последними выплатами. Доступ к архиву имели трое слуг и члены княжеской семьи."
+		"aglaia_invitation":
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "invitation_ignored", "Вы оставили личное приглашение без ответа.", {"respect": -2})
+			return "Вечер прошёл без людей князя. Утром управляющий Вардана покинул город вместе с северными купцами; о содержании разговора двор знает только по слухам."
 		"vardan_offer":
 			state.facts["vardan_stance"] = "unanswered"
 			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "offer_ignored", "Князь не ответил на предложение и оставил ему свободу действовать первым.", {"respect": -3})
 			return "Не получив ответа, Вардан исчез с причала. В ту же ночь с речного склада вывезли оружие по приказу со второй печатью."
+		"divided_command":
+			state.facts["command_structure"] = "unclear"
+			return "Спор закончился без решения. Радомир усилил ворота, Дарен — дворец; городские склады остались между двумя зонами ответственности."
 		"night_of_second_seal":
 			state.facts["second_seal_crisis"] = "command_collapsed"
 			state.public_order = maxi(0, state.public_order - 18)
 			return "Противоречивые приказы парализовали гарнизон. Люди Вардана ушли с зерном, а северный отряд занял переправу без большого боя."
+		"new_rule":
+			state.facts["new_rule"] = "old_order_survived"
+			return "Совет разошёлся без нового порядка. Печать заменили, но право проверять княжеский приказ так и осталось неясным."
 	return "Дело слишком долго оставалось без решения, и обстоятельства решили его за вас."
 
 func definition(event_id: String) -> Dictionary:
@@ -205,6 +248,14 @@ func definition(event_id: String) -> Dictionary:
 
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
+	if event_id == "border_consequence":
+		var first_choice := str((resolved.get("border_courier", {}) as Dictionary).get("choice", ""))
+		if first_choice == "envoy":
+			event["title"] = "Северный ответ без ответа"
+			event["summary"] = "Сосед вернул вашу грамоту с учтивой припиской: всадники якобы ловили конокрадов. Однако посланник заметил свежие колеи тяжёлых телег и новые склады у дороги. Официальное объяснение не совпадает с увиденным."
+		elif first_choice == "dismiss":
+			event["title"] = "Застава, которой не поверили"
+			event["summary"] = "Гонец вернулся: ночью неизвестные разоружили дальнюю заставу, забрали списки караулов и ушли без знамён. Погибших нет, но пограничники уверены, что столица снова сочтёт их слова выдумкой."
 	if event_id == "savva_at_chapel":
 		var clues: Array[String] = []
 		if bool(state.facts.get("missing_armory_payment", false)):
@@ -215,6 +266,13 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			event["summary"] = str(event["summary"]) + " С его запиской совпадает %s." % " и ".join(clues)
 	if event_id == "family_warning" and str(state.facts.get("second_seal_investigation", "")) == "public":
 		event["summary"] = str(event["summary"]) + " Это произошло несмотря на объявленный по всему городу розыск печати."
+	if event_id == "tikhon_pump":
+		match str(state.facts.get("fever_policy", "")):
+			"clinics": event["summary"] = str(event["summary"]) + " Лекари из временных лечебниц согласны записывать результаты испытания."
+			"quarantine": event["summary"] = str(event["summary"]) + " Для испытания придётся пропустить его помощников через оцепление."
+			"concealed": event["summary"] = str(event["summary"]) + " Тихон вслух называет квартал больным, хотя двор официально не объявлял о горячке."
+	if event_id == "aglaia_invitation" and (state.characters["aglaia"] as CharacterState).trust < 0:
+		event["summary"] = str(event["summary"]) + " После истории с задержанной работницей нет уверенности, что она предупреждает вас из доброй воли."
 	if event_id == "vardan_offer":
 		if str(state.facts.get("savva_fate", "")) in ["protected_witness", "voluntary_witness"]:
 			event["summary"] = str(event["summary"]) + " Савва готов опровергнуть его слова, но только если вы гарантируете защиту его брату."
@@ -226,6 +284,15 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			event["summary"] = str(event["summary"]) + " Укреплённые переправы задержат чужой обоз, но гарнизоны ждут команды."
 		elif posture == "ambush":
 			event["summary"] = str(event["summary"]) + " Засада у переправы ещё не раскрыта, и Радомир просит не выдавать её преждевременно."
+		match str(state.facts.get("command_structure", "")):
+			"joint": event["summary"] = str(event["summary"]) + " Совместный штаб уже сверяет спорные приказы двумя подписями."
+			"split": event["summary"] = str(event["summary"]) + " Заранее разделённые зоны ответственности позволяют обоим командирам действовать без нового совещания."
+			"unclear": event["summary"] = str(event["summary"]) + " Радомир и Дарен уже прислали противоречащие друг другу требования."
+	if event_id == "new_rule":
+		match str(state.facts.get("second_seal_crisis", "")):
+			"capital_held": event["summary"] = str(event["summary"]) + " Семьи с оставленного севера требуют ответить, почему столицу спасли за их счёт."
+			"border_held": event["summary"] = str(event["summary"]) + " Владельцы сгоревших складов требуют возмещения за победу на границе."
+			"false_orders_rejected": event["summary"] = str(event["summary"]) + " Цехи, отказавшиеся выполнять ложные приказы, требуют закрепить своё право на проверку власти."
 	return event
 
 func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
@@ -240,6 +307,8 @@ func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	if event_id == "fever_outbreak" and choice_id == "quarantine": required_gold = 6
 	if event_id == "fever_outbreak" and choice_id == "clinics": required_gold = 10
 	if event_id == "fathers_ledger" and choice_id == "continue_scheme": required_gold = 6
+	if event_id == "tikhon_pump" and choice_id == "field_test": required_gold = 3
+	if event_id == "tikhon_pump" and choice_id == "workshop": required_gold = 8
 	return state.state_treasury >= required_gold
 
 func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
@@ -334,6 +403,17 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 		"border_courier:dismiss":
 			(state.factions["military"] as FactionState).react(state.calendar.cycle, -4, "Сообщение пограничного гонца оставили без проверки.")
 			return "Гонца отпустили обратно. Он поклонился по уставу, но у ворот рассказал часовым, что в столице ему не поверили."
+		"border_consequence:inspect":
+			state.facts["northern_posture"] = "personally_inspected"
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "frontier_ride", "Вы сами выехали проверить слова пограничников вместо нового спора в совете.", {"respect": 4})
+			return "На месте вы увидели пустые кострища на двести человек и следы телег к северу. Пограничники снова заняли посты: теперь их донесение подтверждено вашим собственным словом."
+		"border_consequence:local_watch":
+			state.facts["northern_posture"] = "local_watch"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, 2, "Пограничным старостам доверили защищать дороги и подавать сигнал столице.")
+			return "Старостам выдали луки, трубы и порядок сигнальных огней. Это дёшево и быстро, но оружие останется в деревнях даже после окончания угрозы."
+		"border_consequence:reopen_talks":
+			state.facts["northern_posture"] = "mutual_inspection_offered"
+			return "Вторая грамота предлагает обеим сторонам одновременно показать приграничные склады. Честный сосед согласится; готовящий нападение должен будет отказаться или выиграть время ложным показом."
 		"scout_report:fortify":
 			state.state_treasury -= 12
 			state.facts["northern_posture"] = "fortified"
@@ -395,6 +475,21 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "son_used_as_bait", "Вы сознательно оставили сына приманкой для человека, проникшего во дворец.", {"trust": -10, "affection": -5, "resentment": 7})
 			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "nursery_trap", "Вы позволили ему устроить ловушку во внутренних покоях.", {"trust": 3})
 			return "Всеволоду велели вести себя как обычно. Ночью за восковой фигуркой пришла дворцовая прачка; при задержании она назвала имя Вардана и попросила защитить её сына. Элина не простила способ, которым добыто признание."
+		"tikhon_pump:field_test":
+			state.state_treasury -= 3
+			state.facts["tikhon_pump"] = "field_tested"
+			state.public_health = mini(100, state.public_health + 3)
+			(state.characters["tikhon"] as CharacterState).remember(state.calendar.cycle, "first_trial", "Вы дали ему людей и позволили проверить несовершенную машину там, где она нужна.", {"trust": 5, "respect": 4})
+			return "За первый день насос дважды заклинило, зато вода в верхнем баке осталась чистой. Тихон сам признал поломки и предложил заменить кожаные клапаны; лекари просят продолжить наблюдение."
+		"tikhon_pump:workshop":
+			state.state_treasury -= 8
+			state.facts["tikhon_pump"] = "workshop_funded"
+			(state.characters["tikhon"] as CharacterState).remember(state.calendar.cycle, "own_workshop", "Вы дали ему мастерскую и время исправить машину до публичного испытания.", {"trust": 7, "respect": 5})
+			return "Тихон получил пустую литейную и троих подмастерьев. Немедленной пользы кварталу не будет, но впервые его работа зависит не от случайного покровителя, а от измеримого результата."
+		"tikhon_pump:dismiss":
+			state.facts["tikhon_pump"] = "dismissed"
+			(state.characters["tikhon"] as CharacterState).remember(state.calendar.cycle, "machine_dismissed", "Вы отказались испытывать его насос и велели полагаться на лекарей.", {"trust": -5, "respect": -3, "resentment": 3})
+			return "Тихон не спорил и попросил лишь вернуть чертежи. Лекари получили двор и помощников без конкурирующего опыта; насос остался непроверенной идеей."
 		"fathers_ledger:publish":
 			state.facts["fathers_ledger"] = "published"
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "ledger_disclosed", "Вы добровольно открыли суду доказательства тайных сделок собственной семьи.", {"respect": 8, "trust": 5})
@@ -410,6 +505,20 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.state_treasury = maxi(0, state.state_treasury - 6)
 			(state.characters["borin"] as CharacterState).remember(state.calendar.cycle, "secret_fund", "Вы поручили ему возобновить скрытые выплаты из старой книги.", {"trust": 5, "respect": 3})
 			return "Борин отправил первые шесть монет старым путём. Один адресат ответил условной фразой отца: сеть ещё жива, но теперь её участники знают, что вы приняли правила прежнего князя."
+		"aglaia_invitation:attend":
+			state.facts["aglaia_evening"] = "attended"
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "private_evening", "Вы приняли риск и пришли лично слушать людей Вардана.", {"trust": 5, "affection": 3})
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "night_absence", "Вы солгали об отсутствии и провели закрытый вечер в доме Аглаи.", {"trust": -5, "resentment": 3})
+			return "За игрой в кости управляющий Вардана проговорился: северный обоз ждёт сигнала из столицы, а не наоборот. Аглая отвела вас через задний двор. Утром Элина спросила, почему ваша дорожная обувь пахнет благовониями Семи фонарей."
+		"aglaia_invitation:agent":
+			state.facts["aglaia_evening"] = "agent_sent"
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "agent_received", "Вы не пришли сами, но доверили ей принять вашего наблюдателя.", {"respect": 3})
+			return "Человек Марека услышал условную фразу о колоколах и речных складах, но северные купцы заметили его вопросы. Сведения получены; Вардан, вероятно, знает о слежке."
+		"aglaia_invitation:decline":
+			state.facts["aglaia_evening"] = "family_evening"
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "family_evening", "В опасный вечер вы остались с ней и детьми, не превращая семью в остаток свободного времени.", {"trust": 4, "affection": 4})
+			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "invitation_declined", "Вы прямо отказались от личного визита, не пытаясь использовать её дом.", {"respect": 2})
+			return "Вы впервые за несколько недель ужинали с детьми без раскрытых донесений на столе. Политические сведения потеряны, зато Элина сама рассказала о слуге, который расспрашивал Всеволода о распорядке охраны."
 		"vardan_offer:accept":
 			state.facts["vardan_stance"] = "inside_council"
 			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "council_bargain", "Вы признали его силу и дали место у власти вместо суда.", {"respect": 8, "trust": 3})
@@ -425,6 +534,21 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "declared_enemy", "Вы отвергли сделку и публично назвали его врагом княжества.", {"resentment": 10, "grievance": 10})
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "vardan_refused", "Вы отказались узаконить власть Вардана ценой прекращения кризиса.", {"respect": 3})
 			return "Объявление зачитали на площадях и у ворот. Вардан лишился возможности действовать открыто, зато теперь его людям нечего терять."
+		"divided_command:radomir":
+			state.facts["command_structure"] = "military"
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "supreme_command", "Вы подчинили ему и войско, и городскую стражу на время угрозы.", {"trust": 5, "respect": 4})
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "command_removed", "Вы передали его стражу военному командиру, не знающему городских связей.", {"trust": -5, "resentment": 5})
+			return "Радомир установил единый пароль и цепь приказов. Дарен подчинился перед строем, затем предупредил: его люди выполнят приказ, но перестанут делиться с военными негласными сведениями города."
+		"divided_command:daren":
+			state.facts["command_structure"] = "split"
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "capital_command", "Вы сохранили за ним самостоятельное командование городской стражей.", {"trust": 4, "respect": 3})
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "split_command", "Вы оставили ему войско и границу, но не дали власти над столицей.", {"respect": 2})
+			return "Карту разделили по городской стене: Дарен отвечает внутри, Радомир — снаружи. Это быстрее совместного штаба, но любой удар сразу по обе стороны потребует вашего личного решения."
+		"divided_command:joint":
+			state.facts["command_structure"] = "joint"
+			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "joint_staff", "Вы заставили его сверять общие приказы с городской стражей.", {"respect": 2})
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "joint_staff", "Вы дали ему равную подпись в совместном штабе.", {"respect": 3, "trust": 2})
+			return "Оба поставили подписи под первым общим приказом и назначили связных. Решения станут медленнее, зато подделать распоряжение одной печатью теперь недостаточно."
 		"night_of_second_seal:capital":
 			state.facts["second_seal_crisis"] = "capital_held"
 			state.public_order = mini(100, state.public_order + 4)
@@ -443,6 +567,20 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 				return "Мирон прочитал имена из книги на Рыночной площади, а цеховые старшины отказались выполнять приказы со второй печатью. Заговор лишился толпы и укрытий; у ворот ещё идёт бой, но столица выбрала сторону."
 			state.public_order = maxi(0, state.public_order - 5)
 			return "Книгу читали вслух прямо под колоколами. Одни горожане отказались подчиняться печати, другие увидели доказательство, что княжеский дом годами покупал их вождей. Заговор расколот, но вместе с ним расколота и площадь."
+		"new_rule:law":
+			state.facts["new_rule"] = "public_law"
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "public_registry", "Вы согласились ограничить собственный приказ открытым реестром и судом.", {"trust": 8, "respect": 8})
+			return "С нового месяца каждый чрезвычайный приказ получает номер, запись писца и подпись ответственного советника. Мирон возглавит открытые слушания, включая дела людей вашего отца."
+		"new_rule:mercy":
+			state.facts["new_rule"] = "conditional_amnesty"
+			state.public_order = mini(100, state.public_order + 5)
+			return "Рядовым участникам дали три дня назвать вербовщиков и вернуть похищенное. Камеры начали пустеть, а список организаторов — расти; семьи погибших называют это торговлей вместо правосудия."
+		"new_rule:purge":
+			state.facts["new_rule"] = "secret_purge"
+			state.public_order = mini(100, state.public_order + 2)
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "secret_purge", "Вы дали ему право без открытого суда удалить подозрительных людей из дворца и служб.", {"trust": 7, "respect": 4})
+			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "secret_purge", "После победы вы заменили поддельные приказы закрытыми списками задержаний.", {"trust": -8, "grievance": 6})
+			return "До рассвета задержали писцов, кладовщиков и двух офицеров. Приказы снова исполняются быстро, но никто вне кабинета Дарена не знает, кто признан виновным и на каком основании."
 	return "Распоряжение принято. Его последствия станут понятны позже."
 
 func outcome(event_id: String) -> String:

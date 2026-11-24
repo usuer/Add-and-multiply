@@ -13,6 +13,7 @@ func _initialize() -> void:
 	_test_story_events_unlock_and_resolve_once()
 	_test_act_two_characters_remember_causal_choices()
 	_test_middle_act_connects_clues_family_and_fathers_legacy()
+	_test_every_story_choice_has_working_outcome()
 	_test_neglected_events_and_border_branch()
 	_test_campaign_generates_a_stateful_outcome()
 	_test_council_appointments_affect_government()
@@ -33,7 +34,7 @@ func _initialize() -> void:
 	_test_battle_view_builds_animated_formations()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 29 checks")
+		print("PASS Godot foundation: 30 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -219,22 +220,47 @@ func _test_middle_act_connects_clues_family_and_fathers_legacy() -> void:
 		state.advance_period()
 	_expect(state.story_timeline.choose(state, "family_warning", "double_guard"), "Угроза семье должна давать защитный вариант без использования ребёнка как приманки")
 	_expect(str(state.facts.get("family_security", "")) == "new_guard", "Решение по семье должно сохраняться для дальнейшей развилки")
+	state.advance_period()
+	_expect(state.calendar.cycle == 12 and state.story_timeline.choose(state, "tikhon_pump", "field_test"), "Пустой период должен быть заполнен практическим испытанием Тихона")
+	_expect(str(state.facts.get("tikhon_pump", "")) == "field_tested", "Испытание изобретения должно давать измеримый, но не идеальный результат")
 	while state.calendar.cycle < 13:
 		state.advance_period()
 	_expect(state.story_timeline.choose(state, "fathers_ledger", "inner_circle"), "Книгу отца должно быть можно передать узкому кругу")
 	_expect((state.characters["spouse"] as CharacterState).trust == 31, "Доверие Элины должно учитывать и охрану семьи, и доверенную тайну")
+	state.advance_period()
+	_expect(state.calendar.cycle == 14 and state.story_timeline.choose(state, "aglaia_invitation", "decline"), "Личный соблазн должен позволять осознанно выбрать семью вместо разведывательной выгоды")
+	_expect((state.characters["spouse"] as CharacterState).trust == 35, "Проведённый с семьёй вечер должен быть значимым для отношений, а не пустой кнопкой")
 	while state.calendar.cycle < 15:
 		state.advance_period()
 	var offer := state.story_timeline.contextual_definition(state, "vardan_offer")
 	_expect(str(offer.get("summary", "")).contains("Савва готов опровергнуть"), "Защищённый Савва должен стать живым свидетелем в сцене с Варданом")
 	_expect(state.story_timeline.choose(state, "vardan_offer", "refuse"), "Игрок должен иметь возможность отказаться легализовать власть Вардана")
+	state.advance_period()
+	_expect(state.calendar.cycle == 16 and state.story_timeline.choose(state, "divided_command", "joint"), "Перед кризисом игрок должен сам определить цепь командования")
 	while state.calendar.cycle < 17:
 		state.advance_period()
 	var crisis := state.story_timeline.contextual_definition(state, "night_of_second_seal")
-	_expect(str(crisis.get("summary", "")).contains("не случайный налёт"), "Финальный кризис должен объяснять политическую цель нападения")
+	_expect(str(crisis.get("summary", "")).contains("не случайный налёт") and str(crisis.get("summary", "")).contains("двумя подписями"), "Финальный кризис должен объяснять цель нападения и учитывать выбранную цепь командования")
 	_expect(state.story_timeline.choose(state, "night_of_second_seal", "capital"), "В финальном кризисе должно быть можно разделить командование с Радомиром")
 	_expect(str(state.facts.get("second_seal_crisis", "")) == "capital_held", "Финальный выбор должен сохранять конкретный исход для эпилога")
 	_expect((state.characters["radomir"] as CharacterState).trust == 32, "Доверие Радомира должно учитывать и допуск к книге отца, и самостоятельное командование границей")
+	state.advance_period()
+	_expect(state.calendar.cycle == 18 and state.story_timeline.choose(state, "new_rule", "law"), "Последний ход должен решать устройство власти после победы, а не обрываться сразу после боя")
+	_expect(str(state.facts.get("new_rule", "")) == "public_law", "Финальное политическое решение должно попасть в эпилог")
+
+func _test_every_story_choice_has_working_outcome() -> void:
+	for event_id: String in StoryTimeline.DEFINITIONS:
+		var event: Dictionary = StoryTimeline.DEFINITIONS[event_id]
+		for choice_id: String in (event.get("choices", {}) as Dictionary):
+			var state := WorldState.new()
+			state.state_treasury = 999
+			state.calendar.cycle = int(event.get("cycle", 1))
+			if event_id == "scout_report":
+				state.story_timeline.resolved["border_courier"] = {"choice": "scouts", "cycle": 6}
+			if event_id == "border_consequence":
+				state.story_timeline.resolved["border_courier"] = {"choice": "envoy", "cycle": 6}
+			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
+			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
 func _test_neglected_events_and_border_branch() -> void:
 	var neglected := WorldState.new()
