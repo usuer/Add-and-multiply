@@ -193,9 +193,20 @@ func _check_pause_menu(app: Node) -> void:
 		failures.append("Игровое меню должно открываться поверх игры")
 	if panel == null or not root.get_visible_rect().encloses(panel.get_global_rect()):
 		failures.append("Игровое меню должно полностью помещаться на минимальном экране")
-	for caption in ["Продолжить", "Сохранить кампанию", "Загрузить сохранение", "На весь экран", "Сохранить и выйти"]:
+	for caption in ["Продолжить", "Сохранить кампанию", "Загрузить сохранение", "На весь экран", "Звук:", "Сохранить и выйти"]:
 		if _find_button(overlay, caption) == null:
 			failures.append("В игровом меню нет действия «%s»" % caption)
+	var sound_before := bool(app.get("sound_enabled"))
+	app.call("_toggle_sound")
+	var sound_button := app.get("sound_button") as Button
+	if bool(app.get("sound_enabled")) == sound_before or sound_button == null or not sound_button.text.begins_with("Звук:"):
+		failures.append("Переключатель звука должен менять состояние и сразу обновлять подпись")
+	app.call("_toggle_sound")
+	var streams: Dictionary = app.get("sound_streams")
+	for sound_id in ["click", "decision", "period", "alert", "battle"]:
+		var stream := streams.get(sound_id) as AudioStreamWAV
+		if stream == null or stream.data.is_empty():
+			failures.append("Звуковой сигнал «%s» должен содержать реальные аудиоданные" % sound_id)
 
 func _find_button(node: Node, caption: String) -> Button:
 	if node is Button and (node as Button).text.begins_with(caption):

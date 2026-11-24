@@ -6,6 +6,7 @@ const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
 const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
 const FATHER_LAST_NIGHT_ART: Texture2D = preload("res://assets/art/fathers_last_night.png")
 const USE_3D_PLACEHOLDERS: bool = false
+const SETTINGS_PATH: String = "user://settings.cfg"
 
 var state: WorldState = WorldState.new()
 var date_label: Label
@@ -36,6 +37,10 @@ var pause_overlay: Control
 var pause_panel: PanelContainer
 var pause_exit_button: Button
 var pause_fullscreen_button: Button
+var sound_button: Button
+var ui_audio: AudioStreamPlayer
+var sound_streams: Dictionary = {}
+var sound_enabled: bool = true
 var castle_section: String = "council"
 var selected_person: String = "spouse"
 var intro_overlay: Control
@@ -82,6 +87,7 @@ const INTRO_PAGES: Array[Dictionary] = [
 
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
+	_create_audio_feedback()
 	_create_environment()
 	_create_capital_placeholder()
 	_create_camera()
@@ -117,6 +123,60 @@ func _create_environment() -> void:
 	sun.light_energy = 1.25
 	sun.shadow_enabled = true
 	add_child(sun)
+
+func _create_audio_feedback() -> void:
+	var settings := ConfigFile.new()
+	if settings.load(SETTINGS_PATH) == OK:
+		sound_enabled = bool(settings.get_value("audio", "enabled", true))
+	ui_audio = AudioStreamPlayer.new()
+	ui_audio.volume_db = -8.0
+	add_child(ui_audio)
+	sound_streams = {
+		"click": _make_ui_tone(520.0, 0.045, 0.22),
+		"decision": _make_ui_tone(690.0, 0.13, 0.28),
+		"period": _make_ui_tone(430.0, 0.2, 0.3, 1.5),
+		"alert": _make_ui_tone(190.0, 0.28, 0.34, 1.33),
+		"battle": _make_ui_tone(120.0, 0.34, 0.4, 1.5)
+	}
+
+func _make_ui_tone(frequency: float, duration: float, volume: float, second_ratio: float = 2.0) -> AudioStreamWAV:
+	var mix_rate := 22050
+	var sample_count := maxi(1, int(duration * mix_rate))
+	var data := PackedByteArray()
+	data.resize(sample_count * 2)
+	for index in range(sample_count):
+		var time := float(index) / float(mix_rate)
+		var progress := float(index) / float(sample_count)
+		var attack := minf(1.0, progress * 18.0)
+		var release := pow(1.0 - progress, 2.2)
+		var wave := sin(TAU * frequency * time) * 0.72 + sin(TAU * frequency * second_ratio * time) * 0.28
+		var sample := clampi(int(wave * attack * release * volume * 32767.0), -32768, 32767)
+		data.encode_s16(index * 2, sample)
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = mix_rate
+	stream.stereo = false
+	stream.data = data
+	return stream
+
+func _play_ui_sound(sound_id: String) -> void:
+	if not sound_enabled or DisplayServer.get_name() == "headless" or not sound_streams.has(sound_id):
+		return
+	ui_audio.stream = sound_streams[sound_id]
+	ui_audio.play()
+
+func _toggle_sound() -> void:
+	sound_enabled = not sound_enabled
+	var settings := ConfigFile.new()
+	settings.set_value("audio", "enabled", sound_enabled)
+	settings.save(SETTINGS_PATH)
+	_refresh_sound_caption()
+	if sound_enabled:
+		_play_ui_sound("decision")
+
+func _refresh_sound_caption() -> void:
+	if is_instance_valid(sound_button):
+		sound_button.text = "Звук: включён" if sound_enabled else "Звук: выключен"
 
 func _create_capital_placeholder() -> void:
 	_add_box("Valley", Vector3(62.0, 0.8, 48.0), Vector3(0.0, -0.6, 0.0), Color("6f8a55"))
@@ -378,8 +438,8 @@ func _create_pause_menu(layer: CanvasLayer) -> void:
 	pause_overlay.add_child(shade)
 	pause_panel = PanelContainer.new()
 	pause_panel.set_anchors_preset(Control.PRESET_CENTER)
-	pause_panel.position = Vector2(-220, -265)
-	pause_panel.size = Vector2(440, 530)
+	pause_panel.position = Vector2(-220, -300)
+	pause_panel.size = Vector2(440, 600)
 	pause_panel.add_theme_stylebox_override("panel", _panel_style())
 	pause_overlay.add_child(pause_panel)
 	var margin := MarginContainer.new()
@@ -422,6 +482,11 @@ func _create_pause_menu(layer: CanvasLayer) -> void:
 	pause_fullscreen_button.custom_minimum_size = Vector2(0, 48)
 	pause_fullscreen_button.pressed.connect(_toggle_fullscreen)
 	column.add_child(pause_fullscreen_button)
+	sound_button = Button.new()
+	sound_button.custom_minimum_size = Vector2(0, 48)
+	sound_button.pressed.connect(_toggle_sound)
+	column.add_child(sound_button)
+	_refresh_sound_caption()
 	pause_exit_button = Button.new()
 	pause_exit_button.text = "Сохранить и выйти"
 	pause_exit_button.custom_minimum_size = Vector2(0, 48)
@@ -604,6 +669,7 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 	root.add_child(resolve_opening_button)
 
 func _open_secretary() -> void:
+	_play_ui_sound("click")
 	building_panel.visible = false
 	if battle_view != null: battle_view.visible = false
 	illustrated_map.visible = true
@@ -833,6 +899,7 @@ func _card_style() -> StyleBoxFlat:
 
 func _choose_story_event(event_id: String, choice_id: String) -> void:
 	if state.story_timeline.choose(state, event_id, choice_id):
+		_play_ui_sound("decision")
 		var outcome := state.story_timeline.outcome(event_id)
 		_refresh_ui(outcome)
 		_refresh_secretary_case()
@@ -947,6 +1014,7 @@ func _building_context(building_id: StringName) -> String:
 	}.get(building_id, "ГОРОДСКОЙ ОБЪЕКТ")
 
 func _on_illustrated_building_selected(building_id: StringName) -> void:
+	_play_ui_sound("click")
 	for child: Node in get_children():
 		if child is CityBuilding and (child as CityBuilding).building_id == building_id:
 			var show_battle := building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE
@@ -1498,6 +1566,7 @@ func _deploy_unit(unit_id: String, depth: int) -> void:
 
 func _start_army_combat() -> void:
 	if state.army.start_combat():
+		_play_ui_sound("battle")
 		_refresh_ui("Бой начался. Выдайте отдельный приказ каждому боеспособному отряду.")
 		_refresh_building_actions()
 
@@ -1508,6 +1577,7 @@ func _issue_army_order(unit_id: String, order_id: String) -> void:
 
 func _resolve_army_turn() -> void:
 	if state.army.resolve_turn():
+		_play_ui_sound("battle")
 		_refresh_ui("Все приказы выполнены одновременно. Потери показаны в журнале боя.")
 		_refresh_building_actions()
 		if not state.army.battle_log.is_empty():
@@ -1633,6 +1703,7 @@ func _on_advance_period() -> void:
 	var advance_message := "Период завершён"
 	if unread > 0:
 		advance_message = "Получено новых отчётов: %d — откройте дела секретаря" % unread
+	_play_ui_sound("alert" if unread > 0 else "period")
 	_refresh_ui(advance_message if advanced else "Демоверсия завершена — доступен эпилог")
 	if building_panel.visible:
 		_refresh_building_actions()
