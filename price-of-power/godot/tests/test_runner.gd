@@ -49,6 +49,7 @@ func _initialize() -> void:
 	_test_city_dilemmas_offer_distinct_free_choices()
 	_test_period_report_tracks_actual_changes()
 	_test_questions_do_not_replace_decisions()
+	_test_forge_request_changes_the_grain_route()
 	_test_opening_evidence_creates_a_distinct_branch()
 	_test_authority_changes_cast_and_records_fallout()
 	_test_opening_promises_have_followthrough()
@@ -64,7 +65,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 53 checks")
+		print("PASS Godot foundation: 54 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -349,8 +350,33 @@ func _test_questions_do_not_replace_decisions() -> void:
 	_expect(restored.conversations.latest_decision("spouse").get("response") == reply, "Вопрос не должен стирать итог после загрузки")
 	_expect(restored.conversations.decision_cases("spouse", restored).is_empty(), "Закрытое дело не должно открываться после загрузки")
 
+func _test_forge_request_changes_the_grain_route() -> void:
+	var state := WorldState.new()
+	var cases: Array[Dictionary] = state.conversations.decision_cases("forge_master", state)
+	_expect(cases.size() == 1 and str(cases[0]["brief"]).contains("ножи от плугов") and str(cases[0]["brief"]).contains("заслонка"),
+		"Кузнец должен объяснить два заказа до того, как игрок выберет")
+	var fatigue := state.ruler_fatigue
+	_expect(state.conversations.choose(state, "forge_master", "damage").contains("дорогу к складам"), "Вопрос должен объяснять, чем может помешать поломка")
+	_expect(state.ruler_fatigue == fatigue and not state.facts.has("forge_priorities"), "Уточнение не должно выбирать заказ или тратить силы")
+	var dam := WorldState.from_data(state.to_data())
+	var tools := WorldState.from_data(state.to_data())
+	_expect(dam.conversations.choose(dam, "forge_master", "forge_water_parts").contains("заслонка поднимается"), "После ремонта плотины Глеб должен сообщить результат")
+	_expect(tools.conversations.choose(tools, "forge_master", "forge_tools").contains("деревянный упор"), "После починки плугов Глеб должен сообщить, как плотники удержали заслонку")
+	_expect(dam.conversations.choose(dam, "forge_master", "forge_tools").is_empty(), "Решение кузнеца нельзя заменить другим заказом")
+	dam = WorldState.from_data(dam.to_data())
+	_expect(dam.conversations.choose(dam, "forge_master", "forge_route_after_repair").contains("к сухим складам"), "Глеб должен помнить ремонт после загрузки")
+	_expect(tools.conversations.choose(tools, "forge_master", "forge_route_after_repair").is_empty(), "В ветке с плугами нельзя узнать о несостоявшемся ремонте")
+	for branch in [dam, tools]:
+		branch.advance_period()
+		_expect(branch.story_timeline.choose(branch, "granary_roof", "relocate"), "Из затопляемого амбара можно вывезти зерно после любого заказа")
+	_expect(int(dam.resources["grain"]) - int(tools.resources["grain"]) == 2, "Проезд у плотины должен сберечь два мешка при перевозке")
+
 func _test_opening_evidence_creates_a_distinct_branch() -> void:
 	var state := WorldState.new()
+	state.facts["father_warned_of_traitor"] = true
+	var bridge: String = state.conversations.choose(state, "sister", "ask_bridge_closure")
+	_expect(bridge.contains("понедельник") and bridge.contains("во вторник") and not state.facts.has("bridge_receipt_found"),
+		"Лада должна объяснять расхождение дат, пока накладную ещё предстоит найти")
 	state.advance_period()
 	var repair := WorldState.from_data(state.to_data())
 	state.story_timeline.choose(state, "granary_roof", "inspect")

@@ -51,6 +51,7 @@ func _run() -> void:
 	await process_frame
 	_check_location_scene(app, 1)
 	app.call("_close_location_scene")
+	await _check_forge_brief(app)
 	app.call("_on_illustrated_building_selected", &"market")
 	await process_frame
 	await _check_location_sizes(app, 3)
@@ -356,6 +357,25 @@ func _check_formation_depth(field: Control, unit_id: String, rank_count: int) ->
 				failures.append("Фигура бойца вышла за пределы поля во время расстановки")
 	if count != 9 or ranks.size() != rank_count:
 		failures.append("Для %s ожидалось %d рядов и девять фигур, показано %d рядов и %d фигур" % [unit_id, rank_count, ranks.size(), count])
+
+func _check_forge_brief(app: Node) -> void:
+	app.call("_on_illustrated_building_selected", &"smithy")
+	await process_frame
+	var location := app.get("location_scene") as Control
+	var forge_master := (location.get("person_actors") as Dictionary).get("forge_master") as Control
+	if forge_master == null:
+		failures.append("В кузнице должен быть мастер Глеб")
+	else:
+		_click(forge_master.get_global_rect().get_center())
+		await process_frame
+		await process_frame
+		var prompt := location.get("dialogue_prompt") as Label
+		var options := location.get("dialogue_options") as Control
+		if not prompt.is_visible_in_tree() or not prompt.text.contains("Старосты трёх деревень") or not prompt.text.contains("До конца недели кузница успеет выполнить один заказ"):
+			failures.append("До выбора Глеб должен объяснить, кто ждёт ремонта и почему нужно выбрать один заказ")
+		if _find_button(options, "Сначала выковать крепление для плотины") == null or _find_button(options, "Сначала починить плуги для трёх деревень") == null:
+			failures.append("Оба понятных распоряжения должны быть доступны в разговоре с Глебом")
+	app.call("_close_location_scene")
 
 func _check_castle_people_picker(app: Node, state: WorldState) -> void:
 	var initial_size := root.size

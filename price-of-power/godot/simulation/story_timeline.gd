@@ -20,11 +20,11 @@ const DEFINITIONS: Dictionary = {
 		"choices": {"mediate": "Дать Ярине сверить счета казны и мастерской", "pay": "Сразу выдать кузнецам задержанное жалованье", "seize": "Силами стражи забрать готовую часть заказа"}
 	},
 	"east_gate_witness": {
-		"cycle": 4, "title": "Самуил просит убрать его имя из книги", "location": "Восточные ворота",
-		"summary": "На накладной на зерно стояла подпись возчика Самуила. Он вспомнил, как в день разборки моста кто-то взял его телегу. Самуил видел, кто встретил груз у ворот. Семья должна деньги хозяину, у которого работает его дочь. Самуил готов говорить при Мареке, если его имя до суда оставят в тайне.",
+		"cycle": 4, "title": "Самуил видел, кто принял зерно у ворот", "location": "Восточные ворота",
+		"summary": "В спасённой накладной стоит подпись возчика Самуила. Когда с моста на дороге в Долинную область снимали доски, кто-то взял его телегу. Самуил видел, кто встретил груз у Восточных ворот. Его семья в долгу у хозяина, у которого работает дочь. Самуил просит записать показания у Марека и сохранить его имя в тайне до суда.",
 		"choices": {
 			"seal": "Принять показания при Мареке и закрыть имя до суда",
-			"public": "Просить Самуила подтвердить накладную открыто",
+			"public": "Попросить Самуила рассказать о грузе при старшинах",
 			"refuse": "Отпустить Самуила и сохранить только бумагу"
 		}
 	},
@@ -205,7 +205,7 @@ func _update_opening_dispatch(state: WorldState) -> void:
 	elif state.opening_decision.grain_response == "partial":
 		_add_report(state.calendar.cycle, "Первую помощь получили ближние деревни", "Восьми мер хватило на первую выдачу у южной дороги. Несколько дальних деревень всё ещё ждут. Лада просит не закрывать дело одной распиской.")
 	else:
-		_add_report(state.calendar.cycle, "Большой обоз дошёл до Долинной области", "Старосты приняли зерно вместе с конвоем. Это выиграло время, но не объяснило запись о прежнем обозе, который будто бы прошёл по снятому мосту.")
+		_add_report(state.calendar.cycle, "Большой обоз дошёл до Долинной области", "Старосты приняли зерно, которое вы отправили под охраной. В старой книге всё ещё числится другой обоз. По записи он прошёл мост во вторник, хотя, по словам отца, доски сняли накануне.")
 
 func _resolve_vardan_exchange(state: WorldState) -> void:
 	var offer: Dictionary = resolved.get("vardan_offer", {})
@@ -380,6 +380,8 @@ func definition(event_id: String) -> Dictionary:
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
 	if event_id == "granary_roof":
+		if state.facts.get("father_warned_of_traitor", false):
+			event["summary"] += " В кладовке может быть накладная того обоза, о котором говорил отец."
 		var grain_response := str(state.facts.get("grain_response", ""))
 		var dispatch := str(state.facts.get("opening_grain_dispatch", ""))
 		if dispatch == "delivered" and grain_response == "partial":
@@ -397,11 +399,11 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 		if not COURT_AUTHORITY.is_present(state, "granary_keeper"):
 			event["summary"] = str(event["summary"]).replace("Марта, смотрительница амбара, застала", "Дежурный писец заметил").replace("У Марты", "У писца")
 	if event_id == "dead_prince_order" and bool(state.facts.get("bridge_receipt_found", false)):
-		event["summary"] += " На грамоте Марек видит ту же приписку «через Восточные ворота», что и в накладной на обоз, который не мог пройти по разобранному мосту."
+		event["summary"] += " Марек сверил грамоту со спасённой накладной. В обеих бумагах есть приписка «через Восточные ворота». Это повод проверить записи у ворот. Кто написал приписки и куда ушло зерно, пока неизвестно."
 	if event_id == "dead_prince_order" and state.facts.get("marek_briefing") == "evidence_first":
 		event["summary"] += " По вашему распоряжению Марек вынес бумаги, прежде чем называть подозреваемых. Он показывает две даты и спрашивает, кого позвать свидетелем."
 	if event_id == "smiths_dispute" and bool(state.facts.get("bridge_receipt_found", false)):
-		event["summary"] += " В расчёте за кузнечный заказ и в найденной накладной на зерно указан один пункт доставки: Восточные ворота. Ярина предлагает поднять записи о грузах у ворот."
+		event["summary"] += " В расчёте за кузнечный заказ и в спасённой накладной на зерно указаны Восточные ворота. Ярина предлагает спросить у караула, какие грузы там приняли."
 	if event_id == "aglaia_letter" and bool(state.facts.get("missing_armory_payment", false)):
 		event["summary"] += " Один номер Ярина узнаёт: под ним списали деньги за кузнечный заказ. Марек хочет сохранить письмо рядом с ведомостью."
 	if event_id == "aglaia_letter" and state.facts.get("bridge_testimony") == "public":
@@ -440,7 +442,7 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 		if bool(state.facts.get("marek_copy_saved", false)):
 			event["summary"] += " У Марека есть копия книги приказов. Даже если сумка Саввы пропадёт, подлинные распоряжения будет с чем сверить."
 		if bool(state.facts.get("bridge_receipt_found", false)):
-			event["summary"] += " Савва просит захватить накладную с именем возчика. Он утверждает, что знает, почему тот расписался за рейс по разобранному мосту."
+			event["summary"] += " Савва просит принести накладную на зерно с Восточных ворот. Он говорит, что может объяснить, откуда в ней взялась подпись Самуила."
 		if state.facts.get("bridge_testimony") == "sealed":
 			event["summary"] += " У Марека есть закрытое показание Самуила о человеке, который встречал обоз. Именем возчика по-прежнему нельзя делиться без его согласия."
 		elif state.facts.get("bridge_witness_refuge") == "safe_house":
@@ -632,13 +634,15 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 		"granary_roof:inspect":
 			state.facts["granary_roof"] = "inspecting"
 			state.facts["bridge_receipt_found"] = true
-			return "Марта подняла накладную: во вторник обоз приняли у Восточных ворот. Но настил моста сняли ещё в понедельник, как и говорил отец. Подпись возчика есть, слова проверяющего нет. Бумагу унесли сушиться. Крыша всё ещё течёт."
+			return "Марта подняла накладную с пола кладовки. В ней записано, что во вторник обоз приняли у Восточных ворот. Книга говорит, что в тот же день он прошёл по мосту в Долинную область. Отец же говорил, что доски с моста сняли ещё в понедельник. В накладной есть подпись возчика, которого можно расспросить. Крыша всё ещё течёт."
 		"granary_roof:relocate":
 			var water_gate_repaired: bool = state.facts.get("forge_priorities") == "water_parts"
 			state.resources["grain"] = maxi(0, int(state.resources["grain"]) - (0 if water_gate_repaired else 2))
 			state.facts["granary_roof"] = "grain_relocated"
 			if water_gate_repaired:
-				return "Марта отправила мешки к сухим складам через проезд у плотины. Мастерская уже заменила скобу, ворота открылись, обоз прошёл. В частных складах зерно уцелело, но теперь купцы знают, сколько его было."
+				return "Крепление, которое выковал Глеб, выдержало. Плотники подняли заслонку плотины и спустили лишнюю воду. Дорога к частным складам осталась сухой, все мешки доехали. Купцы теперь знают размер княжеского запаса."
+			if state.facts.get("forge_priorities") == "tools":
+				return "Временное крепление на заслонке плотины ещё не заменили. Марта вывела телеги в объезд размокшей дороги. Два мешка рассыпались. Остальные довезли до частных складов, где купцы увидели размер княжеского запаса."
 			return "Марта вывела обоз к трём частным складам. Два мешка рассыпались, но остальные теперь под крышей. Купцы увидели размер запаса и к вечеру начали спрашивать, сколько зерна князь сможет продать."
 		"dead_prince_order:quiet":
 			state.facts["second_seal_investigation"] = "quiet"
@@ -659,10 +663,10 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.facts["bridge_testimony"] = "public"
 			var guilds := state.factions["guilds"] as FactionState
 			guilds.react(state.calendar.cycle, 2, "Возчик подтвердил разницу между княжеской книгой и реальной выдачей.")
-			return "Самуил прочитал накладную при старшинах. Двор уже не сможет замолчать недостачу. До ночи плательщик долга разыскал его семью, и Самуил попросил Марека убрать их имена из книги."
+			return "При старшинах Самуил рассказал, чью телегу видел и кто ждал её у ворот. Горожане теперь могут спросить об этом у него и у караула. К вечеру хозяин, которому задолжала семья, разыскал их. Самуил попросил Марека убрать из записи имена родных."
 		"east_gate_witness:refuse":
 			state.facts["bridge_testimony"] = "document_only"
-			return "Самуил уехал домой с дочерью. Опавшая печать и подпись остались в деле. Кто принимал груз у ворот, теперь придётся выяснять по другим документам."
+			return "Самуил уехал домой с дочерью. Марек оставил в деле накладную с подписью. Кто принимал груз у ворот, теперь придётся выяснять по другим документам."
 		"smiths_dispute:mediate":
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 3, "Князь лично выслушал спор ремесленников с казной.")
 			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "first_commission", "Вы доверили ей независимо сверить счета оружейного двора и казны.", {"respect": 4, "trust": 2})

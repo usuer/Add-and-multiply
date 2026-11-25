@@ -791,7 +791,11 @@ func _refresh_secretary_case() -> void:
 	funeral_choice_label.text = _chosen_title(OpeningDecision.FUNERAL_PLANS, decision.funeral_plan)
 	secretary_case_body.add_child(funeral_choice_label)
 	var grain_context := Label.new()
-	grain_context.text = "Лада привела трёх старост из Долинной области. Они просят выдать зерно: в нескольких деревнях его осталось на две недели. По книге один обоз уже дошёл. Отец перед смертью говорил, что в тот день с моста сняли настил. Сейчас нужно решить, отправлять ли помощь до сверки."
+	grain_context.text = (
+		"Старосты Долинной области просят зерно. В нескольких деревнях запасов осталось на две недели.\n\n" +
+		"По книге прошлый обоз проехал в область во вторник. Отец говорил, что с моста на той дороге сняли доски ещё в понедельник. " +
+		"Куда ушло прежнее зерно, пока неясно. Сейчас нужно решить, отправлять ли новую помощь, пока идёт проверка."
+	)
 	grain_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	grain_context.modulate = Color("c7d0c3")
 	secretary_case_body.add_child(grain_context)
