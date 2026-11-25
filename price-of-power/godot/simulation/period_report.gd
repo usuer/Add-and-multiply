@@ -61,7 +61,7 @@ static func build(state: WorldState, before: Dictionary, income: Dictionary = {}
 		notes.append("Месячный расчёт казны: %s." % ", ".join(sources))
 	_append_work_progress(state, before, notes)
 	if state.campaign_outcome.generated:
-		notes.append("Кампания завершена. Эпилог находится в делах секретаря.")
+		notes.append("Первая глава завершена. Можно прочитать её итог.")
 	return {
 		"cycle": state.calendar.cycle,
 		"date": state.calendar.display_date(),

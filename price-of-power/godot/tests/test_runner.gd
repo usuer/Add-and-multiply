@@ -5,6 +5,7 @@ const CITY_MAP := preload("res://world/illustrated_capital_map.gd")
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const SEAL_CASE_FILE := preload("res://simulation/seal_case_file.gd")
 const FAMILY_CORRESPONDENCE := preload("res://simulation/family_correspondence.gd")
+const COUNCIL_VERDICT := preload("res://simulation/council_verdict.gd")
 
 var failures: Array[String] = []
 
@@ -58,9 +59,12 @@ func _initialize() -> void:
 	_test_renaming_preserves_save_roles_and_existing_text()
 	_test_family_correspondence_tracks_promises_and_safeguards()
 	_test_family_conversations_close_with_different_outcomes()
+	_test_council_hearing_requires_evidence_to_keep_vardan_in_custody()
+	_test_council_hearing_separates_charges_and_records_inaction()
+	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 50 checks")
+		print("PASS Godot foundation: 53 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -195,6 +199,8 @@ func _test_opening_context_branches_into_second_seal_story() -> void:
 	_expect(relieved.opening_followup.spoken_text.contains("отправляешь зерно"), "Лада должна признавать уже принятое решение о помощи")
 	_expect("investigate" in relieved.opening_followup.response_ids, "После помощи разговор должен вести к расследованию недостачи")
 	relieved.advance_period()
+	var roof := relieved.story_timeline.contextual_definition(relieved, "granary_roof")
+	_expect(str(roof["summary"]).contains("уже довезли"), "Протечка должна угрожать оставшемуся запасу после доставки обоза")
 	relieved.advance_period()
 	_expect("dead_prince_order" in relieved.story_timeline.available_events(relieved.calendar.cycle), "На третьем цикле должен появляться приказ с печатью умершего князя")
 	_expect(relieved.story_timeline.choose(relieved, "dead_prince_order", "quiet"), "Должно быть можно начать тихое расследование второй печати")
@@ -225,6 +231,11 @@ func _test_act_two_characters_remember_causal_choices() -> void:
 	_expect(workshop.story_timeline.choose(workshop, "smiths_dispute", "mediate"), "На четвёртом цикле должна открываться проверка оружейного двора")
 	_expect(bool(workshop.facts.get("zlata_met", false)), "Проверка счетов должна знакомить игрока со Яриной")
 	_expect((workshop.characters["zlata"] as CharacterState).respect == 10, "Ярина должна запомнить доверенную ей независимую проверку")
+	var missing_order := WorldState.from_data(workshop.to_data())
+	missing_order.facts["second_seal_investigation"] = "trail_cold"
+	missing_order.advance_period()
+	_expect(missing_order.facts.get("missing_armory_payment", false) and not _reports_contain(missing_order.story_timeline, "одной рукой"),
+		"Без копии грамоты Ярина может найти платёж, но Мареку не с чем сверить росчерк")
 	workshop.facts["second_seal_investigation"] = "quiet"
 	workshop.advance_period()
 	_expect(bool(workshop.facts.get("missing_armory_payment", false)), "Проверка Ярины должна через ход найти пропавший платёж")
@@ -233,11 +244,18 @@ func _test_act_two_characters_remember_causal_choices() -> void:
 	var letter := WorldState.new()
 	while letter.calendar.cycle < 5:
 		letter.advance_period()
+	var compared := WorldState.from_data(letter.to_data())
+	compared.story_timeline.choose(compared, "aglaia_letter", "question")
+	compared.advance_period()
+	_expect(str(SEAL_CASE_FILE.entries(compared)).contains("Два показания") and not compared.facts.has("aglaia_guest_alias"),
+		"Раздельные показания должны раскрывать расхождение без имени приезжего")
 	_expect(letter.story_timeline.choose(letter, "aglaia_letter", "deal"), "Дело письма должно позволять заключить частную сделку с Аглаей")
 	_expect((letter.characters["aglaia"] as CharacterState).trust == 4, "Аглая должна помнить оказанное доверие")
 	letter.advance_period()
 	_expect(bool(letter.facts.get("aglaia_grey_guest", false)), "Аглая должна через ход передать обещанное имя")
 	_expect(_reports_contain(letter.story_timeline, "северными монетами"), "Сведения Аглаи должны давать конкретную зацепку, а не абстрактную награду")
+	var alias := str(letter.facts.get("aglaia_guest_alias", ""))
+	_expect(not alias.is_empty() and str(SEAL_CASE_FILE.entries(letter)).contains(alias), "Имя со слов Аглаи должно попадать в досье")
 
 	var speech := WorldState.new()
 	while speech.calendar.cycle < 7:
@@ -432,6 +450,73 @@ func _test_family_conversations_close_with_different_outcomes() -> void:
 	_expect(not state.conversations.choose(state, "spouse", "apologize_to_elina").is_empty() and state.facts.get("family_bait_repair") == "owned",
 		"Последствие должно фиксировать личное признание ответственности")
 	_expect(state.conversations.choose(state, "spouse", "defer_explaining_to_child").is_empty(), "Последствия разговора с ребёнком должны быть взаимоисключающими")
+
+func _test_council_hearing_requires_evidence_to_keep_vardan_in_custody() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 14:
+		state.advance_period()
+	state.story_timeline.choose(state, "aglaia_invitation", "attend")
+	state.advance_period()
+	state.story_timeline.choose(state, "vardan_offer", "counterfeit")
+	state.advance_period()
+	_expect(state.facts.get("vardan_stance") == "in_custody" and not state.facts.get("second_seal_order_proof", false),
+		"Вечер у Аглаи позволяет задержать Вардана даже без доказательств подделки")
+	state.advance_period()
+	state.story_timeline.choose(state, "night_of_second_seal", "capital")
+	state.advance_period()
+	_expect(COUNCIL_VERDICT.terms(state).is_empty(), "Слушание должно открываться только после принятия порядка разбирательства")
+	state.story_timeline.choose(state, "new_rule", "law")
+	var prisoners := state.justice.prisoners
+	var restored := WorldState.from_data(state.to_data())
+	restored.facts["second_seal_order_proof"] = true
+	_expect(not COUNCIL_VERDICT.choose(restored, "handle_vardan").is_empty() and restored.facts.get("vardan_stance") == "in_custody" and restored.justice.prisoners == prisoners,
+		"Доказанная подделка оставляет Вардана под стражей до проверки передачи печати")
+	_expect(not COUNCIL_VERDICT.choose(state, "handle_vardan").is_empty() and state.facts.get("vardan_stance") == "released_for_hearing",
+		"При недостатке улик Вардана отпускают под обязательство явиться")
+	_expect(state.facts.get("second_seal_custody") == "judges" and state.justice.prisoners == prisoners - 1,
+		"Освобождение уменьшает число задержанных и оставляет улику в описи судей")
+	var reloaded := WorldState.from_data(state.to_data())
+	_expect(COUNCIL_VERDICT.choose(reloaded, "publish_record").is_empty(), "После загрузки выбранное распоряжение нельзя заменить")
+	reloaded.advance_period()
+	_expect(str(reloaded.campaign_outcome.summary_lines).contains("Вардан освобождён до слушания"), "Книга главы должна помнить исход слушания после загрузки")
+
+func _test_council_hearing_separates_charges_and_records_inaction() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	state.story_timeline.choose(state, "night_of_second_seal", "capital")
+	state.advance_period()
+	state.story_timeline.choose(state, "new_rule", "law")
+	var published := WorldState.from_data(state.to_data())
+	_expect(COUNCIL_VERDICT.choose(published, "publish_record").contains("расхожд"), "Без надёжной сверки нужно огласить только расхождения")
+	var petition := WorldState.from_data(state.to_data())
+	petition.facts["court_order_exposed"] = true
+	_expect(not COUNCIL_VERDICT.choose(petition, "separate_claims").is_empty() and petition.facts.get("court_petition_referred") == true,
+		"Прошение семьи должно получить отдельную запись о княжеском приказе")
+	petition.advance_period()
+	_expect(petition.campaign_outcome.continuation_hook.contains("приняли прошение"), "В эпилоге должно быть видно, дошло ли прошение до судей")
+	state.advance_period()
+	var verdict: Dictionary = state.facts.get("council_verdict", {})
+	_expect(verdict.get("choice") == "passed_over" and COUNCIL_VERDICT.terms(state).is_empty(), "Глава должна записать, если совет разошёлся без распоряжения")
+
+func _test_late_audiences_reach_the_epilogue() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 15:
+		state.advance_period()
+	state.story_timeline.choose(state, "vardan_offer", "accept")
+	state.advance_period()
+	state.story_timeline.choose(state, "divided_command", "radomir")
+	state.advance_period()
+	state.story_timeline.choose(state, "night_of_second_seal", "capital")
+	_expect(not state.conversations.choose(state, "miron", "weigh_grain_in_public").is_empty(), "После тревоги Мирон должен принять распоряжение о выдаче зерна")
+	_expect(state.conversations.choose(state, "miron", "issue_ward_grain_receipts").is_empty(), "Выбранный порядок выдачи должен закрыть альтернативное решение")
+	_expect(not state.conversations.choose(state, "daren", "pair_night_watch").is_empty(), "Дарен должен выслушать распоряжение о карауле")
+	_expect(not state.conversations.choose(state, "vardan", "keep_city_quay_keys").is_empty(), "Вардан после сделки должен выслушать распоряжение о причале")
+	while state.calendar.cycle < 19:
+		state.advance_period()
+	var ending := str(state.campaign_outcome.summary_lines)
+	for detail in ["у весов", "у городского писца", "свидетелях обеих служб"]:
+		_expect(ending.contains(detail), "Эпилог должен учитывать распоряжение из личного разговора: %s" % detail)
 
 func _test_exchange_resolves_before_the_crisis() -> void:
 	var base := WorldState.new()

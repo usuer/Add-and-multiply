@@ -66,6 +66,9 @@ const STORY_REQUESTS: Dictionary = {
 	"prepare_trial": {"title": "Проверка насоса", "brief": "После начала горячки Тихон предлагает испытать насос для забора воды выше по реке. Он просит сначала согласовать пробный запуск с лекарями."},
 	"apologize_to_elina": {"title": "Разговор о Всеволоде", "brief": "После попытки поймать лазутчика Всеволод думает, что подвёл взрослых. Адела просит сказать ему, чьим решением было оставить его в детской. Если вы пока не готовы, она поговорит с ним сама."},
 	"guard_introductions": {"title": "Кто познакомит детей с новым караулом", "brief": "У детской теперь стоит другой караул. Милица перестала выходить за дверь, когда там незнакомый человек. Адела просит познакомить детей с дежурными и объяснить, к кому обратиться, если вас нет в замке."},
+	"miron_grain_oversight": {"title": "Как открыть выдачу зерна", "brief": "Мирон принёс весовую гирю и два списка дворов. Он просит открыть ближайшую выдачу так, чтобы люди могли проверить, сколько зерна получили. Можно взвесить первые мешки у всех на виду или развезти доли по кварталам и выдать старостам подписанные расписки."},
+	"daren_watch_repair": {"title": "Кому снова доверить ключи", "brief": "Дарен принёс две книги сдачи караула. После ночной тревоги в них остались несовпадающие записи. Назначить виновного по ним нельзя. Дарен просит решить, кто будет держать ключи до сверки книг."},
+	"vardan_quay_terms": {"title": "Ключи от речного причала", "brief": "После тревоги часть лодок ждёт разрешения на разгрузку. Вардан готов прислать старшину. Он просит решить, можно ли ему принимать мешки вместе с княжеским писцом или ключи и очередь останутся целиком у города."},
 	"thank_aglaia": {"title": "После закрытого вечера", "brief": "Аглая помогла тебе уйти через кухню после вечерней встречи. Ты можешь поблагодарить её и узнать, что произошло в доме после твоего ухода."}
 }
 
@@ -186,7 +189,31 @@ const OPTIONS: Dictionary = {
 		"evidence": {"title": "Что Дарен считает доказательством?", "response": "«Свидетель должен рассказать, что увидел сам. Если два человека повторяют историю одного соседа, это всё ещё одна история»."},
 		"streets": {"title": "Кому доверяют горожане по ту сторону ворот?", "response": "Дарен называет пекаря, банщика и двух вдов. «Они знают дворы лучше моих людей. Если на улице ссора, сначала они разнимут, а после уже решат, звать ли меня»."},
 		"sweep": {"title": "Подготовить задержание всех, кого назвали соседи", "response": "Дарен переписывает все имена в черновик и несёт его на подпись. Сторож, видевший кражу, говорит, что не знает половины этих людей.", "changes": {"trust": 1, "resentment": 1}},
-		"check_first": {"title": "Поручить Дарену сперва проверить показания", "response": "Дарен берёт с собой двоих стражников и идёт к речным воротам. Сначала расспросит сторожа по одному, чтобы его слова не подсказывали соседи.", "changes": {"respect": 2}}
+		"check_first": {"title": "Поручить Дарену сперва проверить показания", "response": "Дарен берёт с собой двоих стражников и идёт к речным воротам. Сначала расспросит сторожа по одному, чтобы его слова не подсказывали соседи.", "changes": {"respect": 2}},
+		"ask_watch_books": {
+			"title": "Где расходятся записи караулов?",
+			"response": "«В моей книге ключи от речных ворот принял старший городской смены. В книге дружины их передали дозорному с северной башни. Писари могут ошибаться, но ключи ночью были у кого-то одного».",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"]
+		},
+		"pair_night_watch": {
+			"title": "Поставить на спорные посты по одному человеку от стражи и дружины",
+			"lead": "Дарен просит решить, кому доверить ключи после тревоги",
+			"story_case": "daren_watch_repair",
+			"response": "Дарен сдаёт ключи двум новым дежурным и заставляет каждого назвать вслух, от кого он их принял. Первую телегу у ворот задержали: дружинник не узнал возчика. Дарен записал имя, чтобы на следующей смене человека не останавливали снова.",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"sets_facts": {"daren_watch_repair": "paired_posts"},
+			"changes": {"respect": 2}, "order_change": 1, "faction_changes": {"military": 2, "guilds": -1},
+			"reaction": "На спорных постах ключи принимают двое. У городских ворот выросла очередь."
+		},
+		"keep_night_watch": {
+			"title": "Оставить знакомые смены и требовать вторую подпись при сдаче ключей",
+			"story_case": "daren_watch_repair",
+			"response": "Стража выходит в тех же составах. Дарен сам стоит у первой смены и просит второго дежурного записать, у кого были ключи. Возчики проходят без прежней задержки. Дружинники у соседних ворот спрашивают, почему книгу снова видит только стража.",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"sets_facts": {"daren_watch_repair": "retained_shifts"},
+			"changes": {"trust": 2}, "order_change": 2, "faction_changes": {"military": -1, "guilds": 1},
+			"reaction": "Дарен сохранил знакомые смены и ввёл вторую подпись, не дав дружине доступ к книге стражи."
+		}
 	},
 	"zlata": {
 		"workers": {"title": "Чего рабочим не хватает при расчёте?", "response": "«Ведомость при них не читают. Если подмастерье не знает, за какую смену ему заплатили, он и ошибку в листе не назовёт»."},
@@ -221,6 +248,30 @@ const OPTIONS: Dictionary = {
 			"closes_after": "night_of_second_seal",
 			"sets_facts": {"miron_public_witnesses": true},
 			"changes": {"respect": 2}
+		},
+		"ask_grain_tally": {
+			"title": "Почему дворы опять спорят о зерне?",
+			"response": "«В книге записывают, сколько мешков ушло со склада. По ней двору положено всё до последней меры. А в очереди считают, сколько в мешке. У одних хватает, у других та же запись и на две миски меньше».",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"]
+		},
+		"weigh_grain_in_public": {
+			"title": "Открыть первые мешки на площади и дать дворам сверить вес",
+			"lead": "У Мирона есть предложение, как возобновить выдачу зерна",
+			"story_case": "miron_grain_oversight",
+			"response": "Мирон позвал женщину из очереди поставить гирю на чашу. Первый мешок не дотянул до записи. Остальные велели перевесить. Очередь простояла до полудня, зато к вечеру у каждого двора была своя запись о том, сколько ему выдали.",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"sets_facts": {"miron_grain_oversight": "open_weighing"},
+			"changes": {"trust": 3, "resentment": -1}, "order_change": 1, "faction_changes": {"rural": 2, "guilds": -1},
+			"reaction": "Первые мешки перевесили при получателях. Очередь выросла, зато двор за двором проверил свою долю."
+		},
+		"issue_ward_grain_receipts": {
+			"title": "Развезти зерно по кварталам и вернуть подписанные расписки",
+			"story_case": "miron_grain_oversight",
+			"response": "Телеги разошлись по дворам. Пока не стемнело, писцы вернули большинство расписок. Мирон отложил две, подписанные одним старостой вместо получателей: «Послушайте этих двоих завтра. Их отметили, но они сами здесь ещё не были».",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"sets_facts": {"miron_grain_oversight": "ward_receipts"},
+			"changes": {"respect": 1}, "order_change": 2, "faction_changes": {"guilds": 2, "rural": -1},
+			"reaction": "Поставки разошлись по кварталам до темноты, но часть получателей не смогла проверить расписку лично."
 		}
 	},
 	"aglaia": {
@@ -285,7 +336,34 @@ const OPTIONS: Dictionary = {
 		"father": {"title": "Какие поручения, по словам Вардана, давал ему отец?", "response": "«Платить северным офицерам за задержки при поставках и помогать семьям людей, которых двор не мог назвать своими». Вардан называет суммы, но расписок с собой не принёс."},
 		"network": {"title": "Кому подчиняются возчики Вардана?", "response": "«Хозяину своей лодки. Тот, кто одолжил на неё деньги, всегда может попросить об услуге. Некоторые спрашивают меня. Остальные не всегда спрашивают»."},
 		"threat": {"title": "Отказаться от услуг сети Вардана", "response": "Вардан забирает незаполненное разрешение. «Так и передам хозяевам лодок. На ваши причалы они сегодня не пойдут».", "sets_facts": {"vardan_river_manifest": "refused"}, "changes": {"resentment": 4, "grievance": 3}},
-		"ask_public_register": {"title": "Потребовать именной список до возобновления перевозок", "response": "Вардан называет хозяев лодок. Когда вы просите добавить грузчиков, он зовёт управляющего и поручает собрать список с пристани до вечера.", "sets_facts": {"vardan_river_manifest": "listed"}, "changes": {"respect": 2}}
+		"ask_public_register": {"title": "Потребовать именной список до возобновления перевозок", "response": "Вардан называет хозяев лодок. Когда вы просите добавить грузчиков, он зовёт управляющего и поручает собрать список с пристани до вечера.", "sets_facts": {"vardan_river_manifest": "listed"}, "changes": {"respect": 2}},
+		"ask_quay_staff": {
+			"title": "Зачем на причале нужен ваш старшина?",
+			"response": "«Писец знает, сколько надо принять. Мой старшина знает, что привезла каждая лодка. Если вес не сойдётся, пусть оба оставят свои имена под записью. Мне важно, чьему слову поверят, если начнётся спор».",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"requires_facts": {"vardan_stance": "inside_council"}
+		},
+		"share_quay_watch": {
+			"title": "Разрешить разгрузку при старшине Вардана и городском писце",
+			"lead": "Вардан ждёт распоряжения о разгрузке после тревоги",
+			"story_case": "vardan_quay_terms",
+			"response": "Городской писец взвесил мешки, старшина расписался за лодки. К вечеру очередь у причала кончилась. Старшина остался у стола, и следующую городскую телегу уже отправили не к писцу, а спросить разрешения у него.",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"requires_facts": {"vardan_stance": "inside_council"},
+			"sets_facts": {"vardan_quay_terms": "shared_warehouse"},
+			"changes": {"trust": 3}, "order_change": 2, "faction_changes": {"guilds": 2, "nobility": -1},
+			"reaction": "Совместная разгрузка быстро освободила причал, но у старшины Вардана стало больше влияния."
+		},
+		"keep_city_quay_keys": {
+			"title": "Держать ключи у города и принимать его лодки в общей очереди",
+			"story_case": "vardan_quay_terms",
+			"response": "Вардан отправил хозяев лодок к городскому писцу и ушёл. Две до вечера так и не разгрузились. «Я обещал привезти зерно. Теперь судите сами, сколько из него можно выдать к утру», — сказал он у двери.",
+			"requires_event": "night_of_second_seal", "requires_choices": ["capital", "border", "expose"],
+			"requires_facts": {"vardan_stance": "inside_council"},
+			"sets_facts": {"vardan_quay_terms": "city_only"},
+			"changes": {"respect": 2, "trust": -1}, "order_change": 1, "faction_changes": {"guilds": -1, "nobility": 2},
+			"reaction": "Причал и очередь остались под властью города. Некоторые купцы прождали до вечера."
+		}
 	}
 }
 
@@ -547,6 +625,8 @@ func question_options(person_id: String, state: WorldState) -> Dictionary:
 	return questions
 
 func decision_cases(person_id: String, state: WorldState) -> Array[Dictionary]:
+	if state != null and state.calendar.is_demo_complete():
+		return []
 	var by_id: Dictionary = {}
 	for option_id: String in available_options(person_id, state):
 		var case := _decision_case(person_id, option_id)
@@ -558,6 +638,10 @@ func decision_cases(person_id: String, state: WorldState) -> Array[Dictionary]:
 				var setting := _savva_visit_setting(state)
 				if not setting.is_empty():
 					case["brief"] = "%s %s" % [setting, case["brief"]]
+			if state != null:
+				var callback := _late_case_callback(id, state)
+				if not callback.is_empty():
+					case["brief"] = "%s %s" % [callback, case["brief"]]
 			case["options"] = {}
 			by_id[id] = case
 		by_id[id]["options"][option_id] = option(person_id, option_id)
@@ -565,6 +649,30 @@ func decision_cases(person_id: String, state: WorldState) -> Array[Dictionary]:
 	for case: Dictionary in by_id.values():
 		result.append(case)
 	return result
+
+func _late_case_callback(case_id: String, state: WorldState) -> String:
+	match case_id:
+		"miron_grain_oversight":
+			var speech: Dictionary = state.story_timeline.resolved.get("market_speech", {})
+			if state.facts.get("miron_public_witnesses", false):
+				return "Двое старшин, с которыми Мирон договаривался о проверке ночных грамот, согласны прийти и к весам."
+			if speech.get("choice") == "disperse":
+				if state.facts.get("miron_hearing_promised", false):
+					return "«В прошлый раз вы обещали выслушать троих, а я привёл их к строю стражи», — говорит Мирон. Сегодня он пришёл сам. Просителей пока не позвал."
+				return "После разгона Мирон не зовёт просителей на площадь, пока не услышит ваш ответ."
+			if speech.get("choice") == "answer":
+				return "«На площади вы показали, как считали прошлую выдачу, — говорит Мирон. — Теперь пусть люди сами увидят, сколько насыпали в новый мешок»."
+		"daren_watch_repair":
+			match state.facts.get("command_structure"):
+				"military": return "«Приказ Радомира я исполнил, — говорит Дарен. — А книгу смен всё равно принесли мне. У него казармы, у меня люди у этих ворот»."
+				"joint": return "Дарен кладёт рядом две подписи с ночного приказа. Одна и та же смена по книгам в это время стояла на разных постах."
+				"split": return "«У стены мы поделили людей, а у ворот не поделили ключи, — говорит Дарен. — Внутри мой пост, снаружи пост Радомира. Запор один»."
+		"vardan_quay_terms":
+			if state.facts.get("vardan_river_manifest") == "listed":
+				return "Вардан принёс уже записанные имена хозяев лодок. Просит сверить их сейчас, пока люди ждут на воде."
+			if state.facts.get("vardan_river_manifest") == "refused":
+				return "«Без вашего слова мои лодки на казённый причал не пошли», — говорит Вардан. «Теперь у вас там очередь до поворота. Хотите обсудить разгрузку ещё раз?»"
+	return ""
 
 func latest_decision(person_id: String) -> Dictionary:
 	var id := str(last_decision_cases.get(person_id, ""))
@@ -644,7 +752,7 @@ func choose(state: WorldState, person_id: String, option_id: String) -> String:
 		return ""
 	var data := option(person_id, option_id)
 	var case := _decision_case(person_id, option_id)
-	if data.is_empty() or not case.is_empty() and not state.can_govern():
+	if data.is_empty() or (not case.is_empty() and (state.calendar.is_demo_complete() or not state.can_govern())):
 		return ""
 	discussed[_key(person_id, option_id)] = true
 	last_topics[person_id] = option_id
@@ -657,6 +765,8 @@ func choose(state: WorldState, person_id: String, option_id: String) -> String:
 	state.facts.merge(new_facts, true)
 	if data.has("outcome"):
 		_apply_city_case_choice(state, person_id, data)
+	if data.has("order_change") or data.has("gold_change") or data.has("faction_changes"):
+		_apply_public_reaction(state, data)
 	state.add_fatigue(1)
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "character_conversation", "person": person_id, "option": option_id})
 	return str(data["response"])
@@ -672,6 +782,8 @@ func _record_decision(person_id: String, option_id: String, case: Dictionary, op
 func _apply_city_case_choice(state: WorldState, person_id: String, data: Dictionary) -> void:
 	var city_case: Dictionary = CITY_CASES[person_id]
 	state.facts[str(city_case["fact"])] = data["outcome"]
+
+func _apply_public_reaction(state: WorldState, data: Dictionary) -> void:
 	state.public_order = clampi(state.public_order + int(data.get("order_change", 0)), 0, 100)
 	state.state_treasury += int(data.get("gold_change", 0))
 	var faction_changes: Dictionary = data.get("faction_changes", {})

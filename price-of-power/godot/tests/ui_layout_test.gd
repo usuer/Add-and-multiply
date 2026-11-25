@@ -150,6 +150,7 @@ func _run() -> void:
 	await _check_battle_clicks(app, state)
 	await _check_authority_confirmation(app, state)
 	await _check_family_letter_from_secretary(app, state)
+	await _check_hearing_and_epilogue(app, state)
 	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
 	_check_exit_confirmation(app)
@@ -470,6 +471,75 @@ func _check_family_letter_from_secretary(app: Node, original: WorldState) -> voi
 			failures.append("После отправки из канцелярии оба ответа на письмо должны исчезнуть")
 	app.call("_close_secretary")
 	app.set("state", original)
+
+func _check_hearing_and_epilogue(app: Node, original: WorldState) -> void:
+	var chapter := WorldState.new()
+	chapter.opening_decision.choose_funeral("modest")
+	chapter.opening_decision.choose_grain("partial")
+	chapter.opening_decision.resolve(chapter)
+	while chapter.calendar.cycle < 17:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "night_of_second_seal", "capital")
+	chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "new_rule", "law")
+	app.set("state", chapter)
+	app.call("_open_secretary")
+	var body := app.get("secretary_case_body") as Control
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	var title := app.get("secretary_title") as Label
+	await _click_secretary_choice(body, scroll, "Дело о подложных приказах · решение")
+	if title.text != "Слушание о второй печати":
+		failures.append("Дело должно открывать отдельный экран слушания")
+	await _click_secretary_choice(body, scroll, "Свериться с материалами дела")
+	if title.text != "Дело о второй печати":
+		failures.append("Из слушания должно открываться досье")
+	await _click_secretary_choice(body, scroll, "← К распоряжению о деле")
+	if title.text != "Слушание о второй печати":
+		failures.append("Из досье нужно возвращаться к слушанию")
+	await _click_secretary_choice(body, scroll, "Огласить, что установлено")
+	var verdict: Dictionary = chapter.facts.get("council_verdict", {})
+	if verdict.get("choice") != "publish_record" or _find_button(body, "Огласить, что установлено") != null:
+		failures.append("Слушание должно сохранить выбранное распоряжение и скрыть варианты")
+	if scroll.get_h_scroll_bar().visible:
+		failures.append("Слушание должно помещаться без прокрутки вправо")
+	app.call("_close_secretary")
+	await process_frame
+	var finish := app.get("advance_button") as Button
+	if finish.text != "Завершить главу":
+		failures.append("Последняя кнопка перехода должна предупреждать, что закончится глава")
+	_click(finish.get_global_rect().get_center())
+	await process_frame
+	await process_frame
+	var report := app.get("period_report_panel") as Control
+	var open_ending := report.get("secretary_button") as Button
+	if not report.visible or open_ending.text != "Читать эпилог":
+		failures.append("Последняя сводка должна предложить перейти к эпилогу")
+	else:
+		_click(open_ending.get_global_rect().get_center())
+		await process_frame
+		if report.visible or title.text != "Итог первой главы":
+			failures.append("Последняя сводка должна закрыться и открыть итог главы")
+		if scroll.get_h_scroll_bar().visible:
+			failures.append("Эпилог должен помещаться без прокрутки вправо")
+		await _click_secretary_choice(body, scroll, "Открыть летопись и донесения")
+		if _find_button(body, "Ход 18 · Дело о подложных приказах") == null:
+			failures.append("Из эпилога игрок должен открыть летопись с принятым распоряжением")
+	app.call("_close_period_report")
+	app.call("_close_secretary")
+	app.set("state", original)
+	app.call("_refresh_ui", "Кампания продолжается")
+
+func _click_secretary_choice(body: Control, scroll: ScrollContainer, caption: String) -> void:
+	await process_frame
+	await process_frame
+	var button := _find_button(body, caption)
+	if button == null:
+		failures.append("В канцелярии должна быть доступна кнопка «%s»" % caption)
+		return
+	scroll.ensure_control_visible(button)
+	await process_frame
+	_click(button.get_global_rect().get_center())
+	await process_frame
 
 func _check_compact_dialogue(location: Control, state: WorldState) -> void:
 	var normal_scale := root.content_scale_size

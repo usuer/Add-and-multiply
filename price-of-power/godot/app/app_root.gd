@@ -10,6 +10,7 @@ const PROLOGUE := preload("res://world/prologue_scene.gd")
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const SEAL_CASE_FILE := preload("res://simulation/seal_case_file.gd")
 const FAMILY_CORRESPONDENCE := preload("res://simulation/family_correspondence.gd")
+const COUNCIL_VERDICT := preload("res://simulation/council_verdict.gd")
 const USE_3D_PLACEHOLDERS: bool = false
 const SETTINGS_PATH: String = "user://settings.cfg"
 
@@ -68,7 +69,8 @@ var location_scene: Control
 var selected_location_id: String = ""
 var management_from_location: bool = false
 var selected_story_record: Dictionary = {}
-var seal_dossier_open: bool = false
+var secretary_page: String = "agenda"
+var dossier_return_page: String = "agenda"
 var battle_view: Control
 var interface_root: VBoxContainer
 var modal_shade: ColorRect
@@ -700,7 +702,8 @@ func _open_secretary() -> void:
 	secretary_close_button.grab_focus()
 	modal_shade.visible = true
 	selected_story_record.clear()
-	seal_dossier_open = false
+	secretary_page = "epilogue" if state.campaign_outcome.generated else "agenda"
+	dossier_return_page = "agenda"
 	_reveal_panel(secretary_panel)
 	_refresh_secretary_case()
 	secretary_scroll.set_deferred("scroll_vertical", 0)
@@ -717,10 +720,20 @@ func _refresh_secretary_case() -> void:
 	for child in secretary_case_body.get_children():
 		secretary_case_body.remove_child(child)
 		child.queue_free()
-	if seal_dossier_open:
-		_add_seal_dossier()
-		return
+	match secretary_page:
+		"dossier":
+			_add_seal_dossier()
+			return
+		"epilogue":
+			_add_campaign_outcome()
+			return
+		"hearing":
+			_add_council_hearing()
+			return
 	_add_selected_story_result()
+	if state.campaign_outcome.generated:
+		_add_secretary_page_link("Читать итог первой главы", "epilogue")
+	_add_council_hearing_link()
 	_add_unread_reports()
 	var decision := state.opening_decision
 	if decision.status == OpeningDecision.Status.RESOLVED:
@@ -733,7 +746,7 @@ func _refresh_secretary_case() -> void:
 			battle_route.custom_minimum_size.y = 44
 			battle_route.pressed.connect(_open_active_battle)
 			secretary_case_body.add_child(battle_route)
-		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
+		if not state.campaign_outcome.generated and state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
 			_add_opening_followup()
 		_add_family_debt()
 		_add_family_letter()
@@ -746,7 +759,6 @@ func _refresh_secretary_case() -> void:
 		_add_available_story_events()
 		_add_story_history()
 		_add_read_reports()
-		_add_campaign_outcome()
 		resolve_opening_button.visible = false
 		return
 	secretary_title.text = "Первые решения нового князя"
@@ -913,6 +925,9 @@ func _add_story_history() -> void:
 	var history := state.story_timeline.resolved_history(6)
 	history.append_array(state.conversations.decision_history())
 	history.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["cycle"]) > int(b["cycle"]))
+	var verdict: Dictionary = state.facts.get("council_verdict", {})
+	if not verdict.is_empty():
+		history.push_front({"cycle": int(verdict["cycle"]), "title": "Дело о подложных приказах", "choice": verdict["title"], "outcome": verdict["outcome"]})
 	if history.size() > 6:
 		history.resize(6)
 	if state.opening_followup.status == OpeningFollowup.Status.RESOLVED:
@@ -1055,18 +1070,81 @@ func _reply_to_family_letter(choice_id: String) -> void:
 	_refresh_ui("Ответ Аделе передан через Ладу.")
 	_show_story_record({"title": "Ответ Аделе", "outcome": response})
 
-func _set_seal_dossier(open: bool) -> void:
-	seal_dossier_open = open
+func _set_seal_dossier(open: bool, return_page: String = "agenda") -> void:
+	dossier_return_page = return_page
+	_set_secretary_page("dossier" if open else return_page)
+
+func _set_secretary_page(page: String) -> void:
+	secretary_page = page
+	secretary_close_button.grab_focus()
 	_refresh_secretary_case()
 	secretary_scroll.set_deferred("scroll_vertical", 0)
+
+func _add_secretary_page_link(caption: String, page: String) -> void:
+	var button := Button.new()
+	button.text = caption
+	button.custom_minimum_size.y = 40
+	if page == "dossier":
+		button.pressed.connect(_set_seal_dossier.bind(true, secretary_page))
+	else:
+		button.pressed.connect(_set_secretary_page.bind(page))
+	secretary_case_body.add_child(button)
+
+func _add_council_hearing_link() -> void:
+	var terms := COUNCIL_VERDICT.terms(state)
+	if terms.is_empty():
+		return
+	_add_secretary_page_link("Дело о подложных приказах · решение до конца главы", "hearing")
+
+func _add_council_hearing() -> void:
+	var terms := COUNCIL_VERDICT.terms(state)
+	var verdict: Dictionary = state.facts.get("council_verdict", {})
+	secretary_title.text = str(terms.get("title", "Дело о подложных приказах"))
+	secretary_introduction.text = "Марек записывает, что вы поручили сделать с делом." if verdict.is_empty() else "Распоряжение внесено в летопись."
+	resolve_opening_button.visible = false
+	_add_secretary_page_link("← К делам канцелярии", "agenda")
+	if not verdict.is_empty():
+		_add_hearing_text(str(verdict["title"]), Color("d9bd72"))
+		_add_hearing_text(str(verdict["outcome"]))
+		return
+	if terms.is_empty():
+		_add_hearing_text("Сейчас дело недоступно.")
+		return
+	_add_hearing_text(str(terms["context"]))
+	if not SEAL_CASE_FILE.entries(state).is_empty():
+		_add_secretary_page_link("Свериться с материалами дела", "dossier")
+	for choice_id: String in terms["options"]:
+		var option: Dictionary = terms["options"][choice_id]
+		var choice := Button.new()
+		choice.text = str(option["title"])
+		choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		choice.custom_minimum_size.y = 44
+		choice.disabled = not bool(option.get("enabled", true))
+		choice.pressed.connect(_choose_council_verdict.bind(choice_id))
+		secretary_case_body.add_child(choice)
+
+func _add_hearing_text(text: String, color: Color = Color.WHITE) -> void:
+	var label := Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.modulate = color
+	secretary_case_body.add_child(label)
+
+func _choose_council_verdict(choice_id: String) -> void:
+	var outcome := COUNCIL_VERDICT.choose(state, choice_id)
+	if not outcome.is_empty():
+		_play_ui_sound("decision")
+		_refresh_ui(outcome)
+		_set_secretary_page("hearing")
 
 func _add_seal_dossier() -> void:
 	secretary_title.text = "Дело о второй печати"
 	secretary_introduction.text = "Собранные сведения и то, что по ним пока нельзя установить."
 	resolve_opening_button.visible = false
 	var back := Button.new()
-	back.text = "← К делам канцелярии"
-	back.pressed.connect(_set_seal_dossier.bind(false))
+	back.text = "← К распоряжению о деле" if dossier_return_page == "hearing" else "← К делам канцелярии"
+	back.pressed.connect(_set_secretary_page.bind(dossier_return_page))
 	secretary_case_body.add_child(back)
 	back.grab_focus()
 	for entry: Dictionary in SEAL_CASE_FILE.entries(state):
@@ -1106,28 +1184,27 @@ func _choose_story_event(event_id: String, choice_id: String) -> void:
 
 func _add_campaign_outcome() -> void:
 	var outcome := state.campaign_outcome
-	if not outcome.generated:
-		return
-	secretary_case_body.add_child(HSeparator.new())
-	var marker := Label.new()
-	marker.text = "ИТОГ ПЕРВОЙ ГЛАВЫ"
-	marker.modulate = Color("d9bd72")
-	secretary_case_body.add_child(marker)
-	var title := Label.new()
-	title.text = outcome.title
-	title.add_theme_font_size_override("font_size", 23)
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	secretary_case_body.add_child(title)
-	for line: String in outcome.summary_lines:
+	secretary_title.text = "Итог первой главы"
+	secretary_introduction.text = outcome.title
+	resolve_opening_button.visible = false
+	const TOPICS := ["Княжество", "Семья", "Северная граница", "Порядок у власти"]
+	for index in outcome.summary_lines.size():
+		if index < TOPICS.size():
+			var subject := Label.new()
+			subject.text = TOPICS[index]
+			subject.modulate = Color("d9bd72")
+			secretary_case_body.add_child(subject)
 		var summary := Label.new()
-		summary.text = line
+		summary.text = outcome.summary_lines[index]
 		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		secretary_case_body.add_child(summary)
+	secretary_case_body.add_child(HSeparator.new())
 	var hook := Label.new()
 	hook.text = outcome.continuation_hook
 	hook.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hook.modulate = Color("e0a96b")
 	secretary_case_body.add_child(hook)
+	_add_secretary_page_link("Открыть летопись и донесения", "agenda")
 
 func _add_choice_section(title: String, choices: Dictionary, selected_id: String, callback: Callable) -> void:
 	var heading := Label.new()
@@ -2159,7 +2236,7 @@ func _step_period_report(step: int) -> void:
 	var latest_index := state.period_archive.size()
 	period_report_index = clampi(period_report_index + step, 0, latest_index)
 	var report: Dictionary = state.period_report if period_report_index == latest_index else state.period_archive[period_report_index]
-	period_report_panel.show_report(report, period_report_index + 1, latest_index + 1)
+	period_report_panel.show_report(report, period_report_index + 1, latest_index + 1, state.campaign_outcome.generated)
 
 func _close_period_report() -> void:
 	if not period_report_panel.visible:
@@ -2252,6 +2329,9 @@ func _refresh_ui(message: String) -> void:
 	]
 	notice_label.text = message + "    ·    перетаскивание — движение карты · колесо — масштаб"
 	advance_button.disabled = state.calendar.is_demo_complete()
+	var final_period := state.calendar.month_index == CampaignCalendar.MONTH_NAMES.size() - 1 and state.calendar.period == CampaignCalendar.Period.END
+	advance_button.text = "Завершить главу" if final_period or advance_button.disabled else "Завершить период"
+	advance_button.tooltip_text = "После этого откроется эпилог. Оставшиеся решения можно принять сейчас." if final_period else ""
 	period_report_button.visible = not state.period_report.is_empty()
 	var topics: Array[Dictionary] = []
 	if state.can_govern() and not state.calendar.is_demo_complete():
@@ -2273,8 +2353,11 @@ func _refresh_ui(message: String) -> void:
 			open_cases += 1
 		if not FAMILY_CORRESPONDENCE.terms(state).is_empty():
 			open_cases += 1
+		if not COUNCIL_VERDICT.terms(state).is_empty():
+			open_cases += 1
 		open_cases += state.story_timeline.unread_reports().size()
 		if state.campaign_outcome.generated:
-			open_cases += 1
-		cases_button.text = "Дела секретаря · %d" % open_cases
+			cases_button.text = "Эпилог"
+		else:
+			cases_button.text = "Дела секретаря · %d" % open_cases
 

@@ -6,6 +6,7 @@ const LOCATION_PEOPLE := preload("res://simulation/location_people.gd")
 const PERIOD_REPORT := preload("res://simulation/period_report.gd")
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const FAMILY_CORRESPONDENCE := preload("res://simulation/family_correspondence.gd")
+const COUNCIL_VERDICT := preload("res://simulation/council_verdict.gd")
 
 const SAVE_VERSION: int = 1
 const TEXT_REVISION: int = 3
@@ -137,6 +138,7 @@ func advance_period() -> bool:
 		technology.advance_month(self)
 		population.advance_month(self)
 	if calendar.is_demo_complete():
+		COUNCIL_VERDICT.update(self)
 		campaign_outcome.generate(self)
 	consequence_log.append({
 		"cycle": calendar.cycle,

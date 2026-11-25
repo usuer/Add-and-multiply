@@ -27,13 +27,20 @@ func generate(state: WorldState) -> void:
 	continuation_hook = _build_hook(state)
 
 func _realm_summary(state: WorldState, rural: FactionState, guilds: FactionState) -> String:
+	var result := "Столица работает, но области и цехи оценивают каждый приказ отдельно — наследованного авторитета оказалось недостаточно."
 	if str(state.facts.get("granary_roof", "")) == "collapsed":
-		return "Области вступают в осень с потерей зерна: рухнувшая кровля стала для людей символом запоздалой власти."
-	if state.facts.get("granary_roof") == "water_damage":
-		return "В амбаре по-прежнему ждут плотников. Накладная помогла расследованию, но старосты помнят, сколько зерна отсырело под открытой кровлей."
-	if rural.disposition >= 3 and guilds.disposition >= 0:
-		return "Помощь области и разговор с ремесленниками создали первое, ещё хрупкое доверие к новому правлению."
-	return "Столица работает, но области и цехи оценивают каждый приказ отдельно — наследованного авторитета оказалось недостаточно."
+		result = "Области вступают в осень с потерей зерна. Старосты помнят, что двор так и не починил кровлю амбара."
+	elif state.facts.get("granary_roof") == "water_damage":
+		result = "В амбаре по-прежнему ждут плотников. Старосты помнят, сколько зерна отсырело под открытой кровлей."
+	elif rural.disposition >= 3 and guilds.disposition >= 0:
+		result = "В областях и цехах у нового князя появились сторонники. Пока те готовы отвечать лишь за решения, которые видели сами."
+	match str(state.facts.get("miron_grain_oversight", "")):
+		"open_weighing": result += " Выдачу впервые проверили у весов при горожанах."
+		"ward_receipts": result += " У каждого квартала теперь есть расписка о его доле зерна."
+	match str(state.facts.get("vardan_quay_terms", "")):
+		"shared_warehouse": result += " Разгрузку на причале ведут городской писец и старшина Вардана."
+		"city_only": result += " Ключи от причала остались у городского писца."
+	return result
 
 func _family_summary(state: WorldState) -> String:
 	var result: String
@@ -122,9 +129,17 @@ func _power_summary(state: WorldState) -> String:
 		"old_order_survived": result = "Совет сменил печать, но разошёлся без нового порядка проверки. Кто отвечает за подложный приказ, так и не решили."
 	if result.is_empty():
 		result = _crisis_summary(state)
-	var vardan := _vardan_summary(state)
-	if not vardan.is_empty():
-		result += " " + vardan
+	var verdict: Dictionary = state.facts.get("council_verdict", {})
+	if verdict.get("choice") != "handle_vardan":
+		var vardan := _vardan_summary(state)
+		if not vardan.is_empty():
+			result += " " + vardan
+	var note := str(verdict.get("epilogue", ""))
+	if not note.is_empty():
+		result += " " + note
+	match str(state.facts.get("daren_watch_repair", "")):
+		"paired_posts": result += " Ключи у ворот теперь передают при свидетелях обеих служб."
+		"retained_shifts": result += " Прежние смены остались на постах до сверки книг."
 	return result
 
 func _crisis_summary(state: WorldState) -> String:
@@ -143,13 +158,30 @@ func _vardan_summary(state: WorldState) -> String:
 				return "Вардан под стражей, печать передали судьям."
 			return "Вардан под стражей. Обвинение ещё предстоит доказать."
 		"escaped_exchange": return "После сорванного обмена Вардан скрылся. Его связи не исчезли вместе с ним."
+		"released_for_hearing": return "Вардан освобождён под обязательство явиться к судьям."
 		"open_enemy": return "Вардан объявлен врагом. Ареста никто не подтвердил."
 		"false_bargain": return "Согласованный с Варданом обмен остался без подтверждённого итога."
 	return ""
 
 func _build_hook(state: WorldState) -> String:
 	if bool(state.facts.get("court_order_exposed", false)):
+		if bool(state.facts.get("court_petition_referred", false)):
+			return "Судьи приняли прошение семьи погибшего чиновника. Для следующего слушания Марек оставляет рядом два экземпляра ночного реестра. В одном имя того, кто отдал приказ, вычеркнуто."
 		return "У дверей совета Марек ждёт с прошением семьи погибшего чиновника. Родные просят внести в летопись имя человека, отдавшего приказ. Рядом осталось место для вашей подписи."
+	var verdict: Dictionary = state.facts.get("council_verdict", {})
+	match str(verdict.get("choice", "")):
+		"publish_record":
+			return "После оглашения старшина принёс собственный экземпляр ночной грамоты. Оттиск тот же, а имя получателя другое. Он просит выслушать его до встречи с другими старшинами."
+		"handle_vardan":
+			match str(state.facts.get("vardan_stance", "")):
+				"released_for_hearing":
+					return "Расписку Вардана положили в реестр. Под ней Марек оставил строку для свидетеля, который подтвердит его явку."
+				"in_custody":
+					return "Вардан прислал судьям список тех, кто присутствовал при передаче печати. Два имени перечёркнуты старой рукой. Суд просит установить, кто внёс поправку."
+				"inside_council":
+					return "Вардан пришёл к судьям с двумя служащими пристани. Прежде чем назвать имена, он попросил вслух прочесть условия сделки."
+		"separate_claims":
+			return "Когда разложили старые и новые бумаги, в обоих делах оказался один и тот же возчик. Марек просит послать за ним двух писцов и записать показания отдельно."
 	match str(state.facts.get("new_rule", "")):
 		"public_law":
 			if state.facts.get("second_seal_custody") == "judges":

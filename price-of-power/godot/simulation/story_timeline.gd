@@ -170,8 +170,9 @@ func _apply_delayed_results(state: WorldState) -> void:
 			resolved["smiths_dispute"] = smiths
 			state.facts["missing_armory_payment"] = true
 			var link_text := "Ярина нашла перевод на несуществующий перевозочный двор. Получатель вписан после составления ведомости."
-			if not str(state.facts.get("second_seal_investigation", "")).is_empty():
-				link_text += " Марек сравнил росчерк с приказом об освобождении заключённого: оба исправления сделаны одной рукой."
+			if state.facts.get("second_seal_investigation") in ["quiet", "public", "guard_detained"]:
+				state.facts["armory_order_mark_similarity"] = true
+				link_text += " На копии приказа о переводе Ильи Марек нашёл похожий росчерк. Возможно, обе записи сделаны одной рукой. По такому сходству Марек не берётся опознать писца."
 			_add_report(state.calendar.cycle, "Ярина закончила сверку счетов", link_text)
 	if resolved.has("aglaia_letter"):
 		var letter: Dictionary = resolved["aglaia_letter"]
@@ -179,10 +180,12 @@ func _apply_delayed_results(state: WorldState) -> void:
 			var choice := str(letter.get("choice", ""))
 			if choice == "deal":
 				state.facts["aglaia_grey_guest"] = true
-				_add_report(state.calendar.cycle, "Аглая выполнила обещание", "До рассвета она прислала имя: письмо оставил приезжий, называвший себя торговцем шерстью. Он расспрашивал о дворцовых писцах и платил новыми северными монетами.")
+				var guest_alias := "Мартен Каль"
+				state.facts["aglaia_guest_alias"] = guest_alias
+				_add_report(state.calendar.cycle, "Имя от Аглаи", "К утру Аглая передала имя, которым назвался приезжий: %s, торговец шерстью. Он расспрашивал о дворцовых писцах и платил новыми северными монетами. Аглая предупредила: его настоящее имя она не знает." % guest_alias)
 			elif choice == "question":
 				state.facts["aglaia_grey_guest"] = true
-				_add_report(state.calendar.cycle, "Показания сошлись не полностью", "Работница и Аглая одинаково описали приезжего в сером плаще, но назвали разное время его ухода. Либо одна из них ошибается, либо Аглая скрывает вторую встречу.")
+				_add_report(state.calendar.cycle, "Показания сошлись не полностью", "Милена и Аглая одинаково описали мужчину в сером плаще. Милена говорит, что он вложил письмо ей в рукав, Аглая — что передал его вместе с платой за комнату. Имени не назвала ни одна. Писец записал обе версии.")
 			elif choice == "guard":
 				state.facts["aglaia_witness_silent"] = true
 				_add_report(state.calendar.cycle, "Задержанная изменила показания", "После ночи в управлении стражи девушка заявила, что сама украла письмо у неизвестного клиента. Дарен считает признание достаточным; имя посетителя так и не появилось в деле.")
@@ -377,12 +380,22 @@ func definition(event_id: String) -> Dictionary:
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
 	if event_id == "granary_roof":
-		if state.facts.get("grain_response") in ["partial", "full"]:
-			event["summary"] += " Часть запасов уже обещана старостам. Марта отложила эти мешки ближе к выходу."
+		var grain_response := str(state.facts.get("grain_response", ""))
+		var dispatch := str(state.facts.get("opening_grain_dispatch", ""))
+		if dispatch == "delivered" and grain_response == "partial":
+			event["summary"] += " Восемь мер уже довезли до ближних деревень. Дальние ещё ждут. Если намокнет и этот запас, им будет труднее помочь."
+		elif dispatch == "delivered" and grain_response == "full":
+			event["summary"] += " Большой обоз уже приняли старосты. Теперь течь угрожает запасу, который остался в столице."
+		elif dispatch == "in_transit":
+			event["summary"] += " Обоз с помощью уже в пути. Под течью остался запас для следующих выдач."
+		elif grain_response == "purchase":
+			event["summary"] += " Для деревень заказали привозное зерно. В этом амбаре остался княжеский запас, который хотели сберечь."
+		elif grain_response == "defer":
+			event["summary"] += " Выдачу в деревни отложили до сверки книг. Дождь может испортить запас раньше, чем писцы закончат."
 		if state.facts.get("granary_inspection") == "double_check":
 			event["summary"] += " У Марты на руках вес последнего обоза. Теперь его можно сравнить со старыми накладными."
 		if not COURT_AUTHORITY.is_present(state, "granary_keeper"):
-			event["summary"] = str(event["summary"]).replace("Марта, смотрительница амбара, застала", "Дежурный писец заметил").replace("Марта отложила", "Писцы отложили").replace("У Марты", "У писца")
+			event["summary"] = str(event["summary"]).replace("Марта, смотрительница амбара, застала", "Дежурный писец заметил").replace("У Марты", "У писца")
 	if event_id == "dead_prince_order" and bool(state.facts.get("bridge_receipt_found", false)):
 		event["summary"] += " На грамоте Марек видит ту же приписку «через Восточные ворота», что и в накладной на обоз, который не мог пройти по разобранному мосту."
 	if event_id == "dead_prince_order" and state.facts.get("marek_briefing") == "evidence_first":
@@ -414,13 +427,16 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			event["title"] = "Застава, которой не поверили"
 			event["summary"] = "Гонец вернулся: ночью неизвестные разоружили дальнюю заставу, забрали списки караулов и ушли без знамён. Погибших нет, но пограничники уверены, что столица снова сочтёт их слова выдумкой."
 	if event_id == "savva_at_chapel":
-		var clues: Array[String] = []
 		if bool(state.facts.get("missing_armory_payment", false)):
-			clues.append("исправление в оружейной ведомости")
+			event["summary"] += " Марек хочет спросить Савву об исправлении в оружейной ведомости."
 		if bool(state.facts.get("aglaia_grey_guest", false)):
-			clues.append("северные монеты приезжего Аглаи")
-		if not clues.is_empty():
-			event["summary"] = str(event["summary"]) + " С его запиской совпадает %s." % " и ".join(clues)
+			var guest_alias := str(state.facts.get("aglaia_guest_alias", ""))
+			if not guest_alias.is_empty():
+				event["summary"] += " Марек также хочет спросить о приезжем, который назвался торговцем по имени %s." % guest_alias
+			elif state.facts.get("aglaia_letter") == "statements_compared":
+				event["summary"] += " У Марека есть описание мужчины в сером плаще. Как тот передал письмо, Аглая и Милена рассказали по-разному."
+			else:
+				event["summary"] += " Марек хочет узнать, видел ли Савва северные монеты, которыми расплачивался посетитель Аглаи."
 		if bool(state.facts.get("marek_copy_saved", false)):
 			event["summary"] += " У Марека есть копия книги приказов. Даже если сумка Саввы пропадёт, подлинные распоряжения будет с чем сверить."
 		if bool(state.facts.get("bridge_receipt_found", false)):
@@ -855,7 +871,7 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.facts["second_seal_custody"] = "crown"
 			state.facts.erase("second_seal_holder")
 			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "council_bargain", "Вы признали его силу и дали место у власти вместо суда.", {"respect": 8, "trust": 3})
-			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "vardan_accepted", "Вы впустили в совет человека, чьи люди проникли к детям.", {"trust": -7, "resentment": 5})
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "vardan_accepted", "Вы дали Вардану место в совете. Я всё ещё хочу знать, как к нему попала печать.", {"trust": -7, "resentment": 5})
 			return "Вардан вернул печать при свидетелях и занял кресло советника по речной торговле. Его люди прекратили вывоз зерна, но уже к вечеру к нему потянулись просители, прежде ожидавшие княжеской аудиенции."
 		"vardan_offer:counterfeit":
 			state.facts["vardan_stance"] = "false_bargain"

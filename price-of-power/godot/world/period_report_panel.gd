@@ -80,7 +80,7 @@ func _ready() -> void:
 	resized.connect(_layout_panel)
 	_layout_panel()
 
-func show_report(report: Dictionary, page: int = 1, total: int = 1) -> void:
+func show_report(report: Dictionary, page: int, total: int, campaign_finished: bool) -> void:
 	if report.is_empty():
 		return
 	date_label.text = str(report.get("date", ""))
@@ -104,7 +104,8 @@ func show_report(report: Dictionary, page: int = 1, total: int = 1) -> void:
 	var pager_height := 52.0 if pager.visible else 0.0
 	preferred_height = clampf(175.0 + pager_height + changes.size() * 27.0 + notes.size() * 55.0, 230.0, 510.0)
 	_layout_panel()
-	secretary_button.visible = page == total and bool(report.get("has_secretary_items", false))
+	secretary_button.visible = page == total and (campaign_finished or bool(report.get("has_secretary_items", false)))
+	secretary_button.text = "Читать эпилог" if campaign_finished else "К делам секретаря"
 	visible = true
 	scroll.set_deferred("scroll_vertical", 0)
 	_update_focus()
