@@ -22,6 +22,7 @@ var notice_label: Label
 var camera_rig: CapitalCamera
 var selected_building: CityBuilding
 var building_panel: PanelContainer
+var building_scroll: ScrollContainer
 var building_close_button: Button
 var battle_primary_button: Button
 var authority_confirmation: ConfirmationDialog
@@ -62,6 +63,7 @@ var sound_streams: Dictionary = {}
 var sound_enabled: bool = true
 var castle_section: String = "council"
 var selected_person: String = "spouse"
+var people_list_open: bool = false
 var intro_overlay: Control
 var objectives_label: Label
 var illustrated_map: IllustratedCapitalMap
@@ -91,8 +93,8 @@ const PEOPLE_ROLES: Dictionary = {
 	"miron": "Бывший судья и влиятельный публичный оратор",
 	"aglaia": "Хозяйка Дома семи фонарей и сети частных знакомств",
 	"tikhon": "Изобретатель и мастер опытных механизмов",
-	"savva": "Дворцовый писец, связанный с похищением второй печати",
-	"vardan": "Речной торговец и организатор собственной силовой сети"
+	"savva": "Дворцовый писец",
+	"vardan": "Речной торговец"
 }
 
 func _ready() -> void:
@@ -573,9 +575,6 @@ func _finish_intro() -> void:
 func _create_building_panel(layer: CanvasLayer) -> void:
 	building_panel = PanelContainer.new()
 	building_panel.visible = false
-	building_panel.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	building_panel.position = Vector2(-488, -325)
-	building_panel.size = Vector2(460, 650)
 	building_panel.add_theme_stylebox_override("panel", _panel_style())
 	building_panel.z_index = 70
 	layer.add_child(building_panel)
@@ -595,6 +594,7 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	building_context = Label.new()
 	building_context.text = "ГОРОДСКОЙ ОБЪЕКТ"
 	building_context.modulate = Color("d9bd72")
+	building_context.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	building_context.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(building_context)
 	building_close_button = Button.new()
@@ -606,31 +606,48 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	battle_primary_button.custom_minimum_size.y = 44
 	battle_primary_button.pressed.connect(_use_battle_primary_action)
 	column.add_child(battle_primary_button)
+	building_scroll = ScrollContainer.new()
+	building_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	building_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	building_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_RESERVE
+	building_scroll.follow_focus = true
+	column.add_child(building_scroll)
+	var details := VBoxContainer.new()
+	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_theme_constant_override("separation", 9)
+	building_scroll.add_child(details)
 	building_picture = TextureRect.new()
 	building_picture.custom_minimum_size = Vector2(0, 170)
 	building_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	building_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	building_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(building_picture)
+	details.add_child(building_picture)
 	building_title = Label.new()
 	building_title.add_theme_font_size_override("font_size", 25)
 	building_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(building_title)
+	details.add_child(building_title)
 	building_status = Label.new()
 	building_status.modulate = Color("d9bd72")
-	column.add_child(building_status)
+	building_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	details.add_child(building_status)
 	building_description = Label.new()
 	building_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	building_description.custom_minimum_size = Vector2(0, 54)
-	column.add_child(building_description)
-	var actions_scroll := ScrollContainer.new()
-	actions_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	actions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	column.add_child(actions_scroll)
+	details.add_child(building_description)
 	building_actions = VBoxContainer.new()
 	building_actions.add_theme_constant_override("separation", 7)
 	building_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	actions_scroll.add_child(building_actions)
+	details.add_child(building_actions)
+	get_viewport().size_changed.connect(_layout_building_panel)
+	_layout_building_panel()
+
+func _layout_building_panel() -> void:
+	var viewport_rect := get_viewport().get_visible_rect()
+	var panel_size := Vector2(minf(460, viewport_rect.size.x - 56), minf(650, viewport_rect.size.y - 32))
+	building_picture.custom_minimum_size.y = minf(170, panel_size.y * 0.26)
+	building_panel.size = panel_size
+	building_panel.position = viewport_rect.position + Vector2(viewport_rect.size.x - panel_size.x - 28, (viewport_rect.size.y - panel_size.y) * 0.5)
+	building_panel.pivot_offset = panel_size * 0.5
 
 func _create_secretary_panel(layer: CanvasLayer) -> void:
 	secretary_panel = PanelContainer.new()
@@ -1265,7 +1282,9 @@ func _on_building_selected(building: CityBuilding) -> void:
 	if selected_building != null:
 		selected_building.set_highlighted(false)
 	selected_building = building
-	if building.building_id == &"castle": castle_section = "council"
+	if building.building_id == &"castle":
+		castle_section = "council"
+		people_list_open = false
 	selected_building.set_highlighted(true)
 	camera_rig.focus_on(building.focus_point())
 	building_panel.visible = true
@@ -1281,7 +1300,6 @@ func _on_building_selected(building: CityBuilding) -> void:
 	building_picture.visible = not show_battle
 	building_status.visible = not show_battle
 	building_description.visible = not show_battle
-	_reveal_panel(building_panel)
 	building_close_button.text = "← В локацию" if management_from_location else "← К городу"
 	building_close_button.grab_focus()
 	building_title.text = "Пограничное столкновение" if show_battle else building.display_name
@@ -1290,6 +1308,9 @@ func _on_building_selected(building: CityBuilding) -> void:
 	building_status.text = building.building_status
 	building_description.text = building.description
 	_refresh_building_actions()
+	_layout_building_panel()
+	building_scroll.scroll_vertical = 0
+	_reveal_panel(building_panel)
 
 func _reveal_panel(panel: Control) -> void:
 	if panel_tween != null and panel_tween.is_running():
@@ -1469,6 +1490,10 @@ func _refresh_building_actions() -> void:
 		building_actions.add_child(illness)
 		return
 	if selected_building.building_id == &"castle":
+		var show_overview := castle_section != "people"
+		building_picture.visible = show_overview
+		building_status.visible = show_overview
+		building_description.visible = show_overview
 		_add_castle_navigation()
 		if castle_section == "council": _add_council_actions()
 		elif castle_section == "policies": _add_policy_actions()
@@ -1613,36 +1638,33 @@ func _add_castle_navigation() -> void:
 
 func _set_castle_section(section: String) -> void:
 	castle_section = section
+	people_list_open = false
 	_refresh_building_actions()
+	if section == "people":
+		building_actions.get_node("PeoplePicker").call_deferred("grab_focus")
 
 func _add_people_actions() -> void:
 	var heading := Label.new()
 	heading.text = "ЛЮДИ ВОКРУГ ВЛАСТИ"
 	heading.modulate = Color("d9bd72")
 	building_actions.add_child(heading)
-	var note := Label.new()
-	note.text = "Здесь показано только то, что князь уже мог заметить. Скрытые цели и будущие поступки персонажей не раскрываются."
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.modulate = Color("b9c2b3")
-	building_actions.add_child(note)
 	if not state.characters.has(selected_person) or selected_person not in PEOPLE_ORDER:
 		selected_person = "spouse"
-	var selector := OptionButton.new()
-	selector.custom_minimum_size = Vector2(0, 44)
-	var selected_index := 0
-	for person_id: String in PEOPLE_ORDER:
-		if not state.characters.has(person_id):
-			continue
-		var index := selector.item_count
-		selector.add_item((state.characters[person_id] as CharacterState).display_name)
-		selector.set_item_metadata(index, person_id)
-		if person_id == selected_person:
-			selected_index = index
-	selector.select(selected_index)
-	selector.item_selected.connect(_select_person.bind(selector))
-	building_actions.add_child(selector)
-
 	var person: CharacterState = state.characters[selected_person]
+	var picker := _people_button("Свернуть список ↑" if people_list_open else "Выбрать человека ↓")
+	picker.name = "PeoplePicker"
+	picker.pressed.connect(_toggle_people_list)
+	building_actions.add_child(picker)
+	if people_list_open:
+		for person_id: String in PEOPLE_ORDER:
+			if not state.characters.has(person_id):
+				continue
+			var candidate := state.characters[person_id] as CharacterState
+			var item := _people_button(candidate.display_name + (" · открыта карточка" if person_id == selected_person else ""))
+			item.pressed.connect(_select_person.bind(person_id))
+			building_actions.add_child(item)
+		return
+
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", _card_style())
 	building_actions.add_child(card)
@@ -1658,6 +1680,7 @@ func _add_people_actions() -> void:
 	var name_label := Label.new()
 	name_label.text = person.display_name
 	name_label.add_theme_font_size_override("font_size", 22)
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(name_label)
 	var role := Label.new()
 	role.text = str(PEOPLE_ROLES.get(selected_person, "Участник княжеского двора"))
@@ -1666,11 +1689,13 @@ func _add_people_actions() -> void:
 	content.add_child(role)
 	var relation := Label.new()
 	relation.text = "Наблюдаемое отношение: %s" % _visible_relationship(person)
+	relation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	relation.modulate = Color("d9bd72")
 	content.add_child(relation)
 	content.add_child(HSeparator.new())
 	var memory_heading := Label.new()
 	memory_heading.text = "ЧТО ЭТОТ ЧЕЛОВЕК ПОМНИТ"
+	memory_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	memory_heading.modulate = Color("b9c2b3")
 	content.add_child(memory_heading)
 	if person.memories.is_empty():
@@ -1687,20 +1712,35 @@ func _add_people_actions() -> void:
 			line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			content.add_child(line)
 
-func _select_person(index: int, selector: OptionButton) -> void:
-	selected_person = str(selector.get_item_metadata(index))
+func _people_button(caption: String) -> Button:
+	var button := Button.new()
+	button.text = caption
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.custom_minimum_size.y = 44
+	return button
+
+func _toggle_people_list() -> void:
+	people_list_open = not people_list_open
 	_refresh_building_actions()
+	building_actions.get_node("PeoplePicker").call_deferred("grab_focus")
+
+func _select_person(person_id: String) -> void:
+	selected_person = person_id
+	people_list_open = false
+	_refresh_building_actions()
+	building_actions.get_node("PeoplePicker").call_deferred("grab_focus")
 
 func _visible_relationship(person: CharacterState) -> String:
 	if person.resentment >= 15 or person.trust <= -12:
-		return "открытое недоверие; у него есть причины действовать против вас"
+		return "Открытое недоверие. У этого человека есть причины действовать против вас."
 	if person.resentment >= 6 or person.trust < 0:
-		return "настороженность; прежние решения не забыты"
+		return "Настороженность. Прежние решения ещё помнят."
 	if person.trust >= 28 and person.respect >= 25:
-		return "устойчивая личная и политическая опора"
+		return "Устойчивая личная и политическая опора."
 	if person.trust >= 12 or person.respect >= 18:
-		return "рабочее доверие, которое ещё можно потерять"
-	return "вы присматриваетесь друг к другу"
+		return "Рабочее доверие, которое ещё можно потерять."
+	return "Вы присматриваетесь друг к другу."
 
 func _add_policy_actions() -> void:
 	var heading := Label.new()

@@ -148,6 +148,7 @@ func _run() -> void:
 	await _check_campaign_contact(app, state)
 	await _check_compact_dialogue(location, state)
 	await _check_battle_clicks(app, state)
+	await _check_castle_people_picker(app, state)
 	await _check_authority_confirmation(app, state)
 	await _check_family_letter_from_secretary(app, state)
 	await _check_hearing_and_epilogue(app, state)
@@ -255,8 +256,8 @@ func _check_city_case_from_map(app: Node, state: WorldState) -> void:
 	await process_frame
 	var brief := location.get("dialogue_prompt") as Label
 	var choices := location.get("dialogue_options") as Control
-	if not brief.visible or not brief.text.contains("две ведомости"):
-		failures.append("Городское дело должно объяснять просьбу собеседника")
+	if not brief.visible or not brief.text.contains("пять мер") or not brief.text.contains("сверить записи при свидетелях"):
+		failures.append("В деле Лады должны быть понятны расхождение в выдаче зерна и её просьба о сверке")
 	var reply := _find_button(choices, "Сверить списки")
 	if reply == null:
 		failures.append("В деле Лады должно быть доступно решение о публичной сверке")
@@ -356,6 +357,71 @@ func _check_formation_depth(field: Control, unit_id: String, rank_count: int) ->
 	if count != 9 or ranks.size() != rank_count:
 		failures.append("Для %s ожидалось %d рядов и девять фигур, показано %d рядов и %d фигур" % [unit_id, rank_count, ranks.size(), count])
 
+func _check_castle_people_picker(app: Node, state: WorldState) -> void:
+	var initial_size := root.size
+	var initial_scale := root.content_scale_size
+	var vardan := state.characters["vardan"] as CharacterState
+	var initial_trust := vardan.trust
+	vardan.trust = -15
+	app.call("_on_illustrated_building_selected", &"castle")
+	await process_frame
+	var location := app.get("location_scene") as Control
+	var manage := _find_button(location, "Управление местом")
+	_click(manage.get_global_rect().get_center())
+	await process_frame
+	await process_frame
+	var panel := app.get("building_panel") as Control
+	var actions := app.get("building_actions") as Control
+	var scroll := app.get("building_scroll") as ScrollContainer
+	var people := _find_button(actions, "Люди")
+	if people == null:
+		failures.append("В управлении замком нужна вкладка «Люди»")
+	else:
+		_click(people.get_global_rect().get_center())
+		await process_frame
+		await process_frame
+		var picker := _find_button(actions, "Выбрать человека")
+		if picker == null:
+			failures.append("Во вкладке «Люди» должен открываться выбор человека")
+		else:
+			_click(picker.get_global_rect().get_center())
+			root.content_scale_size = Vector2i.ZERO
+			for window_size in [Vector2i(1440, 900), Vector2i(1280, 720), Vector2i(720, 440)]:
+				root.size = window_size
+				await process_frame
+				await process_frame
+				if not root.get_visible_rect().encloses(panel.get_global_rect()) or actions.size.x > scroll.size.x:
+					failures.append("Список людей вышел за границы окна при размере %s" % window_size)
+			var item := _find_button(actions, vardan.display_name)
+			if item == null:
+				failures.append("Список должен включать последнего персонажа")
+			else:
+				scroll.ensure_control_visible(item)
+				await process_frame
+				if not scroll.get_global_rect().grow(2).encloses(item.get_global_rect()):
+					failures.append("До последнего персонажа можно прокрутить, и его имя помещается целиком: %s / %s" % [item.get_global_rect(), scroll.get_global_rect()])
+				_click(item.get_global_rect().get_center())
+				await process_frame
+				await process_frame
+				var labels: Array[String] = []
+				_collect_label_text(actions, labels)
+				if not labels.has(vardan.display_name) or not str(labels).contains("Открытое недоверие"):
+					failures.append("Выбор последнего персонажа должен открыть его карточку и текущее отношение")
+				if not root.get_visible_rect().encloses(panel.get_global_rect()) or actions.size.x > scroll.size.x:
+					failures.append("Длинное описание отношения не должно расширять панель за правый край")
+				var current_picker := _find_button(actions, "Выбрать человека")
+				if current_picker == null or not current_picker.has_focus():
+					failures.append("После выбора фокус должен остаться на кнопке списка")
+	root.content_scale_size = initial_scale
+	root.size = initial_size
+	vardan.trust = initial_trust
+	_click(Vector2(8, 8))
+	if panel.visible:
+		failures.append("Клик по затемнению должен закрыть управление замком")
+	app.call("_close_building_panel")
+	app.call("_close_location_scene")
+	await process_frame
+
 func _check_authority_confirmation(app: Node, state: WorldState) -> void:
 	app.call("_on_illustrated_building_selected", &"castle")
 	app.call("_open_location_management", "castle")
@@ -367,7 +433,7 @@ func _check_authority_confirmation(app: Node, state: WorldState) -> void:
 	if detain == null:
 		failures.append("В суде должно быть распоряжение о задержании чиновника")
 	else:
-		var scroll := actions.get_parent() as ScrollContainer
+		var scroll := app.get("building_scroll") as ScrollContainer
 		scroll.ensure_control_visible(detain)
 		await process_frame
 		var before := state.justice.prisoners
@@ -588,7 +654,7 @@ func _check_building_panel(app: Node) -> void:
 	var picture := app.get("building_picture") as TextureRect
 	var context := app.get("building_context") as Label
 	if panel == null or not panel.visible or not root.get_visible_rect().encloses(panel.get_global_rect()):
-		failures.append("Карточка городского объекта должна полностью помещаться на экране")
+		failures.append("Карточка городского объекта должна полностью помещаться на экране: %s / %s" % [panel.get_global_rect(), root.get_visible_rect()])
 	if picture == null or picture.texture == null:
 		failures.append("Карточка здания должна показывать художественное приближение объекта")
 	if context == null or context.text != "ЗАПАСЫ И СНАБЖЕНИЕ":
