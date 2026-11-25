@@ -1,6 +1,7 @@
 extends SceneTree
 
 var failures: Array[String] = []
+var autosave_path := "user://test_ui_autosave_%d.json" % OS.get_process_id()
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -9,9 +10,13 @@ func _run() -> void:
 	root.size = Vector2i(1024, 700)
 	var scene := load("res://app/app_root.tscn") as PackedScene
 	var app := scene.instantiate()
+	app.set("autosave_path", autosave_path)
 	root.add_child(app)
 	await process_frame
 	await process_frame
+	_press_key(KEY_ESCAPE)
+	if app.get("pause_overlay").visible:
+		failures.append("Escape не должен открывать меню позади вступления")
 	for page in range(5):
 		app.call("_intro_next")
 	await process_frame
@@ -19,25 +24,64 @@ func _run() -> void:
 	app.call("_show_pause_menu")
 	await process_frame
 	_check_pause_menu(app)
+	_press_key(KEY_TAB)
+	var pause_focus := root.gui_get_focus_owner()
+	if pause_focus == null or not (app.get("pause_overlay") as Control).is_ancestor_of(pause_focus):
+		failures.append("Tab не должен переключать фокус на карту из меню паузы")
 	app.call("_hide_pause_menu")
 	await process_frame
 	app.call("_on_illustrated_building_selected", &"granary")
 	await process_frame
-	_check_building_panel(app)
-	app.call("_close_building_panel")
+	_check_location_scene(app, 0)
+	var manage := _find_button(app.get("location_scene"), "Управление местом")
+	if manage != null:
+		_click(manage.get_global_rect().get_center())
+	else:
+		failures.append("В амбаре отсутствует кнопка управления")
 	await process_frame
+	_check_building_panel(app)
+	var panel := app.get("building_panel") as Control
+	var focus := root.gui_get_focus_owner()
+	if focus == null or not panel.is_ancestor_of(focus):
+		failures.append("Окно управления должно получать фокус после открытия")
+	_click(Vector2(8, 8))
+	if panel.visible:
+		failures.append("Клик вне управления должен вернуться в локацию")
+	if manage != null and not manage.has_focus():
+		failures.append("При закрытии управления фокус должен вернуться к кнопке локации")
+	await process_frame
+	_check_location_scene(app, 0)
+	app.call("_close_location_scene")
+	app.call("_on_illustrated_building_selected", &"market")
+	await process_frame
+	await _check_location_sizes(app, 3)
+	app.call("_close_location_scene")
 	app.call("_on_illustrated_building_selected", &"castle")
 	await process_frame
 	await _check_location_sizes(app, 4)
-	app.call("_open_character_dialogue", "spouse")
+	var location := app.get("location_scene") as Control
+	var actors: Dictionary = location.get("person_actors")
+	var spouse := actors["spouse"] as Control
+	_click(spouse.get_global_rect().get_center())
 	await process_frame
 	_check_character_dialogue(app)
-	var outside_click := InputEventMouseButton.new()
-	outside_click.button_index = MOUSE_BUTTON_LEFT
-	outside_click.pressed = true
-	(app.get("location_scene") as Control).call("_on_dialogue_shade_input", outside_click)
-	if (app.get("location_scene") as Control).get("dialogue_layer").visible:
+	var choices := location.get("dialogue_options") as Control
+	var reply := _find_button(choices, "Рассказать, чего")
+	if reply == null:
+		failures.append("В разговоре отсутствует доступная реплика Элине")
+	else:
+		_click(reply.get_global_rect().get_center())
+		await process_frame
+		if _find_button(choices, "Рассказать, чего") != null:
+			failures.append("Выбранная реплика должна исчезнуть после ответа")
+	_click(Vector2(8, 8))
+	if location.get("dialogue_layer").visible:
 		failures.append("Нажатие по затемнённой области должно закрывать разговор")
+	_click(spouse.get_global_rect().get_center())
+	await process_frame
+	if not location.get("dialogue_response").text.begins_with("В прошлый раз"):
+		failures.append("Повторная встреча должна напомнить предыдущий ответ")
+	_click(Vector2(8, 8))
 	app.call("_open_location_management", "castle")
 	await process_frame
 	_check_council_cards(app)
@@ -64,14 +108,21 @@ func _run() -> void:
 	_check_location_scene(app, 2)
 	app.call("_close_location_scene")
 	var state: WorldState = app.get("state") as WorldState
+	var advance := app.get("advance_button") as Button
+	_click(advance.get_global_rect().get_center())
+	if state.calendar.cycle != 1 or not app.get("secretary_panel").visible:
+		failures.append("До подписания первого решения переход должен открывать дело без смены даты")
+	app.call("_close_secretary")
 	state.opening_decision.choose_funeral("solemn")
 	state.opening_decision.choose_grain("partial")
 	state.opening_decision.choose_funding("state")
 	if not state.opening_decision.resolve(state):
 		failures.append("Не удалось подготовить вступительное решение для UI-сценария")
-	app.call("_on_advance_period")
+	_click(advance.get_global_rect().get_center())
 	await process_frame
 	_check_header(app, "после завершения периода")
+	await _check_period_report(app, state, advance)
+	await _check_city_case_from_map(app, state)
 	app.call("_open_secretary")
 	await process_frame
 	_check_header(app, "при открытии протечки амбара")
@@ -81,22 +132,245 @@ func _run() -> void:
 	_check_header(app, "после отправки плотников")
 	_check_secretary_summary(app, 0)
 	_check_story_history(app)
+	var story_body := app.get("secretary_case_body") as Control
+	var displayed_result := story_body.get_node_or_null("StoryResult") as Label
+	if displayed_result == null or displayed_result.text != state.story_timeline.outcome("granary_roof"):
+		failures.append("Результат решения должен быть виден внутри открытой канцелярии")
 	app.call("_close_secretary")
 	app.call("_on_advance_period")
 	await process_frame
 	_check_header(app, "после следующего периода")
+	await _check_period_archive(app, state)
 	app.call("_open_secretary")
 	await process_frame
 	_check_header(app, "при повторном открытии секретаря")
+	await _check_campaign_contact(app, state)
+	await _check_compact_dialogue(location, state)
+	await _check_battle_clicks(app, state)
+	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
 	_check_exit_confirmation(app)
+	app.call("_on_illustrated_building_selected", &"castle")
+	app.call("_open_character_dialogue", "spouse")
+	app.call("_on_new_campaign")
+	app.call("_on_new_campaign")
+	if location.visible or location.get("dialogue_layer").visible or app.get("modal_shade").visible:
+		failures.append("Новая кампания должна закрывать окна и разговоры предыдущей")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(autosave_path))
 	if failures.is_empty():
-		print("PASS UI layout: header remains usable at 1024x700")
+		print("PASS UI: current period, city choices, battle input, modal focus and desktop scaling")
 		quit(0)
 	else:
 		for failure in failures:
 			push_error(failure)
 		quit(1)
+
+func _check_period_report(app: Node, state: WorldState, advance: Button) -> void:
+	var overlay := app.get("period_report_panel") as Control
+	var card := overlay.get("panel") as Control
+	if not overlay.visible or not root.get_visible_rect().encloses(card.get_global_rect()):
+		failures.append("Сводка должна открываться после перехода и помещаться целиком")
+		return
+	if state.period_report.get("cycle") != 2 or not str(state.period_report.get("notes")).contains("Вода в старом амбаре"):
+		failures.append("Сводка должна показывать новый период и открывшееся дело")
+	_click(advance.get_global_rect().get_center())
+	if state.calendar.cycle != 2:
+		failures.append("Клик из открытой сводки не должен повторно завершать период")
+	if overlay.visible:
+		_press_key(KEY_ESCAPE)
+	await process_frame
+	var reopen := app.get("period_report_button") as Button
+	_click(reopen.get_global_rect().get_center())
+	await process_frame
+	var secretary := overlay.get("secretary_button") as Button
+	_click(secretary.get_global_rect().get_center())
+	if overlay.visible or not app.get("secretary_panel").visible:
+		failures.append("Из повторно открытой сводки должен работать переход к секретарю")
+	app.call("_close_secretary")
+
+func _check_city_case_from_map(app: Node, state: WorldState) -> void:
+	var map := app.get("illustrated_map") as Control
+	var marker := _find_button(map, "✦  Замок")
+	if marker == null:
+		failures.append("Новое дело Лады должно отмечаться на карте")
+		return
+	_click(marker.get_global_rect().get_center())
+	await process_frame
+	var location := app.get("location_scene") as Control
+	var actors: Dictionary = location.get("person_actors")
+	var sister := actors.get("sister") as Control
+	if sister == null:
+		failures.append("Отмеченная локация должна открывать сцену с Ладой")
+		return
+	_click(sister.get_global_rect().get_center())
+	await process_frame
+	var brief := location.get("dialogue_prompt") as Label
+	var choices := location.get("dialogue_options") as Control
+	if not brief.visible or not brief.text.contains("две ведомости"):
+		failures.append("Городское дело должно объяснять просьбу собеседника")
+	var reply := _find_button(choices, "Сверить списки")
+	if reply == null:
+		failures.append("В деле Лады должно быть доступно решение о публичной сверке")
+	else:
+		var funds := state.state_treasury
+		state.state_treasury = 0
+		_click(reply.get_global_rect().get_center())
+		await process_frame
+		if state.facts.get("lowland_register") != "open" or state.state_treasury != 0:
+			failures.append("Игрок должен иметь возможность решить городское дело с пустой казной")
+		state.state_treasury = funds
+	_press_key(KEY_ESCAPE)
+	_press_key(KEY_ESCAPE)
+
+func _check_period_archive(app: Node, state: WorldState) -> void:
+	var overlay := app.get("period_report_panel") as Control
+	var earlier := overlay.get("previous_button") as Button
+	var later := overlay.get("next_button") as Button
+	var date := overlay.get("date_label") as Label
+	if not earlier.is_visible_in_tree() or earlier.disabled or not later.disabled:
+		failures.append("Во второй сводке должна открываться навигация по истории")
+		return
+	_click(earlier.get_global_rect().get_center())
+	await process_frame
+	if date.text != state.period_archive[0]["date"] or later.disabled:
+		failures.append("Кнопка «Раньше» должна показывать дату и сверку прошлого периода")
+	_click(later.get_global_rect().get_center())
+	await process_frame
+	if date.text != state.period_report["date"]:
+		failures.append("Кнопка «Позже» должна возвращать последнюю сводку")
+
+func _check_battle_clicks(app: Node, state: WorldState) -> void:
+	state.army.begin_border_battle("ambush")
+	app.call("_on_illustrated_building_selected", &"barracks")
+	await process_frame
+	var field := app.get("battle_view") as Control
+	var battle_controls := app.get("building_panel") as Control
+	var orders := app.get("battle_primary_button") as Button
+	var units: Dictionary = field.get("_friendly_buttons")
+	if field.get_global_rect().intersects(battle_controls.get_global_rect()):
+		failures.append("Поле и панель приказов должны иметь отдельные области")
+	for unit_id in ["archers", "cavalry"]:
+		var unit := units.get(unit_id) as Control
+		if unit == null or not unit.is_visible_in_tree():
+			failures.append("Отряд %s должен быть на поле" % unit_id)
+			continue
+		_click(unit.get_global_rect().get_center())
+		if app.get("selected_army_unit") != unit_id or not field.visible:
+			failures.append("Клик по отряду %s должен выбрать его и оставить бой открытым" % unit_id)
+	var deployment_actions := app.get("building_actions") as Control
+	for rank_count in [1, 2, 3]:
+		await process_frame
+		await process_frame
+		var depth := _find_button(deployment_actions, str(rank_count) + " лини")
+		if depth == null:
+			failures.append("У конницы не найден переключатель глубины строя")
+			continue
+		_click(depth.get_global_rect().get_center())
+		await process_frame
+		if state.army.friendly["cavalry"]["depth"] != rank_count:
+			failures.append("Кнопка %d рядов оставила глубину %d" % [rank_count, state.army.friendly["cavalry"]["depth"]])
+		_check_formation_depth(field, "cavalry", rank_count)
+	_click(orders.get_global_rect().get_center())
+	await process_frame
+	if not orders.visible or not orders.disabled or not orders.text.begins_with("Завершить ход"):
+		failures.append("Команда завершения хода должна оставаться на виду и ждать приказов")
+	var army_actions := app.get("building_actions") as Control
+	for order: Array in [["retinue", "Наступать строем"], ["archers", "Прицельный залп"], ["cavalry", "Обойти фланг"]]:
+		var unit := units[order[0]] as Control
+		_click(unit.get_global_rect().get_center())
+		await process_frame
+		var command := _find_button(army_actions, order[1])
+		if command == null:
+			failures.append("На панели должен появиться приказ для %s" % order[0])
+			continue
+		_click(command.get_global_rect().get_center())
+		await process_frame
+	_click(orders.get_global_rect().get_center())
+	if state.army.battle_log.size() != 1:
+		failures.append("Видимая команда должна выполнить все три приказа одним ходом")
+	app.call("_close_building_panel")
+
+func _check_formation_depth(field: Control, unit_id: String, rank_count: int) -> void:
+	var layers: Dictionary = field.get("_figure_layers")
+	var formation := layers[unit_id] as Control
+	var ranks: Dictionary = {}
+	var count := 0
+	for member: Control in formation.get_children():
+		if member.visible:
+			count += 1
+			ranks[roundi(member.position.y * 100)] = true
+			if not field.get_global_rect().encloses(member.get_global_rect()):
+				failures.append("Фигура бойца вышла за пределы поля во время расстановки")
+	if count != 9 or ranks.size() != rank_count:
+		failures.append("Для %s ожидалось %d рядов и девять фигур, показано %d рядов и %d фигур" % [unit_id, rank_count, ranks.size(), count])
+
+func _check_campaign_contact(app: Node, state: WorldState) -> void:
+	# Set up the case, then use the same input as a player for the entire visit.
+	app.call("_choose_story_event", "dead_prince_order", "quiet")
+	await process_frame
+	var contact := _find_button(app.get("secretary_case_body"), "Марек может найти")
+	if contact == null:
+		failures.append("После решения о проверке в канцелярии должна появиться ссылка на Марека")
+		return
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	scroll.ensure_control_visible(contact)
+	await process_frame
+	_click(contact.get_global_rect().get_center())
+	await process_frame
+	var location := app.get("location_scene") as Control
+	if not location.visible or str(location.get("active_person")) != "secretary" or app.get("secretary_panel").visible:
+		failures.append("Ссылка из дела должна открывать разговор с Мареком поверх тронного зала")
+		return
+	var option: Dictionary = state.conversations.option("secretary", "keep_copy")
+	var reply := _find_button(location.get("dialogue_options"), str(option["title"]))
+	if reply == null:
+		failures.append("У Марека должна быть доступна реплика о копии")
+	else:
+		var conversation_scroll := location.get("dialogue_scroll") as ScrollContainer
+		conversation_scroll.ensure_control_visible(reply)
+		await process_frame
+		_click(reply.get_global_rect().get_center())
+		await process_frame
+		if not state.facts.get("marek_copy_saved", false):
+			failures.append("Выбранная реплика должна сохранять сюжетную улику")
+	_press_key(KEY_ESCAPE)
+	if not location.visible or location.get("dialogue_layer").visible:
+		failures.append("Первый Escape должен вернуть из разговора в тронный зал")
+	_press_key(KEY_ESCAPE)
+	if location.visible:
+		failures.append("Второй Escape должен вернуть из тронного зала на карту")
+
+func _check_compact_dialogue(location: Control, state: WorldState) -> void:
+	var normal_scale := root.content_scale_size
+	root.content_scale_size = Vector2i.ZERO
+	root.size = Vector2i(720, 440)
+	location.visible = true
+	var replies: Dictionary = {}
+	for index in range(6):
+		replies[str(index)] = {"title": ("Предложить обсудить следующий шаг без посторонних. ").repeat(7)}
+	location.call("show_dialogue", "spouse", state.characters["spouse"], state.conversations.profile("spouse"), replies)
+	await process_frame
+	await process_frame
+	var panel := location.get("dialogue_panel") as Control
+	var scroll := location.get("dialogue_scroll") as ScrollContainer
+	var choices := location.get("dialogue_options") as Control
+	if not root.get_visible_rect().encloses(panel.get_global_rect()) or scroll.get_h_scroll_bar().visible:
+		failures.append("На 720×440 длинные реплики должны помещаться без горизонтальной прокрутки")
+	if not scroll.get_v_scroll_bar().visible:
+		failures.append("Шесть длинных реплик должны прокручиваться вертикально")
+	var last_reply := choices.get_child(5) as Control
+	last_reply.grab_focus()
+	await process_frame
+	if scroll.scroll_vertical <= 0:
+		failures.append("Фокус на последней реплике должен прокрутить её в поле зрения")
+	_press_key(KEY_TAB)
+	if root.gui_get_focus_owner() != location.get("dialogue_close"):
+		failures.append("После последней реплики Tab должен вернуть фокус к закрытию диалога")
+	location.call("close_dialogue")
+	location.visible = false
+	root.content_scale_size = normal_scale
+	root.size = Vector2i(1024, 700)
+	await process_frame
 
 func _check_common_desktop_sizes(app: Node) -> void:
 	for window_size in [Vector2i(1024, 700), Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1920, 1080), Vector2i(2560, 1440)]:
@@ -276,3 +550,17 @@ func _find_button(node: Node, caption: String) -> Button:
 		if result != null:
 			return result
 	return null
+
+func _click(point: Vector2) -> void:
+	for pressed in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.position = point
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		root.push_input(event, true)
+
+func _press_key(key: Key) -> void:
+	var event := InputEventKey.new()
+	event.keycode = key
+	event.pressed = true
+	root.push_input(event, true)

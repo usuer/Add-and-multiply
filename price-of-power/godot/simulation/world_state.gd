@@ -2,6 +2,7 @@ class_name WorldState
 extends Resource
 
 const CONVERSATIONS_SCRIPT := preload("res://simulation/character_conversations.gd")
+const PERIOD_REPORT := preload("res://simulation/period_report.gd")
 
 const SAVE_VERSION: int = 1
 const CORE_CAST: Dictionary = {
@@ -45,6 +46,8 @@ const CORE_CAST: Dictionary = {
 @export var guide: CampaignGuide = CampaignGuide.new()
 @export var technology: TechnologyState = TechnologyState.new()
 @export var population: PopulationState = PopulationState.new()
+@export var period_report: Dictionary = {}
+@export var period_archive: Array[Dictionary] = []
 @export var resources: Dictionary = {
 	"grain": 82,
 	"wood": 46,
@@ -99,29 +102,38 @@ func _make_faction(id: String, title: String, disposition_value: int) -> Faction
 	return faction
 
 func advance_period() -> bool:
+	var before := PERIOD_REPORT.capture(self)
 	if not calendar.advance():
 		return false
 	_update_ruler_condition()
 	story_timeline.update(self)
-	if calendar.is_demo_complete():
-		campaign_outcome.generate(self)
 	if grain_crisis.update(calendar.cycle):
 		consequence_log.append({
 			"cycle": calendar.cycle,
 			"kind": "grain_findings_ready",
 			"delegate": grain_crisis.delegate_id
 		})
+	var income: Dictionary = {}
 	if calendar.period == CampaignCalendar.Period.BEGINNING:
-		_apply_monthly_economy()
+		income = _apply_monthly_economy()
 		development.advance_month(self)
 		technology.advance_month(self)
 		population.advance_month(self)
+	if calendar.is_demo_complete():
+		campaign_outcome.generate(self)
 	consequence_log.append({
 		"cycle": calendar.cycle,
 		"kind": "period_advanced",
 		"date": calendar.display_date()
 	})
+	if not period_report.is_empty():
+		period_archive.append(period_report)
+	period_report = PERIOD_REPORT.build(self, before, income)
 	return true
+
+func dismiss_period_report() -> void:
+	if not period_report.is_empty():
+		period_report["dismissed"] = true
 
 func can_govern() -> bool:
 	return incapacitated_periods <= 0
@@ -170,8 +182,16 @@ func spend_state(amount: int, reason: String) -> bool:
 	consequence_log.append({"cycle": calendar.cycle, "kind": "state_spending", "amount": amount, "reason": reason})
 	return true
 
-func _apply_monthly_economy() -> void:
-	state_treasury += 8 + council.monthly_economy_bonus() + policies.monthly_gold_modifier() + development.monthly_gold_bonus() + technology.gold_bonus()
+func _apply_monthly_economy() -> Dictionary:
+	var income := {
+		"обычные сборы": 8,
+		"работа совета": council.monthly_economy_bonus(),
+		"действующие указы": policies.monthly_gold_modifier(),
+		"постройки": development.monthly_gold_bonus(),
+		"технологии": technology.gold_bonus()
+	}
+	for amount: int in income.values():
+		state_treasury += amount
 	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus() + development.monthly_grain_bonus() + technology.grain_bonus())
 	resources["iron_ore"] = int(resources.get("iron_ore", 0)) + 3
 	resources["worked_iron"] = int(resources.get("worked_iron", 0)) + 1
@@ -179,6 +199,7 @@ func _apply_monthly_economy() -> void:
 	resources["weapons"] = int(resources.get("weapons", 0)) + policies.monthly_weapon_modifier()
 	public_health = clampi(public_health + policies.monthly_health_modifier() + development.monthly_health_bonus() + technology.health_bonus(), 0, 100)
 	public_order = clampi(public_order + policies.monthly_order_modifier(), 0, 100)
+	return income
 
 func to_data() -> Dictionary:
 	return {
@@ -207,6 +228,8 @@ func to_data() -> Dictionary:
 		"guide": guide.to_data(),
 		"technology": technology.to_data(),
 		"population": population.to_data(),
+		"period_report": period_report.duplicate(true),
+		"period_archive": period_archive.duplicate(true),
 		"resources": resources.duplicate(true),
 		"facts": facts.duplicate(true),
 		"consequence_log": consequence_log.duplicate(true),
@@ -246,6 +269,10 @@ static func from_data(data: Dictionary) -> WorldState:
 	state.guide.load_data(data.get("guide", {}))
 	state.technology.load_data(data.get("technology", {}))
 	state.population.load_data(data.get("population", {}))
+	state.period_report = (data.get("period_report", {}) as Dictionary).duplicate(true)
+	for report in data.get("period_archive", []):
+		if report is Dictionary and report.has("cycle"):
+			state.period_archive.append(report.duplicate(true))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
 	state.consequence_log.assign(data.get("consequence_log", []))

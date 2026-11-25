@@ -22,8 +22,16 @@ var dialogue_role: Label
 var dialogue_prompt: Label
 var dialogue_response: Label
 var dialogue_options: VBoxContainer
+var dialogue_scroll: ScrollContainer
+var dialogue_cost: Label
 var active_person: String = ""
 var person_hotspots: Dictionary = {}
+var dialogue_close: Button
+var portrait_actor: Control
+var navigation_bar: HBoxContainer
+var navigation_back: Button
+var navigation_manage: Button
+var navigation_enabled: bool = true
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -47,28 +55,38 @@ func _ready() -> void:
 	_create_navigation()
 	_create_dialogue_layer()
 	resized.connect(_layout_scene)
+	visibility_changed.connect(_focus_on_entry)
 
 func _create_navigation() -> void:
 	var top := HBoxContainer.new()
-	top.position = Vector2(26, 24)
-	top.size = Vector2(900, 54)
+	navigation_bar = top
+	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	top.offset_left = 20
+	top.offset_right = -20
+	top.offset_top = 18
+	top.offset_bottom = 68
+	top.add_theme_constant_override("separation", 16)
 	top.z_index = 5
 	add_child(top)
 	var back := Button.new()
+	navigation_back = back
 	back.text = "← К карте города"
-	back.custom_minimum_size = Vector2(190, 50)
+	back.custom_minimum_size.y = 50
 	back.pressed.connect(func(): back_requested.emit())
 	top.add_child(back)
 	var title := Label.new()
 	title.name = "LocationTitle"
-	title.custom_minimum_size = Vector2(360, 50)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color("f5e7ba"))
 	top.add_child(title)
 	var manage := Button.new()
+	navigation_manage = manage
 	manage.text = "Управление местом"
-	manage.custom_minimum_size = Vector2(190, 50)
+	manage.custom_minimum_size.y = 50
 	manage.pressed.connect(func(): management_requested.emit(location_id))
 	top.add_child(manage)
 
@@ -86,49 +104,66 @@ func _create_dialogue_layer() -> void:
 	shade.gui_input.connect(_on_dialogue_shade_input)
 	dialogue_layer.add_child(shade)
 	dialogue_panel = PanelContainer.new()
-	dialogue_panel.set_anchors_preset(Control.PRESET_CENTER)
 	dialogue_panel.add_theme_stylebox_override("panel", _dialogue_style())
 	dialogue_layer.add_child(dialogue_panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 24)
+		margin.add_theme_constant_override("margin_" + side, 20)
 	dialogue_panel.add_child(margin)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
+	row.add_theme_constant_override("separation", 22)
 	margin.add_child(row)
 	dialogue_portrait = Control.new()
-	dialogue_portrait.custom_minimum_size = Vector2(330, 0)
+	dialogue_portrait.custom_minimum_size.x = 210
+	dialogue_portrait.clip_contents = true
+	dialogue_portrait.resized.connect(_layout_portrait)
 	row.add_child(dialogue_portrait)
 	var content := VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	row.add_child(content)
 	var close := Button.new()
+	dialogue_close = close
 	close.text = "← Вернуться в локацию"
+	close.tooltip_text = "Закрыть разговор (Esc)"
 	close.custom_minimum_size = Vector2(0, 42)
 	close.pressed.connect(close_dialogue)
 	content.add_child(close)
+	dialogue_scroll = ScrollContainer.new()
+	dialogue_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	dialogue_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_RESERVE
+	dialogue_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dialogue_scroll.follow_focus = true
+	content.add_child(dialogue_scroll)
+	var conversation := VBoxContainer.new()
+	conversation.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	conversation.add_theme_constant_override("separation", 8)
+	dialogue_scroll.add_child(conversation)
 	dialogue_name = Label.new()
 	dialogue_name.add_theme_font_size_override("font_size", 28)
-	content.add_child(dialogue_name)
+	dialogue_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conversation.add_child(dialogue_name)
 	dialogue_role = Label.new()
 	dialogue_role.modulate = Color("d9bd72")
 	dialogue_role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	content.add_child(dialogue_role)
+	conversation.add_child(dialogue_role)
 	dialogue_prompt = Label.new()
 	dialogue_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialogue_prompt.modulate = Color("c7d0c3")
-	content.add_child(dialogue_prompt)
-	content.add_child(HSeparator.new())
+	conversation.add_child(dialogue_prompt)
+	conversation.add_child(HSeparator.new())
 	dialogue_response = Label.new()
 	dialogue_response.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialogue_response.add_theme_font_size_override("font_size", 17)
-	dialogue_response.custom_minimum_size = Vector2(0, 80)
-	content.add_child(dialogue_response)
+	conversation.add_child(dialogue_response)
+	dialogue_cost = Label.new()
+	dialogue_cost.text = "Ответ: +1 к усталости князя"
+	dialogue_cost.add_theme_color_override("font_color", Color("d9bd72"))
+	dialogue_cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conversation.add_child(dialogue_cost)
 	dialogue_options = VBoxContainer.new()
-	dialogue_options.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	dialogue_options.add_theme_constant_override("separation", 8)
-	content.add_child(dialogue_options)
+	conversation.add_child(dialogue_options)
 	_layout_dialogue()
 
 func configure(new_location_id: String, title: String, texture: Texture2D, hotspots: Dictionary, people: Array[String], characters: Dictionary, profiles: Dictionary) -> void:
@@ -140,39 +175,56 @@ func configure(new_location_id: String, title: String, texture: Texture2D, hotsp
 	var title_label := find_child("LocationTitle", true, false) as Label
 	title_label.text = title
 	for child in people_layer.get_children():
+		people_layer.remove_child(child)
 		child.queue_free()
 	person_actors.clear()
+	var focus_order: Array[Control] = [navigation_back, navigation_manage]
 	for person_id: String in people:
 		var character: CharacterState = characters[person_id]
 		var profile: Dictionary = profiles.get(person_id, {})
 		var actor := CHARACTER_ACTOR.new()
 		actor.size = Vector2(150, 270)
 		actor.configure(person_id, character.display_name, str(profile.get("role", "")))
-		actor.tooltip_text = str(profile.get("prompt", "Поговорить"))
+		actor.tooltip_text = "%s · Поговорить" % character.display_name
 		actor.selected.connect(func(id: String): person_selected.emit(id))
 		people_layer.add_child(actor)
 		person_actors[person_id] = actor
+		focus_order.append(actor)
+	_cycle_focus(focus_order)
 	call_deferred("_layout_people")
 
-func show_dialogue(person_id: String, character: CharacterState, profile: Dictionary, options: Dictionary, response: String = "") -> void:
+func show_dialogue(person_id: String, character: CharacterState, profile: Dictionary, options: Dictionary, response: String = "", revisiting: bool = false, can_reply: bool = true, scene_brief: String = "") -> void:
+	if active_person != person_id or portrait_actor == null:
+		if portrait_actor != null:
+			dialogue_portrait.remove_child(portrait_actor)
+			portrait_actor.queue_free()
+		var actor := CHARACTER_ACTOR.new()
+		actor.configure(person_id, character.display_name, "", false)
+		actor.set_speaking(true)
+		portrait_actor = actor
+		dialogue_portrait.add_child(portrait_actor)
+		_layout_portrait()
 	active_person = person_id
 	dialogue_name.text = character.display_name
 	dialogue_role.text = str(profile.get("role", ""))
-	dialogue_prompt.text = str(profile.get("prompt", ""))
-	dialogue_response.text = response if not response.is_empty() else "«%s»" % str(profile.get("opening", ""))
-	for child in dialogue_portrait.get_children():
-		child.queue_free()
-	var portrait_actor := CHARACTER_ACTOR.new()
-	portrait_actor.position = Vector2(70, 70)
-	portrait_actor.size = Vector2(190, 430)
-	portrait_actor.configure(person_id, character.display_name, "", false)
-	portrait_actor.set_speaking(true)
-	dialogue_portrait.add_child(portrait_actor)
+	dialogue_prompt.text = scene_brief if not scene_brief.is_empty() else str(profile.get("prompt", ""))
+	dialogue_prompt.visible = not dialogue_prompt.text.is_empty() and (not scene_brief.is_empty() or response.is_empty())
+	dialogue_response.text = response
+	if response.is_empty() and scene_brief.is_empty():
+		dialogue_response.text = "«%s»" % str(profile.get("opening", ""))
+	if revisiting and not response.is_empty():
+		dialogue_response.text = "В прошлый раз\n%s" % response
+	dialogue_response.visible = not dialogue_response.text.is_empty()
 	for child in dialogue_options.get_children():
+		dialogue_options.remove_child(child)
 		child.queue_free()
-	if options.is_empty():
+	dialogue_cost.visible = can_reply and not options.is_empty()
+	var focus_order: Array[Control] = [dialogue_close]
+	if not dialogue_cost.visible:
 		var complete := Label.new()
 		complete.text = "Все доступные сейчас темы уже обсуждены. Новые обстоятельства могут открыть другой разговор."
+		if not can_reply:
+			complete.text = "Князю сейчас нужен отдых. К разговору можно вернуться, когда он сможет заниматься делами."
 		complete.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		complete.modulate = Color("b9c2b3")
 		dialogue_options.add_child(complete)
@@ -180,14 +232,48 @@ func show_dialogue(person_id: String, character: CharacterState, profile: Dictio
 		for option_id: String in options:
 			var choice := Button.new()
 			choice.text = str((options[option_id] as Dictionary).get("title", option_id))
-			choice.custom_minimum_size = Vector2(0, 46)
+			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			choice.custom_minimum_size.y = 42
+			choice.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			choice.pressed.connect(func(): option_selected.emit(person_id, option_id))
 			dialogue_options.add_child(choice)
+			focus_order.append(choice)
+	_cycle_focus(focus_order)
 	dialogue_layer.visible = true
+	dialogue_close.grab_focus()
+	dialogue_scroll.scroll_vertical = 0
+
+func _cycle_focus(focus_order: Array[Control]) -> void:
+	for index in range(focus_order.size()):
+		var control := focus_order[index]
+		var previous := control.get_path_to(focus_order[posmod(index - 1, focus_order.size())])
+		var next := control.get_path_to(focus_order[(index + 1) % focus_order.size()])
+		control.focus_previous = previous
+		control.focus_next = next
+		control.focus_neighbor_top = previous
+		control.focus_neighbor_bottom = next
+		control.focus_neighbor_left = NodePath(".")
+		control.focus_neighbor_right = NodePath(".")
+
+func _focus_on_entry() -> void:
+	if navigation_enabled and is_visible_in_tree() and not dialogue_layer.visible:
+		navigation_back.grab_focus()
+
+func set_navigation_enabled(enabled: bool) -> void:
+	navigation_enabled = enabled
+	var focus_behavior := Control.FOCUS_BEHAVIOR_INHERITED if enabled else Control.FOCUS_BEHAVIOR_DISABLED
+	navigation_bar.focus_behavior_recursive = focus_behavior
+	people_layer.focus_behavior_recursive = focus_behavior
+	if enabled and is_visible_in_tree() and not dialogue_layer.visible:
+		navigation_manage.grab_focus()
 
 func close_dialogue() -> void:
+	var actor := person_actors.get(active_person) as Control
 	dialogue_layer.visible = false
 	active_person = ""
+	if navigation_enabled and actor != null and actor.is_visible_in_tree():
+		actor.grab_focus()
 
 func _layout_people() -> void:
 	if background_texture == null or size.x < 2.0 or size.y < 2.0:
@@ -212,11 +298,16 @@ func _layout_scene() -> void:
 func _layout_dialogue() -> void:
 	if dialogue_panel == null:
 		return
-	var panel_size := Vector2(minf(960.0, size.x - 40.0), minf(620.0, size.y - 40.0))
-	panel_size.x = maxf(panel_size.x, 720.0 if size.x >= 760.0 else size.x - 16.0)
-	panel_size.y = maxf(panel_size.y, 520.0 if size.y >= 560.0 else size.y - 16.0)
+	var panel_size := Vector2(clampf(size.x - 40.0, 0.0, 900.0), clampf(size.y - 40.0, 0.0, 590.0))
+	dialogue_portrait.visible = panel_size.x >= 700.0 and panel_size.y >= 360.0
 	dialogue_panel.size = panel_size
 	dialogue_panel.position = (size - panel_size) * 0.5
+
+func _layout_portrait() -> void:
+	if portrait_actor == null:
+		return
+	portrait_actor.size = Vector2(minf(190.0, dialogue_portrait.size.x), minf(430.0, dialogue_portrait.size.y))
+	portrait_actor.position = (dialogue_portrait.size - portrait_actor.size) * 0.5
 
 func _on_dialogue_shade_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:

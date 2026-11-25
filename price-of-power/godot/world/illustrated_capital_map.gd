@@ -17,6 +17,7 @@ const HOTSPOTS: Dictionary = {
 }
 
 var map_root: Control
+var _markers: Dictionary = {}
 var _zoom_factor: float = 1.0
 var _base_scale: float = 1.0
 var _dragging: bool = false
@@ -55,7 +56,25 @@ func _ready() -> void:
 		button.mouse_entered.connect(_animate_marker.bind(button, 1.045))
 		button.mouse_exited.connect(_animate_marker.bind(button, 1.0))
 		map_root.add_child(button)
+		_markers[building_id] = button
 	call_deferred("_fit_map")
+
+func update_conversation_markers(topics: Array[Dictionary]) -> void:
+	var hints: Dictionary = {}
+	for topic: Dictionary in topics:
+		var location_id := str(topic["location_id"])
+		if not hints.has(location_id):
+			hints[location_id] = PackedStringArray()
+		var phrases: PackedStringArray = hints[location_id]
+		phrases.append(str(topic["label"]))
+		hints[location_id] = phrases
+	for building_id: String in _markers:
+		var button := _markers[building_id] as Button
+		var title := str(HOTSPOTS[building_id]["title"])
+		button.text = "%s  %s" % ["✦" if hints.has(building_id) else "◆", title]
+		button.tooltip_text = "Открыть: %s" % title
+		if hints.has(building_id):
+			button.tooltip_text += "\n" + "\n".join(hints[building_id])
 
 func _marker_style(background: Color, border: Color, width: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

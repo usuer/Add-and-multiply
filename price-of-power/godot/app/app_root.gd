@@ -5,18 +5,22 @@ const CITY_BUILDING := preload("res://world/city_building.gd")
 const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
 const LOCATION_SCENE := preload("res://world/location_scene.gd")
 const LOCATION_CATALOG := preload("res://world/location_catalog.gd")
+const PERIOD_REPORT := preload("res://world/period_report_panel.gd")
 const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
 const FATHER_LAST_NIGHT_ART: Texture2D = preload("res://assets/art/fathers_last_night.png")
 const USE_3D_PLACEHOLDERS: bool = false
 const SETTINGS_PATH: String = "user://settings.cfg"
 
 var state: WorldState = WorldState.new()
+var autosave_path: String = CampaignSaveService.AUTOSAVE_PATH
 var date_label: Label
 var resource_label: Label
 var notice_label: Label
 var camera_rig: CapitalCamera
 var selected_building: CityBuilding
 var building_panel: PanelContainer
+var building_close_button: Button
+var battle_primary_button: Button
 var building_title: Label
 var building_context: Label
 var building_picture: TextureRect
@@ -27,17 +31,24 @@ var secretary_panel: PanelContainer
 var secretary_case_body: VBoxContainer
 var secretary_scroll: ScrollContainer
 var secretary_title: Label
+var secretary_close_button: Button
 var secretary_introduction: Label
 var funeral_choice_label: Label
 var grain_choice_label: Label
 var funding_choice_label: Label
 var resolve_opening_button: Button
 var cases_button: Button
+var advance_button: Button
+var period_report_button: Button
+var period_report_panel: Control
+var period_report_index: int = 0
 var exit_button: Button
 var menu_button: Button
 var pause_overlay: Control
 var pause_panel: PanelContainer
 var pause_exit_button: Button
+var pause_resume_button: Button
+var pause_previous_focus: Control
 var pause_fullscreen_button: Button
 var sound_button: Button
 var ui_audio: AudioStreamPlayer
@@ -58,6 +69,7 @@ var illustrated_map: IllustratedCapitalMap
 var location_scene: Control
 var selected_location_id: String = ""
 var management_from_location: bool = false
+var selected_story_record: Dictionary = {}
 var battle_view: Control
 var interface_root: VBoxContainer
 var modal_shade: ColorRect
@@ -103,7 +115,18 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-		if location_scene != null and location_scene.visible and location_scene.dialogue_layer.visible:
+		if pause_overlay.visible:
+			_hide_pause_menu()
+		elif intro_overlay.visible:
+			get_viewport().set_input_as_handled()
+			return
+		elif period_report_panel.visible:
+			_close_period_report()
+		elif building_panel.visible:
+			_close_building_panel()
+		elif secretary_panel.visible:
+			_close_secretary()
+		elif location_scene != null and location_scene.visible and location_scene.dialogue_layer.visible:
 			location_scene.close_dialogue()
 		elif location_scene != null and location_scene.visible:
 			_close_location_scene()
@@ -251,11 +274,6 @@ func _create_ui() -> void:
 	margin.add_theme_constant_override("margin_right", 28)
 	margin.add_theme_constant_override("margin_bottom", 24)
 	layer.add_child(margin)
-	_create_modal_shade(layer)
-	_create_building_panel(layer)
-	_create_secretary_panel(layer)
-	_create_intro_overlay(layer)
-	_create_pause_menu(layer)
 
 	var root := VBoxContainer.new()
 	interface_root = root
@@ -295,11 +313,11 @@ func _create_ui() -> void:
 	cases_button.pressed.connect(_open_secretary)
 	header_row.add_child(cases_button)
 
-	var next_button := Button.new()
-	next_button.text = "Завершить период"
-	next_button.custom_minimum_size = Vector2(170, 44)
-	next_button.pressed.connect(_on_advance_period)
-	header_row.add_child(next_button)
+	advance_button = Button.new()
+	advance_button.text = "Завершить период"
+	advance_button.custom_minimum_size = Vector2(170, 44)
+	advance_button.pressed.connect(_on_advance_period)
+	header_row.add_child(advance_button)
 	for item: Dictionary in [
 		{"text": "Новая", "callable": _on_new_campaign},
 		{"text": "Сохр.", "callable": _on_save},
@@ -351,12 +369,22 @@ func _create_ui() -> void:
 	var footer := PanelContainer.new()
 	footer.custom_minimum_size = Vector2(0, 62)
 	root.add_child(footer)
+	var footer_row := HBoxContainer.new()
+	footer_row.add_theme_constant_override("separation", 14)
+	footer.add_child(footer_row)
 	notice_label = Label.new()
+	notice_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	notice_label.text = "Перетаскивайте карту · колесо — масштаб · выберите здание для управления"
 	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	notice_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	notice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	footer.add_child(notice_label)
+	footer_row.add_child(notice_label)
+	period_report_button = Button.new()
+	period_report_button.text = "Итоги периода"
+	period_report_button.custom_minimum_size = Vector2(145, 42)
+	period_report_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	period_report_button.pressed.connect(_open_period_report)
+	footer_row.add_child(period_report_button)
 	location_scene = LOCATION_SCENE.new()
 	location_scene.visible = false
 	location_scene.z_index = 50
@@ -365,6 +393,18 @@ func _create_ui() -> void:
 	location_scene.option_selected.connect(_choose_character_dialogue)
 	location_scene.management_requested.connect(_open_location_management)
 	layer.add_child(location_scene)
+	# Godot uses sibling order for GUI hit testing, regardless of z_index.
+	_create_modal_shade(layer)
+	_create_building_panel(layer)
+	_create_secretary_panel(layer)
+	period_report_panel = PERIOD_REPORT.new()
+	period_report_panel.z_index = 80
+	period_report_panel.dismiss_requested.connect(_close_period_report)
+	period_report_panel.secretary_requested.connect(_open_secretary)
+	period_report_panel.archive_step_requested.connect(_step_period_report)
+	layer.add_child(period_report_panel)
+	_create_intro_overlay(layer)
+	_create_pause_menu(layer)
 
 func _create_modal_shade(layer: CanvasLayer) -> void:
 	modal_shade = ColorRect.new()
@@ -452,7 +492,7 @@ func _create_pause_menu(layer: CanvasLayer) -> void:
 	pause_overlay.visible = false
 	pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	pause_overlay.z_index = 100
+	pause_overlay.z_index = 120
 	layer.add_child(pause_overlay)
 	var shade := ColorRect.new()
 	shade.color = Color(0.01, 0.02, 0.018, 0.88)
@@ -514,6 +554,19 @@ func _create_pause_menu(layer: CanvasLayer) -> void:
 	pause_exit_button.custom_minimum_size = Vector2(0, 48)
 	pause_exit_button.pressed.connect(_on_exit_requested)
 	column.add_child(pause_exit_button)
+	var focus_order: Array[Button] = []
+	for control: Node in column.get_children():
+		if control is Button:
+			focus_order.append(control)
+	pause_resume_button = focus_order[0]
+	for index in range(focus_order.size()):
+		var button := focus_order[index]
+		var previous := button.get_path_to(focus_order[posmod(index - 1, focus_order.size())])
+		var next := button.get_path_to(focus_order[(index + 1) % focus_order.size()])
+		button.focus_previous = previous
+		button.focus_neighbor_top = previous
+		button.focus_next = next
+		button.focus_neighbor_bottom = next
 
 func _toggle_pause_menu() -> void:
 	if pause_overlay.visible:
@@ -524,11 +577,16 @@ func _toggle_pause_menu() -> void:
 func _show_pause_menu() -> void:
 	_cancel_exit_confirmation()
 	_refresh_fullscreen_caption()
+	pause_previous_focus = get_viewport().gui_get_focus_owner()
 	pause_overlay.visible = true
+	pause_resume_button.grab_focus()
 
 func _hide_pause_menu() -> void:
 	_cancel_exit_confirmation()
 	pause_overlay.visible = false
+	if is_instance_valid(pause_previous_focus) and pause_previous_focus.is_visible_in_tree():
+		pause_previous_focus.grab_focus()
+	pause_previous_focus = null
 
 func _pause_save() -> void:
 	_on_save()
@@ -604,10 +662,15 @@ func _create_building_panel(layer: CanvasLayer) -> void:
 	building_context.modulate = Color("d9bd72")
 	building_context.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(building_context)
-	var close_button := Button.new()
-	close_button.text = "← К городу"
-	close_button.pressed.connect(_close_building_panel)
-	top_row.add_child(close_button)
+	building_close_button = Button.new()
+	building_close_button.pressed.connect(_close_building_panel)
+	top_row.add_child(building_close_button)
+	battle_primary_button = Button.new()
+	battle_primary_button.visible = false
+	battle_primary_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	battle_primary_button.custom_minimum_size.y = 44
+	battle_primary_button.pressed.connect(_use_battle_primary_action)
+	column.add_child(battle_primary_button)
 	building_picture = TextureRect.new()
 	building_picture.custom_minimum_size = Vector2(0, 170)
 	building_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -661,10 +724,10 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 	heading.add_theme_font_size_override("font_size", 14)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(heading)
-	var close := Button.new()
-	close.text = "Вернуться к карте"
-	close.pressed.connect(_close_secretary)
-	top.add_child(close)
+	secretary_close_button = Button.new()
+	secretary_close_button.text = "Вернуться к карте"
+	secretary_close_button.pressed.connect(_close_secretary)
+	top.add_child(secretary_close_button)
 
 	secretary_title = Label.new()
 	secretary_title.text = "Похороны князя и просьба об открытии амбаров"
@@ -694,48 +757,51 @@ func _create_secretary_panel(layer: CanvasLayer) -> void:
 
 func _open_secretary() -> void:
 	_play_ui_sound("click")
+	_close_period_report()
 	building_panel.visible = false
 	if battle_view != null: battle_view.visible = false
 	illustrated_map.visible = true
 	illustrated_map.reset_overview()
 	secretary_panel.visible = true
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	secretary_close_button.grab_focus()
 	modal_shade.visible = true
+	selected_story_record.clear()
 	_reveal_panel(secretary_panel)
 	_refresh_secretary_case()
+	secretary_scroll.set_deferred("scroll_vertical", 0)
 
 func _close_secretary() -> void:
+	var was_open := secretary_panel.visible
 	secretary_panel.visible = false
 	modal_shade.visible = building_panel.visible
+	if was_open:
+		interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+		cases_button.grab_focus()
 
 func _refresh_secretary_case() -> void:
 	for child in secretary_case_body.get_children():
+		secretary_case_body.remove_child(child)
 		child.queue_free()
+	_add_selected_story_result()
 	_add_unread_reports()
 	var decision := state.opening_decision
 	if decision.status == OpeningDecision.Status.RESOLVED:
 		var available_count := state.story_timeline.available_events(state.calendar.cycle).size()
 		secretary_title.text = "Дела княжеской канцелярии"
 		secretary_introduction.text = "Новых дел: %d · последствия принятых решений появляются здесь по мере поступления донесений." % available_count
-		var result_heading := Label.new()
-		result_heading.text = "РЕШЕНИЕ ПРИНЯТО"
-		result_heading.modulate = Color("d9bd72")
-		secretary_case_body.add_child(result_heading)
-		var result := Label.new()
-		result.text = decision.observed_outcome
-		result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		secretary_case_body.add_child(result)
-		var reactions_heading := Label.new()
-		reactions_heading.text = "Что уже заметно"
-		reactions_heading.add_theme_font_size_override("font_size", 20)
-		secretary_case_body.add_child(reactions_heading)
-		for reaction: String in decision.observed_reactions(state):
-			var reaction_label := Label.new()
-			reaction_label.text = "• " + reaction
-			reaction_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			secretary_case_body.add_child(reaction_label)
-		_add_opening_followup()
+		if state.army.status in [ArmyState.BattleStatus.DEPLOYMENT, ArmyState.BattleStatus.FIGHTING]:
+			var battle_route := Button.new()
+			battle_route.text = "К полю боя"
+			battle_route.custom_minimum_size.y = 44
+			battle_route.pressed.connect(_open_active_battle)
+			secretary_case_body.add_child(battle_route)
+		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
+			_add_opening_followup()
+		_add_pending_story_topics()
 		_add_available_story_events()
 		_add_story_history()
+		_add_read_reports()
 		_add_campaign_outcome()
 		resolve_opening_button.visible = false
 		return
@@ -808,12 +874,18 @@ func _add_unread_reports() -> void:
 		body.text = str(report.get("text", ""))
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		secretary_case_body.add_child(body)
-	state.story_timeline.mark_reports_read()
+	var read := Button.new()
+	read.text = "Отметить отчёты прочитанными"
+	read.pressed.connect(func():
+		state.story_timeline.mark_reports_read()
+		_refresh_secretary_case()
+	)
+	secretary_case_body.add_child(read)
 	secretary_case_body.add_child(HSeparator.new())
 
 func _add_opening_followup() -> void:
 	var followup := state.opening_followup
-	if followup.status == OpeningFollowup.Status.LOCKED:
+	if followup.status != OpeningFollowup.Status.AVAILABLE:
 		return
 	var divider := HSeparator.new()
 	secretary_case_body.add_child(divider)
@@ -827,12 +899,6 @@ func _add_opening_followup() -> void:
 	speech.text = followup.spoken_text
 	speech.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	secretary_case_body.add_child(speech)
-	if followup.status == OpeningFollowup.Status.RESOLVED:
-		var closing := Label.new()
-		closing.text = followup.closing_text
-		closing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		secretary_case_body.add_child(closing)
-		return
 	for response_id: String in followup.response_ids:
 		var response := Button.new()
 		response.text = followup.response_title(response_id)
@@ -842,7 +908,7 @@ func _add_opening_followup() -> void:
 
 func _choose_opening_followup(response_id: String) -> void:
 	if state.opening_followup.choose(state, response_id):
-		_refresh_secretary_case()
+		_show_story_record({"title": state.opening_followup.title, "outcome": state.opening_followup.closing_text})
 
 func _add_available_story_events() -> void:
 	var available := state.story_timeline.available_events(state.calendar.cycle)
@@ -870,6 +936,7 @@ func _add_available_story_events() -> void:
 		card_margin.add_child(card_content)
 		var event_title := Label.new()
 		event_title.text = "%s · %s" % [event["title"], event["location"]]
+		event_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		event_title.add_theme_font_size_override("font_size", 20)
 		card_content.add_child(event_title)
 		var summary := Label.new()
@@ -877,9 +944,17 @@ func _add_available_story_events() -> void:
 		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		summary.modulate = Color("c7d0c3")
 		card_content.add_child(summary)
+		var last_cycle := mini(state.story_timeline.opening_cycle(event_id) + 1, CampaignCalendar.MONTH_NAMES.size() * 3)
+		if state.calendar.cycle >= last_cycle:
+			var deadline := Label.new()
+			deadline.text = "Последний период для ответа"
+			deadline.modulate = Color("e0a96b")
+			card_content.add_child(deadline)
 		for choice_id: String in event["choices"]:
 			var choice := Button.new()
 			choice.text = str(event["choices"][choice_id])
+			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			choice.custom_minimum_size = Vector2(0, 40)
 			choice.disabled = not state.story_timeline.can_choose(state, event_id, choice_id)
 			choice.pressed.connect(_choose_story_event.bind(event_id, choice_id))
@@ -887,8 +962,9 @@ func _add_available_story_events() -> void:
 
 func _add_story_history() -> void:
 	var history := state.story_timeline.resolved_history(6)
-	if history.is_empty():
-		return
+	if state.opening_followup.status == OpeningFollowup.Status.RESOLVED:
+		history.append({"cycle": 1, "title": state.opening_followup.title, "choice": "Личный разговор", "outcome": state.opening_followup.closing_text})
+	history.append({"cycle": 1, "title": "Первые решения нового князя", "choice": "Похороны и помощь области", "outcome": _opening_result_text()})
 	secretary_case_body.add_child(HSeparator.new())
 	var heading := Label.new()
 	heading.text = "ЛЕТОПИСЬ РЕШЕНИЙ · ПОСЛЕДНИЕ %d" % history.size()
@@ -901,17 +977,81 @@ func _add_story_history() -> void:
 	for record: Dictionary in history:
 		var entry := Button.new()
 		entry.text = "Ход %d · %s\n%s" % [int(record["cycle"]), str(record["title"]), str(record["choice"])]
+		entry.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		entry.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		entry.custom_minimum_size = Vector2(0, 58)
 		entry.tooltip_text = str(record["outcome"])
 		entry.pressed.connect(_show_story_record.bind(record))
 		secretary_case_body.add_child(entry)
 
+func _add_read_reports() -> void:
+	var recent: Array[Dictionary] = []
+	var reports := state.story_timeline.reports
+	for index in range(reports.size() - 1, -1, -1):
+		if bool(reports[index].get("read", false)):
+			recent.append(reports[index])
+		if recent.size() >= 6:
+			break
+	if recent.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = "ПРОЧИТАННЫЕ ОТЧЁТЫ"
+	heading.modulate = Color("d9bd72")
+	secretary_case_body.add_child(heading)
+	for report: Dictionary in recent:
+		var title := str(report.get("title", "Отчёт"))
+		var entry := Button.new()
+		entry.text = "Ход %d · %s" % [int(report.get("cycle", 0)), title]
+		entry.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		entry.custom_minimum_size.y = 40
+		entry.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		entry.pressed.connect(_show_story_record.bind({"title": title, "outcome": str(report.get("text", ""))}))
+		secretary_case_body.add_child(entry)
+
 func _show_story_record(record: Dictionary) -> void:
-	var result := str(record.get("outcome", ""))
-	if result.is_empty():
-		result = "Подробный результат этого решения пока не известен."
-	_refresh_ui(result)
+	selected_story_record = record.duplicate()
+	_refresh_secretary_case()
+	secretary_scroll.set_deferred("scroll_vertical", 0)
+
+func _add_selected_story_result() -> void:
+	if selected_story_record.is_empty():
+		return
+	var title := Label.new()
+	title.text = str(selected_story_record["title"])
+	title.add_theme_font_size_override("font_size", 20)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(title)
+	var result := Label.new()
+	result.name = "StoryResult"
+	result.text = str(selected_story_record["outcome"])
+	result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(result)
+
+func _add_pending_story_topics() -> void:
+	var topics: Array[Dictionary] = state.conversations.pending_story_topics(state)
+	if topics.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = "С кем можно поговорить"
+	heading.modulate = Color("d9bd72")
+	secretary_case_body.add_child(heading)
+	for topic: Dictionary in topics:
+		var visit := Button.new()
+		visit.text = str(topic["label"])
+		visit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		visit.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		visit.custom_minimum_size = Vector2(0, 40)
+		visit.pressed.connect(_visit_story_contact.bind(str(topic["location_id"]), str(topic["person_id"])))
+		secretary_case_body.add_child(visit)
+
+func _visit_story_contact(location_id: String, person_id: String) -> void:
+	_close_secretary()
+	_open_location_scene(location_id)
+	_open_character_dialogue(person_id)
+
+func _open_active_battle() -> void:
+	_close_secretary()
+	_on_illustrated_building_selected(&"barracks")
 
 func _card_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -926,7 +1066,7 @@ func _choose_story_event(event_id: String, choice_id: String) -> void:
 		_play_ui_sound("decision")
 		var outcome := state.story_timeline.outcome(event_id)
 		_refresh_ui(outcome)
-		_refresh_secretary_case()
+		_show_story_record({"title": state.story_timeline.definition(event_id)["title"], "outcome": outcome})
 
 func _add_campaign_outcome() -> void:
 	var outcome := state.campaign_outcome
@@ -992,9 +1132,15 @@ func _choose_funding(source: String) -> void:
 func _resolve_opening_decision() -> void:
 	if not state.opening_decision.resolve(state):
 		_refresh_ui("Не хватает выбранного источника средств или зерна")
-	else:
-		_refresh_ui("Печать поставлена. Секретарь передал распоряжения исполнителям.")
-	_refresh_secretary_case()
+		_refresh_secretary_case()
+		return
+	_refresh_ui("Печать поставлена. Секретарь передал распоряжения исполнителям.")
+	_show_story_record({"title": "Решения скреплены печатью", "outcome": _opening_result_text()})
+
+func _opening_result_text() -> String:
+	var lines: Array[String] = [state.opening_decision.observed_outcome]
+	lines.append_array(state.opening_decision.observed_reactions(state))
+	return "\n".join(lines)
 
 func _on_building_selected(building: CityBuilding) -> void:
 	if selected_building != null:
@@ -1006,8 +1152,20 @@ func _on_building_selected(building: CityBuilding) -> void:
 	building_panel.visible = true
 	secretary_panel.visible = false
 	modal_shade.visible = true
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	var show_battle := building.building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE
+	if show_battle:
+		_ensure_battle_view()
+		battle_view.refresh(state.army, selected_army_unit)
+	if battle_view != null:
+		battle_view.visible = show_battle
+	building_picture.visible = not show_battle
+	building_status.visible = not show_battle
+	building_description.visible = not show_battle
 	_reveal_panel(building_panel)
-	building_title.text = building.display_name
+	building_close_button.text = "← В локацию" if management_from_location else "← К городу"
+	building_close_button.grab_focus()
+	building_title.text = "Пограничное столкновение" if show_battle else building.display_name
 	building_context.text = _building_context(building.building_id)
 	building_picture.texture = illustrated_map.preview_for(building.building_id)
 	building_status.text = building.building_status
@@ -1044,28 +1202,23 @@ func _on_illustrated_building_selected(building_id: StringName) -> void:
 		return
 	for child: Node in get_children():
 		if child is CityBuilding and (child as CityBuilding).building_id == building_id:
-			var show_battle := building_id == &"barracks" and state.army.status != ArmyState.BattleStatus.NONE
-			illustrated_map.visible = not show_battle
-			if show_battle:
-				_ensure_battle_view()
-				battle_view.visible = true
-				battle_view.call("refresh", state.army, selected_army_unit)
-			else:
+			if building_id != &"barracks" or state.army.status == ArmyState.BattleStatus.NONE:
 				illustrated_map.focus_on(building_id)
-				if battle_view != null: battle_view.visible = false
 			_on_building_selected(child as CityBuilding)
 			return
 
 func _open_location_scene(location_id: String) -> void:
+	var definition: Dictionary = LOCATION_CATALOG.definition(location_id)
+	if definition.is_empty():
+		return
 	selected_location_id = location_id
 	management_from_location = false
 	building_panel.visible = false
 	secretary_panel.visible = false
 	modal_shade.visible = false
-	var definition: Dictionary = LOCATION_CATALOG.definition(location_id)
-	if definition.is_empty():
-		return
-	var texture := load(str(definition["texture"])) as Texture2D
+	var texture: Texture2D = illustrated_map.preview_for(StringName(location_id))
+	if definition.has("texture"):
+		texture = load(str(definition["texture"])) as Texture2D
 	var title := str(definition["title"])
 	var hotspots := definition.get("hotspots", {}) as Dictionary
 	var people: Array[String] = state.conversations.people_at(location_id, state)
@@ -1076,18 +1229,20 @@ func _open_location_scene(location_id: String) -> void:
 func _close_location_scene() -> void:
 	location_scene.close_dialogue()
 	location_scene.visible = false
+	location_scene.set_navigation_enabled(true)
 	selected_location_id = ""
 	management_from_location = false
 	illustrated_map.visible = true
 	illustrated_map.reset_overview()
 
 func _open_character_dialogue(person_id: String) -> void:
-	if not state.characters.has(person_id):
+	if not location_scene.visible or person_id not in state.conversations.people_at(selected_location_id, state):
 		return
 	var option_data: Dictionary = {}
-	for option_id: String in state.conversations.available_options(person_id):
+	for option_id: String in state.conversations.available_options(person_id, state):
 		option_data[option_id] = state.conversations.option(person_id, option_id)
-	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data)
+	var brief: String = state.conversations.city_case_brief(person_id, state)
+	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data, state.conversations.last_response(person_id), true, state.can_govern(), brief)
 	_play_ui_sound("click")
 
 func _choose_character_dialogue(person_id: String, option_id: String) -> void:
@@ -1095,9 +1250,9 @@ func _choose_character_dialogue(person_id: String, option_id: String) -> void:
 	if response.is_empty():
 		return
 	var option_data: Dictionary = {}
-	for available_id: String in state.conversations.available_options(person_id):
+	for available_id: String in state.conversations.available_options(person_id, state):
 		option_data[available_id] = state.conversations.option(person_id, available_id)
-	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data, response)
+	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data, response, false, state.can_govern())
 	_play_ui_sound("decision")
 	_refresh_ui("Разговор с %s сохранён в памяти персонажа." % (state.characters[person_id] as CharacterState).display_name)
 
@@ -1105,6 +1260,7 @@ func _open_location_management(location_id: String) -> void:
 	for child: Node in get_children():
 		if child is CityBuilding and String((child as CityBuilding).building_id) == location_id:
 			management_from_location = true
+			location_scene.set_navigation_enabled(false)
 			_on_building_selected(child as CityBuilding)
 			return
 
@@ -1120,12 +1276,16 @@ func _ensure_battle_view() -> void:
 	var battle_script := load("res://world/illustrated_battle_view.gd")
 	battle_view = battle_script.new() as Control
 	battle_view.visible = false
-	battle_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	battle_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	battle_view.custom_minimum_size = Vector2(0, 420)
+	battle_view.z_index = 65
 	battle_view.connect("friendly_unit_selected", _on_battle_unit_selected)
-	interface_root.add_child(battle_view)
-	interface_root.move_child(battle_view, illustrated_map.get_index() + 1)
+	var layer := building_panel.get_parent()
+	layer.add_child(battle_view)
+	layer.move_child(battle_view, building_panel.get_index())
+	battle_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	battle_view.offset_left = 28
+	battle_view.offset_right = -505
+	battle_view.offset_top = 125
+	battle_view.offset_bottom = -125
 
 func _on_battle_unit_selected(unit_id: String) -> void:
 	selected_army_unit = unit_id
@@ -1133,7 +1293,9 @@ func _on_battle_unit_selected(unit_id: String) -> void:
 		_refresh_building_actions()
 
 func _refresh_building_actions() -> void:
+	battle_primary_button.visible = false
 	for child in building_actions.get_children():
+		building_actions.remove_child(child)
 		child.queue_free()
 	if selected_building == null:
 		return
@@ -1571,70 +1733,42 @@ func _sabotage_neighbor(neighbor_id: String) -> void:
 		_refresh_building_actions()
 
 func _add_army_actions() -> void:
-	var heading := Label.new()
-	heading.text = "ПОГРАНИЧНОЕ ВОЙСКО"
-	heading.modulate = Color("d9bd72")
-	building_actions.add_child(heading)
 	if state.army.status == ArmyState.BattleStatus.NONE:
 		var quiet := Label.new()
 		quiet.text = "Боевого приказа нет. Разведка и решения на северной границе могут открыть столкновение."
 		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		building_actions.add_child(quiet)
 		return
-	battle_view.call("refresh", state.army, selected_army_unit)
+	var active_units: Array[String] = []
+	for unit_id: String in state.army.friendly:
+		if int(state.army.friendly[unit_id]["count"]) > 0:
+			active_units.append(unit_id)
+	if selected_army_unit not in active_units and not active_units.is_empty():
+		selected_army_unit = active_units[0]
+	battle_view.refresh(state.army, selected_army_unit)
+	var stage: String = {
+		ArmyState.BattleStatus.DEPLOYMENT: "Расстановка",
+		ArmyState.BattleStatus.FIGHTING: "Ход %d" % state.army.turn,
+		ArmyState.BattleStatus.VICTORY: "Победа",
+		ArmyState.BattleStatus.DEFEAT: "Поражение",
+		ArmyState.BattleStatus.RETREATED: "Войско отступило"
+	}.get(state.army.status, "")
 	var terrain := Label.new()
-	terrain.text = "%s · провиант %d" % [state.army.terrain, state.army.supplies]
+	terrain.text = "%s · провиант %d\n%s" % [stage, state.army.supplies, state.army.terrain.capitalize()]
 	terrain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	building_actions.add_child(terrain)
-	var enemy_heading := Label.new()
-	enemy_heading.text = "Противник"
-	building_actions.add_child(enemy_heading)
-	for enemy_id: String in state.army.enemy:
-		var enemy_unit: Dictionary = state.army.enemy[enemy_id]
-		var enemy_label := Label.new()
-		enemy_label.text = "%s · %d бойцов · дух %d" % [enemy_unit["name"], enemy_unit["count"], enemy_unit["morale"]]
-		building_actions.add_child(enemy_label)
-	building_actions.add_child(HSeparator.new())
-	for unit_id: String in state.army.friendly:
-		var unit: Dictionary = state.army.friendly[unit_id]
-		var unit_label := Label.new()
-		unit_label.text = "%s · %d бойцов · дух %d · усталость %d" % [ArmyState.UNIT_NAMES[unit_id], unit["count"], unit["morale"], unit["fatigue"]]
-		unit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		building_actions.add_child(unit_label)
-		if unit_id != selected_army_unit:
-			continue
-		var selected_marker := Label.new()
-		selected_marker.text = "ВЫБРАННЫЙ ОТРЯД · приказы ниже"
-		selected_marker.modulate = Color("d9bd72")
-		building_actions.add_child(selected_marker)
-		if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
-			var deployment := HBoxContainer.new()
-			building_actions.add_child(deployment)
-			for depth: int in [1, 2, 3]:
-				var depth_button := Button.new()
-				depth_button.text = "%d %s" % [depth, "линия" if depth == 1 else "линии"]
-				depth_button.disabled = int(unit["depth"]) == depth
-				depth_button.pressed.connect(_deploy_unit.bind(unit_id, depth))
-				deployment.add_child(depth_button)
-		elif state.army.status == ArmyState.BattleStatus.FIGHTING and int(unit["count"]) > 0:
-			for order_id: String in ArmyState.ORDERS[unit_id]:
-				var order := Button.new()
-				order.text = str(ArmyState.ORDERS[unit_id][order_id])
-				order.disabled = str(state.army.pending_orders.get(unit_id, "")) == order_id
-				order.pressed.connect(_issue_army_order.bind(unit_id, order_id))
-				building_actions.add_child(order)
-		building_actions.add_child(HSeparator.new())
 	if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
-		var start := Button.new()
-		start.text = "Подтвердить расстановку и начать бой"
-		start.pressed.connect(_start_army_combat)
-		building_actions.add_child(start)
+		battle_primary_button.text = "Начать бой"
+		battle_primary_button.disabled = false
+		battle_primary_button.visible = true
+		_add_selected_army_orders()
 	elif state.army.status == ArmyState.BattleStatus.FIGHTING:
-		var resolve := Button.new()
-		resolve.text = "Завершить ход и выполнить все приказы"
-		resolve.disabled = not state.army.ready_to_resolve()
-		resolve.pressed.connect(_resolve_army_turn)
-		building_actions.add_child(resolve)
+		battle_primary_button.text = "Завершить ход"
+		battle_primary_button.disabled = not state.army.ready_to_resolve()
+		battle_primary_button.visible = true
+		if battle_primary_button.disabled:
+			battle_primary_button.text += " · приказы %d/%d" % [state.army.pending_orders.size(), active_units.size()]
+		_add_selected_army_orders()
 	if not state.army.battle_log.is_empty():
 		var last: Dictionary = state.army.battle_log.back()
 		var log := Label.new()
@@ -1642,10 +1776,50 @@ func _add_army_actions() -> void:
 		log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		building_actions.add_child(log)
 
+func _add_selected_army_orders() -> void:
+	var unit: Dictionary = state.army.friendly.get(selected_army_unit, {})
+	if unit.is_empty() or int(unit["count"]) <= 0:
+		return
+	var caption := Label.new()
+	caption.text = "%s\n%d бойцов · дух %d · усталость %d" % [ArmyState.UNIT_NAMES[selected_army_unit], unit["count"], unit["morale"], unit["fatigue"]]
+	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	caption.modulate = Color("d9bd72")
+	building_actions.add_child(caption)
+	var hint := Label.new()
+	hint.text = "Выберите отряд на поле. Каждый отряд получает свой приказ."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	building_actions.add_child(hint)
+	if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
+		var deployment := HBoxContainer.new()
+		building_actions.add_child(deployment)
+		for depth: int in [1, 2, 3]:
+			var depth_button := Button.new()
+			depth_button.text = "%d %s" % [depth, "линия" if depth == 1 else "линии"]
+			depth_button.disabled = int(unit["depth"]) == depth
+			depth_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			depth_button.pressed.connect(_deploy_unit.bind(selected_army_unit, depth))
+			deployment.add_child(depth_button)
+		return
+	for order_id: String in ArmyState.ORDERS[selected_army_unit]:
+		var order := Button.new()
+		order.text = str(ArmyState.ORDERS[selected_army_unit][order_id])
+		order.disabled = str(state.army.pending_orders.get(selected_army_unit, "")) == order_id
+		if order.disabled:
+			order.text = "✓ " + order.text
+		order.custom_minimum_size.y = 40
+		order.pressed.connect(_issue_army_order.bind(selected_army_unit, order_id))
+		building_actions.add_child(order)
+
 func _loss_total(losses: Dictionary) -> int:
 	var result := 0
 	for value: int in losses.values(): result += value
 	return result
+
+func _use_battle_primary_action() -> void:
+	if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
+		_start_army_combat()
+	elif state.army.status == ArmyState.BattleStatus.FIGHTING:
+		_resolve_army_turn()
 
 func _deploy_unit(unit_id: String, depth: int) -> void:
 	if state.army.deploy(unit_id, depth): _refresh_building_actions()
@@ -1772,49 +1946,84 @@ func _inspect_selected_building() -> void:
 
 func _close_building_panel() -> void:
 	building_panel.visible = false
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+	if battle_view != null: battle_view.visible = false
 	if selected_building != null:
 		selected_building.set_highlighted(false)
 	selected_building = null
 	if management_from_location and location_scene.visible:
 		management_from_location = false
 		modal_shade.visible = false
+		location_scene.set_navigation_enabled(true)
 		return
 	modal_shade.visible = secretary_panel.visible
-	if battle_view != null: battle_view.visible = false
 	illustrated_map.visible = true
 	illustrated_map.reset_overview()
 	camera_rig.overview()
 
 func _on_advance_period() -> void:
+	if period_report_panel.visible or pause_overlay.visible or intro_overlay.visible:
+		return
+	if state.opening_decision.status != OpeningDecision.Status.RESOLVED and state.can_govern():
+		_open_secretary()
+		secretary_introduction.text = "Перед первым переходом скрепите печатью решения о похоронах и помощи области."
+		return
 	var advanced := state.advance_period()
+	var save_error := OK
 	if advanced:
-		CampaignSaveService.save_campaign(state, CampaignSaveService.AUTOSAVE_PATH)
+		save_error = CampaignSaveService.save_campaign(state, autosave_path)
 	var unread := state.story_timeline.unread_reports().size()
 	var advance_message := "Период завершён"
 	if unread > 0:
 		advance_message = "Получено новых отчётов: %d — откройте дела секретаря" % unread
+	if save_error != OK:
+		advance_message = "Период завершён. Автосохранение не записалось: %s" % error_string(save_error)
 	_play_ui_sound("alert" if unread > 0 else "period")
 	_refresh_ui(advance_message if advanced else "Демоверсия завершена — доступен эпилог")
 	if building_panel.visible:
 		_refresh_building_actions()
+	if advanced:
+		_open_period_report()
+
+func _open_period_report() -> void:
+	if state.period_report.is_empty():
+		return
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	period_report_index = state.period_archive.size()
+	_step_period_report(0)
+
+func _step_period_report(step: int) -> void:
+	var latest_index := state.period_archive.size()
+	period_report_index = clampi(period_report_index + step, 0, latest_index)
+	var report: Dictionary = state.period_report if period_report_index == latest_index else state.period_archive[period_report_index]
+	period_report_panel.show_report(report, period_report_index + 1, latest_index + 1)
+
+func _close_period_report() -> void:
+	if not period_report_panel.visible:
+		return
+	state.dismiss_period_report()
+	period_report_panel.visible = false
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+	period_report_button.grab_focus()
 
 func _on_save() -> void:
 	var error := CampaignSaveService.save_campaign(state)
 	_refresh_ui("Сохранение создано" if error == OK else "Не удалось сохранить: %s" % error_string(error))
 
 func _on_load() -> void:
-	var loaded := CampaignSaveService.load_latest()
+	var loaded := CampaignSaveService.load_latest(CampaignSaveService.SAVE_PATH, autosave_path)
 	if loaded == null:
 		_refresh_ui("Сохранение ещё не создано")
 		return
+	_reset_city_view()
 	state = loaded
 	_refresh_ui("Сохранение загружено")
 	intro_overlay.visible = not state.guide.prologue_seen or not state.guide.intro_seen
 	if intro_overlay.visible:
 		intro_page = 0
 		_refresh_intro()
-	if building_panel.visible:
-		_refresh_building_actions()
+	elif not state.period_report.is_empty() and not state.period_report.get("dismissed", false):
+		_open_period_report()
 
 func _on_new_campaign() -> void:
 	if not new_campaign_confirmation:
@@ -1822,11 +2031,16 @@ func _on_new_campaign() -> void:
 		_refresh_ui("Нажмите «Новая» ещё раз, чтобы начать заново. Текущее ручное сохранение останется доступно.")
 		return
 	new_campaign_confirmation = false
-	building_panel.visible = false
-	secretary_panel.visible = false
+	_reset_city_view()
 	state = WorldState.new()
 	_show_intro()
 	_refresh_ui("Начата новая кампания. Предыдущее ручное сохранение не удалено.")
+
+func _reset_city_view() -> void:
+	_close_period_report()
+	_close_secretary()
+	_close_location_scene()
+	_close_building_panel()
 
 func _on_exit_requested() -> void:
 	if not exit_confirmation:
@@ -1837,7 +2051,7 @@ func _on_exit_requested() -> void:
 		_refresh_ui("Нажмите «Точно?» ещё раз в течение четырёх секунд. Перед выходом игра создаст автосохранение.")
 		get_tree().create_timer(4.0).timeout.connect(_cancel_exit_confirmation)
 		return
-	var error := CampaignSaveService.save_campaign(state, CampaignSaveService.AUTOSAVE_PATH)
+	var error := CampaignSaveService.save_campaign(state, autosave_path)
 	if error != OK:
 		_cancel_exit_confirmation()
 		_refresh_ui("Не удалось создать автосохранение. Выход отменён: %s" % error_string(error))
@@ -1853,11 +2067,13 @@ func _cancel_exit_confirmation() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_node_ready():
+		if not pause_overlay.visible:
+			_show_pause_menu()
 		_on_exit_requested()
 
 func _refresh_ui(message: String) -> void:
 	date_label.text = state.calendar.display_date()
-	resource_label.text = "Казна %d · Личные %d · Жители %d · Зерно %d · Железо %d · Оружие %d\nКнязь %d · Усталость %d · Здоровье земель %d · Порядок %d · Недовольство %d" % [
+	resource_label.text = "Казна %d · Личные %d · Жители %d · Зерно %d · Железо %d · Оружие %d\nЗдоровье князя %d · Усталость %d · Здоровье жителей %d · Порядок %d · Недовольство %d" % [
 		state.state_treasury,
 		state.family_treasury,
 		state.population.residents,
@@ -1871,6 +2087,12 @@ func _refresh_ui(message: String) -> void:
 		state.population.unrest
 	]
 	notice_label.text = message + "    ·    перетаскивание — движение карты · колесо — масштаб"
+	advance_button.disabled = state.calendar.is_demo_complete()
+	period_report_button.visible = not state.period_report.is_empty()
+	var topics: Array[Dictionary] = []
+	if state.can_govern() and not state.calendar.is_demo_complete():
+		topics = state.conversations.pending_story_topics(state)
+	illustrated_map.update_conversation_markers(topics)
 	if objectives_label != null:
 		var completed := state.guide.completed_count(state)
 		var next_goal := "Все вводные цели выполнены"

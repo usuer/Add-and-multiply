@@ -7,6 +7,7 @@ mkdir -p "$build_dir"
 
 godot --headless --path "$repo_root/godot" --import
 godot --headless --path "$repo_root/godot" --script res://tests/test_runner.gd
+godot --headless --path "$repo_root/godot" --script res://tests/ui_layout_test.gd
 godot --headless --path "$repo_root/godot" --export-pack "Linux" "$build_dir/price-of-power.pck"
 
 printf 'Built %s\n' "$build_dir/price-of-power.pck"

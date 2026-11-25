@@ -10,12 +10,17 @@ static func save_campaign(state: WorldState, path: String = SAVE_PATH) -> Error:
 	if file == null:
 		return FileAccess.get_open_error()
 	file.store_string(JSON.stringify(state.to_data(), "\t"))
+	file.flush()
+	var write_error := file.get_error()
 	file.close()
-	if FileAccess.file_exists(path):
-		var remove_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-		if remove_error != OK:
-			return remove_error
-	return DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary_path), ProjectSettings.globalize_path(path))
+	var temporary_absolute := ProjectSettings.globalize_path(temporary_path)
+	if write_error != OK:
+		DirAccess.remove_absolute(temporary_absolute)
+		return write_error
+	var rename_error := DirAccess.rename_absolute(temporary_absolute, ProjectSettings.globalize_path(path))
+	if rename_error != OK:
+		DirAccess.remove_absolute(temporary_absolute)
+	return rename_error
 
 static func load_campaign(path: String = SAVE_PATH) -> WorldState:
 	if not FileAccess.file_exists(path):
@@ -32,8 +37,8 @@ static func load_campaign(path: String = SAVE_PATH) -> WorldState:
 		return null
 	return WorldState.from_data(data)
 
-static func load_latest() -> WorldState:
-	var manual := load_campaign(SAVE_PATH)
+static func load_latest(save_path: String = SAVE_PATH, autosave_path: String = AUTOSAVE_PATH) -> WorldState:
+	var manual := load_campaign(save_path)
 	if manual != null: return manual
-	return load_campaign(AUTOSAVE_PATH)
+	return load_campaign(autosave_path)
 

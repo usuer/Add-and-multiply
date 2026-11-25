@@ -21,7 +21,8 @@ var name_label: Label
 var role_label: Label
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_STOP if interactive else Control.MOUSE_FILTER_IGNORE
+	focus_entered.connect(queue_redraw)
+	focus_exited.connect(queue_redraw)
 	clip_contents = false
 	pivot_offset = size * 0.5
 	mouse_entered.connect(_on_mouse_entered)
@@ -29,6 +30,9 @@ func _ready() -> void:
 	gui_input.connect(_on_gui_input)
 	name_label = Label.new()
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name_label.add_theme_stylebox_override("normal", _caption_style())
 	name_label.add_theme_font_size_override("font_size", 17)
 	name_label.add_theme_color_override("font_color", Color("f7eac0"))
 	name_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
@@ -37,14 +41,16 @@ func _ready() -> void:
 	add_child(name_label)
 	role_label = Label.new()
 	role_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	role_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	role_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role_label.max_lines_visible = 2
 	role_label.add_theme_font_size_override("font_size", 12)
 	role_label.add_theme_color_override("font_color", Color("d2c79e"))
 	role_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
 	role_label.add_theme_constant_override("shadow_offset_x", 2)
 	role_label.add_theme_constant_override("shadow_offset_y", 2)
 	add_child(role_label)
-	name_label.text = display_name
-	role_label.text = role
+	_update_identity()
 	_layout_labels()
 
 func configure(id: String, title: String, public_role: String, can_select: bool = true) -> void:
@@ -52,16 +58,26 @@ func configure(id: String, title: String, public_role: String, can_select: bool 
 	display_name = title
 	role = public_role
 	interactive = can_select
+	phase = deg_to_rad(float(person_id.hash() % 360))
 	if is_node_ready():
-		mouse_filter = Control.MOUSE_FILTER_STOP if interactive else Control.MOUSE_FILTER_IGNORE
-		name_label.text = display_name
-		role_label.text = role
+		_update_identity()
 		queue_redraw()
+
+func _update_identity() -> void:
+	mouse_filter = Control.MOUSE_FILTER_STOP if interactive else Control.MOUSE_FILTER_IGNORE
+	focus_mode = Control.FOCUS_ALL if interactive else Control.FOCUS_NONE
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if interactive else Control.CURSOR_ARROW
+	name_label.text = display_name
+	name_label.visible = interactive
+	role_label.text = role
+	role_label.visible = interactive and not role.is_empty()
 
 func set_speaking(value: bool) -> void:
 	speaking = value
 
 func _process(delta: float) -> void:
+	if not is_visible_in_tree():
+		return
 	phase += delta * (2.2 if speaking else 1.25)
 	var breath := sin(phase) * 0.012
 	var attention := 1.055 if hovered else 1.0
@@ -77,14 +93,22 @@ func _notification(what: int) -> void:
 func _layout_labels() -> void:
 	if name_label == null:
 		return
-	name_label.position = Vector2(-20, size.y - 50)
-	name_label.size = Vector2(size.x + 40, 25)
-	role_label.position = Vector2(-35, size.y - 26)
-	role_label.size = Vector2(size.x + 70, 22)
+	name_label.position = Vector2(0, size.y - 53)
+	name_label.size = Vector2(size.x, 23)
+	role_label.position = Vector2(0, size.y - 30)
+	role_label.size = Vector2(size.x, 30)
+
+func _caption_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.025, 0.06, 0.047, 0.94)
+	style.set_corner_radius_all(5)
+	style.content_margin_left = 5
+	style.content_margin_right = 5
+	return style
 
 func _draw() -> void:
 	var base := COLORS.get(person_id, Color("405449")) as Color
-	var outline := Color("d7bb72") if hovered else Color(0.08, 0.11, 0.09, 0.95)
+	var outline := Color("d7bb72") if hovered or has_focus() else Color(0.08, 0.11, 0.09, 0.95)
 	var center_x := size.x * 0.5
 	var foot_y := size.y - 56.0
 	var body_top := size.y * 0.30
@@ -104,8 +128,9 @@ func _draw() -> void:
 	var arm_l := Vector2(center_x - shoulder + sway, body_top + 36)
 	var arm_r := Vector2(center_x + shoulder + sway, body_top + 36)
 	var gesture := sin(phase * 1.7) * 8.0 if speaking else 0.0
-	draw_line(arm_l, Vector2(center_x - size.x * 0.34 + sway, body_top + 112 - gesture), outline, 10.0, true)
-	draw_line(arm_r, Vector2(center_x + size.x * 0.34 + sway, body_top + 108 + gesture), outline, 10.0, true)
+	var hands_y := lerpf(body_top, foot_y, 0.78)
+	draw_line(arm_l, Vector2(center_x - size.x * 0.34 + sway, hands_y - gesture), outline, 10.0, true)
+	draw_line(arm_r, Vector2(center_x + size.x * 0.34 + sway, hands_y + gesture), outline, 10.0, true)
 	var head := Vector2(center_x + sway, body_top - 12 + sin(phase) * 1.5)
 	draw_circle(head, size.x * 0.125, Color("c99f7a"))
 	draw_arc(head, size.x * 0.125, 0, TAU, 32, outline, 3.0, true)
@@ -135,6 +160,9 @@ func _on_mouse_exited() -> void:
 	hovered = false
 
 func _on_gui_input(event: InputEvent) -> void:
-	if interactive and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if not interactive:
+		return
+	var clicked: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	if clicked or event.is_action_pressed("ui_accept"):
 		selected.emit(person_id)
 		accept_event()

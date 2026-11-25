@@ -1,5 +1,8 @@
 extends SceneTree
 
+const LOCATION_CATALOG := preload("res://world/location_catalog.gd")
+const CITY_MAP := preload("res://world/illustrated_capital_map.gd")
+
 var failures: Array[String] = []
 
 func _initialize() -> void:
@@ -34,9 +37,16 @@ func _initialize() -> void:
 	_test_atomic_autosave_fallback()
 	_test_battle_view_builds_animated_formations()
 	_test_location_conversations_are_stateful()
+	_test_campaign_conversation_payoffs()
+	_test_finale_resolves_before_epilogue()
+	_test_delayed_border_reply_keeps_decision_window()
+	_test_personal_choices_follow_location_and_health()
+	_test_location_content_references()
+	_test_city_dilemmas_offer_distinct_free_choices()
+	_test_period_report_tracks_actual_changes()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 32 checks")
+		print("PASS Godot foundation: 39 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -58,6 +68,19 @@ func _test_location_conversations_are_stateful() -> void:
 	_expect("share" not in state.conversations.available_options("spouse"), "Обсуждённая тема не должна сразу повторяться")
 	var restored := WorldState.from_data(state.to_data())
 	_expect("share" not in restored.conversations.available_options("spouse"), "Память разговора должна сохраняться вместе с кампанией")
+	_expect(restored.conversations.last_response("spouse") == response, "Повторная встреча после загрузки должна напоминать последний ответ")
+	_expect(state.conversations.people_at("temple", state).is_empty(), "Савва не должен появляться до сюжетной встречи")
+	state.facts["savva_fate"] = "in_guard_custody"
+	_expect(state.conversations.people_at("temple", state).is_empty(), "Арестованный Савва не должен появляться во дворе храма")
+	state.facts["savva_fate"] = "voluntary_witness"
+	_expect(state.conversations.people_at("temple", state) == ["savva"], "Добровольный свидетель должен быть доступен после встречи")
+	state.facts["vardan_stance"] = "open_enemy"
+	_expect(state.conversations.people_at("embassy", state).is_empty(), "Объявленный враг не должен ждать князя во дворе послов")
+	state.facts["vardan_stance"] = "inside_council"
+	_expect(state.conversations.people_at("embassy", state) == ["vardan"], "После сделки Вардан должен быть доступен для разговора")
+	_expect(state.conversations.choose(state, "aglaia", "guest").is_empty(), "Нельзя обсуждать приезжего до получения зацепки")
+	state.facts["aglaia_grey_guest"] = true
+	_expect(not state.conversations.choose(state, "aglaia", "guest").is_empty(), "Полученная зацепка должна открывать вопрос о приезжем")
 
 func _test_calendar_has_eighteen_cycles() -> void:
 	var calendar := CampaignCalendar.new()
@@ -273,8 +296,160 @@ func _test_every_story_choice_has_working_outcome() -> void:
 				state.story_timeline.resolved["border_courier"] = {"choice": "scouts", "cycle": 6}
 			if event_id == "border_consequence":
 				state.story_timeline.resolved["border_courier"] = {"choice": "envoy", "cycle": 6}
+			if event_id == "new_rule":
+				state.story_timeline.resolved["night_of_second_seal"] = {"choice": "capital", "cycle": 17}
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
+
+func _test_campaign_conversation_payoffs() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 3:
+		state.advance_period()
+	_expect(state.conversations.pending_story_topics(state).is_empty(), "Марек не должен звать на разговор до решения о печати")
+	_expect(state.story_timeline.choose(state, "dead_prince_order", "quiet"), "Тихая проверка должна открыть разговор с Мареком")
+	_expect(not state.conversations.choose(state, "secretary", "keep_copy").is_empty(), "Марек должен подготовить копию книги")
+	while state.calendar.cycle < 6:
+		state.advance_period()
+	state.story_timeline.choose(state, "border_courier", "envoy")
+	_expect(not state.conversations.choose(state, "radomir", "handover").is_empty(), "Радомир должен подготовить связных")
+	state.advance_period()
+	state.story_timeline.choose(state, "market_speech", "listen")
+	_expect(not state.conversations.choose(state, "miron", "public_witnesses").is_empty(), "После встречи на площади Мирон должен найти свидетелей")
+	while state.calendar.cycle < 9:
+		state.advance_period()
+	state = WorldState.from_data(state.to_data())
+	state.story_timeline.choose(state, "savva_at_chapel", "arrest")
+	_expect(bool(state.facts.get("second_seal_order_proof", false)), "Копия Марека должна сохранить проверяемую улику после исчезновения сумки Саввы")
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	var night := state.story_timeline.contextual_definition(state, "night_of_second_seal")
+	_expect(str(night["summary"]).contains("Связные") and str(night["summary"]).contains("цеховых старшин"), "Подготовка в городе должна быть заметна во время кризиса")
+	var border := WorldState.from_data(state.to_data())
+	var grain := int(border.resources["grain"])
+	_expect(border.story_timeline.choose(border, "night_of_second_seal", "border"), "Оборона границы должна разрешаться")
+	_expect(int(border.resources["grain"]) == maxi(0, grain - 4), "Связные должны уменьшить потери зерна")
+	var without_witnesses := WorldState.from_data(state.to_data())
+	without_witnesses.facts.erase("miron_public_witnesses")
+	(without_witnesses.characters["miron"] as CharacterState).respect = 0
+	without_witnesses.story_timeline.choose(without_witnesses, "night_of_second_seal", "expose")
+	_expect(without_witnesses.story_timeline.outcome("night_of_second_seal").contains("копию реестра"), "Улика Марека должна влиять на огласку и без поддержки Мирона")
+	(state.characters["miron"] as CharacterState).respect = 0
+	_expect(state.story_timeline.choose(state, "night_of_second_seal", "expose"), "У игрока должна оставаться возможность обнародовать улики")
+	_expect(state.story_timeline.outcome("night_of_second_seal").contains("двух цеховых старшин"), "Свидетели должны изменить исход даже при низком уважении Мирона")
+
+func _test_finale_resolves_before_epilogue() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 18:
+		state.advance_period()
+	_expect("new_rule" not in state.story_timeline.available_events(18), "Совет о послевоенном устройстве не должен открываться до исхода кризиса")
+	state.advance_period()
+	_expect(state.campaign_outcome.generated and state.facts.get("new_rule") == "old_order_survived", "Пропущенный финал должен разрешиться до эпилога")
+	_expect(not state.story_timeline.can_choose(state, "new_rule", "law"), "Нельзя менять исход после эпилога")
+
+func _test_delayed_border_reply_keeps_decision_window() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 7:
+		state.advance_period()
+	_expect(state.story_timeline.choose(state, "border_courier", "envoy"), "Гонцу можно ответить во втором периоде")
+	state.advance_period()
+	_expect("border_consequence" not in state.story_timeline.available_events(8), "Посольство не должно возвращаться раньше срока")
+	state.advance_period()
+	state.advance_period()
+	_expect("border_consequence" in state.story_timeline.available_events(10), "После возвращения посольства у князя должно быть два периода для решения")
+	state.advance_period()
+	_expect(state.story_timeline.resolved.get("border_consequence", {}).get("choice") == "neglected", "Просрочка должна наступить по истечении обоих периодов")
+
+func _test_personal_choices_follow_location_and_health() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 10:
+		state.advance_period()
+	_expect(state.story_timeline.choose(state, "fever_outbreak", "clinics"), "Лечебницы должны открыть возможность подготовить испытание")
+	var prepared := WorldState.from_data(state.to_data())
+	var discouraged := WorldState.from_data(state.to_data())
+	_expect(not prepared.conversations.choose(prepared, "tikhon", "prepare_trial").is_empty(), "Подготовка насоса должна быть доступна через разговор в школе")
+	_expect(not discouraged.conversations.choose(discouraged, "tikhon", "mock").is_empty(), "Тихон должен запомнить насмешку")
+	for trial: WorldState in [state, prepared, discouraged]:
+		while trial.calendar.cycle < 12:
+			trial.advance_period()
+		trial.public_health = 50
+		_expect(trial.story_timeline.choose(trial, "tikhon_pump", "field_test"), "Испытание должно работать при разных отношениях с Тихоном")
+	_expect(prepared.public_health == 55 and state.public_health == 53 and discouraged.public_health == 51, "Подготовка и недоверие должны давать разные результаты испытания")
+	var family := WorldState.new()
+	while family.calendar.cycle < 11:
+		family.advance_period()
+	_expect(family.story_timeline.choose(family, "family_warning", "evacuate"), "Семью должно быть можно вывезти из столицы")
+	_expect("spouse" not in family.conversations.people_at("castle", family), "Элина не должна оставаться во дворце после отъезда")
+	while family.calendar.cycle < 14:
+		family.advance_period()
+	family.story_timeline.choose(family, "aglaia_invitation", "decline")
+	_expect(family.story_timeline.outcome("aglaia_invitation").contains("написали Элине"), "После отъезда отказ от вечера должен возвращать к семье через письмо")
+
+func _test_location_content_references() -> void:
+	var state := WorldState.new()
+	for location_id: String in CITY_MAP.HOTSPOTS:
+		_expect(LOCATION_CATALOG.has_location(location_id), "Для точки %s нужна сцена" % location_id)
+	for location_id: String in state.conversations.LOCATION_CAST:
+		var location := LOCATION_CATALOG.definition(location_id)
+		var hotspots: Dictionary = location.get("hotspots", {})
+		for person_id: String in state.conversations.LOCATION_CAST[location_id]:
+			_expect(state.characters.has(person_id) and hotspots.has(person_id), "Для %s нужны персонаж и место в сцене %s" % [person_id, location_id])
+			_expect(not state.conversations.profile(person_id).is_empty(), "У %s должен быть профиль для разговора" % person_id)
+			for data: Dictionary in state.conversations.OPTIONS.get(person_id, {}).values():
+				var required_event := str(data.get("requires_event", ""))
+				var closing_event := str(data.get("closes_after", ""))
+				if not required_event.is_empty():
+					var choices: Dictionary = state.story_timeline.definition(required_event).get("choices", {})
+					_expect(not choices.is_empty(), "У реплики %s нет исходного события %s" % [person_id, required_event])
+					for choice: String in data.get("requires_choices", []):
+						_expect(choice == "neglected" or choices.has(choice), "Реплика %s ссылается на неизвестное решение %s" % [person_id, choice])
+				if not closing_event.is_empty():
+					_expect(not state.story_timeline.definition(closing_event).is_empty(), "У реплики %s неизвестное событие закрытия %s" % [person_id, closing_event])
+
+func _test_city_dilemmas_offer_distinct_free_choices() -> void:
+	var sample := WorldState.new()
+	for person_id: String in sample.conversations.CITY_CASES:
+		var definition: Dictionary = sample.conversations.CITY_CASES[person_id]
+		for option_id: String in definition["options"]:
+			var state := WorldState.new()
+			state.state_treasury = 0
+			state.calendar.cycle = int(definition["start_cycle"])
+			state.facts.merge(definition.get("requires_facts", {}))
+			var event_id := str(definition.get("requires_event", ""))
+			if not event_id.is_empty():
+				state.story_timeline.resolved[event_id] = {"choice": definition["requires_choices"][0]}
+			var option: Dictionary = definition["options"][option_id]
+			_expect(not state.conversations.city_case_brief(person_id, state).is_empty(), "Игроку должен быть понятен повод для разговора с %s" % person_id)
+			var before_fatigue := state.ruler_fatigue
+			var response: String = state.conversations.choose(state, person_id, option_id)
+			_expect(not response.is_empty() and state.state_treasury == int(option.get("gold_change", 0)), "При пустой казне должен работать вариант %s" % option_id)
+			_expect(state.ruler_fatigue == before_fatigue + 1, "Разговор должен расходовать один пункт усталости")
+			_expect(state.facts.get(definition["fact"]) == option["outcome"], "Ответ должен сохранять свой исход")
+			var loaded := WorldState.from_data(state.to_data())
+			_expect(loaded.conversations.last_response(person_id) == response, "Избранный вариант разговора должен сохраняться")
+			_expect(str(loaded.conversations.city_case_brief(person_id, loaded)).is_empty(), "Завершённое дело не должно предлагать противоположный выбор после загрузки")
+
+func _test_period_report_tracks_actual_changes() -> void:
+	var state := WorldState.new()
+	_expect(state.period_report.is_empty(), "У новой кампании не должно быть отчёта за несыгранный период")
+	state.advance_period()
+	_expect(str(state.period_report["notes"]).contains("Вода в старом амбаре"), "В сводке должно появляться доступное после перехода дело")
+	state.advance_period()
+	var gold_before := state.state_treasury
+	state.advance_period()
+	var exact_delta := false
+	for change: Dictionary in state.period_report["changes"]:
+		if change["id"] == "state_treasury":
+			exact_delta = change["before"] == gold_before and change["after"] == state.state_treasury
+	_expect(exact_delta and state.period_report["cycle"] == state.calendar.cycle, "Сводка должна показывать фактическую разницу за последний переход")
+	_expect(str(state.period_report["notes"]).contains("обычные сборы +8"), "Рядом с итогом казны должны быть видны источники месячного расчёта")
+	state.dismiss_period_report()
+	var data := state.to_data()
+	var restored := WorldState.from_data(data)
+	_expect(restored.period_report.get("dismissed") == true and restored.period_report.get("cycle") == state.calendar.cycle, "Сводка и факт закрытия должны сохраняться")
+	_expect(restored.period_archive.size() == 2 and restored.period_archive[0]["cycle"] == 2, "Должны сохраняться прежние сводки в порядке ходов")
+	data.erase("period_report")
+	data.erase("period_archive")
+	_expect(WorldState.from_data(data).period_report.is_empty(), "Старые сохранения без сводки должны загружаться")
 
 func _test_story_history_preserves_choices_and_results() -> void:
 	var state := WorldState.new()
@@ -547,13 +722,21 @@ func _test_ruler_overwork_causes_temporary_incapacity() -> void:
 func _test_atomic_autosave_fallback() -> void:
 	var state := WorldState.new()
 	state.state_treasury = 77
-	var auto_path := CampaignSaveService.AUTOSAVE_PATH
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(CampaignSaveService.SAVE_PATH))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(auto_path))
+	var auto_path := "user://test_autosave_%d.json" % OS.get_process_id()
+	var manual_path := "user://test_absent_manual_%d.json" % OS.get_process_id()
 	_expect(CampaignSaveService.save_campaign(state, auto_path) == OK, "Автосохранение должно записываться атомарно")
-	var loaded := CampaignSaveService.load_latest()
+	var loaded := CampaignSaveService.load_latest(manual_path, auto_path)
 	_expect(loaded != null and loaded.state_treasury == 77, "Автосохранение должно полностью восстанавливать состояние")
+	state.state_treasury = 85
+	_expect(CampaignSaveService.save_campaign(state, auto_path) == OK, "Новый файл должен заменить старое автосохранение")
 	_expect(not FileAccess.file_exists(auto_path + ".tmp"), "После успешной записи не должен оставаться временный файл")
+	var temp_as_dir := ProjectSettings.globalize_path(auto_path + ".tmp")
+	_expect(DirAccess.make_dir_absolute(temp_as_dir) == OK, "Тест должен смоделировать занятый временный путь")
+	state.state_treasury = 99
+	_expect(CampaignSaveService.save_campaign(state, auto_path) != OK, "Запись в занятый временный путь должна вернуть ошибку")
+	loaded = CampaignSaveService.load_latest(manual_path, auto_path)
+	_expect(loaded != null and loaded.state_treasury == 85, "Неудачная запись должна оставить предыдущее сохранение")
+	DirAccess.remove_absolute(temp_as_dir)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(auto_path))
 
 func _test_battle_view_builds_animated_formations() -> void:
