@@ -460,6 +460,8 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	if event_id == "fathers_ledger" and _family_away(state):
 		event["choices"]["inner_circle"] = "Показать книгу Мареку и Радомиру"
 		event["summary"] += " Аделы и детей нет в столице. Отправлять семейные копии по дороге Марек пока не советует."
+	if event_id == "divided_command" and state.facts.get("family_letter_reply") == "trust_through_lada":
+		event["summary"] += " Из письма Аделы стало известно, в какую смену незнакомец прошёл к детской. Дарен и Радомир принесли две книги, и в них за один час отвечают разные люди."
 	if event_id == "night_of_second_seal":
 		event["summary"] = _night_brief(state)
 		if not _has_full_ledger(state):

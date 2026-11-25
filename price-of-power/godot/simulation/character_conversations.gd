@@ -64,7 +64,8 @@ const STORY_REQUESTS: Dictionary = {
 	"handover": {"title": "Связь между караулами", "brief": "После вести с севера выяснилось, что связного воеводы не всегда узнаёт городская стража. Радомир предлагает провести общую проверку передачи приказов."},
 	"public_witnesses": {"title": "Свидетели для проверки приказов", "brief": "После выступления Мирона на площади старшины готовы сверить спорные грамоты с городскими книгами. Мирон может договориться об их участии."},
 	"prepare_trial": {"title": "Проверка насоса", "brief": "После начала горячки Тихон предлагает испытать насос для забора воды выше по реке. Он просит сначала согласовать пробный запуск с лекарями."},
-	"apologize_to_elina": {"title": "Разговор о Всеволоде", "brief": "После попытки поймать лазутчика Всеволод думает, что кого-то подвёл. Адела ждёт, что ты признаешь, почему мальчика нельзя было подвергать опасности."},
+	"apologize_to_elina": {"title": "Разговор о Всеволоде", "brief": "После попытки поймать лазутчика Всеволод думает, что подвёл взрослых. Адела просит сказать ему, чьим решением было оставить его в детской. Если вы пока не готовы, она поговорит с ним сама."},
+	"guard_introductions": {"title": "Кто познакомит детей с новым караулом", "brief": "У детской теперь стоит другой караул. Милица перестала выходить за дверь, когда там незнакомый человек. Адела просит познакомить детей с дежурными и объяснить, к кому обратиться, если вас нет в замке."},
 	"thank_aglaia": {"title": "После закрытого вечера", "brief": "Аглая помогла тебе уйти через кухню после вечерней встречи. Ты можешь поблагодарить её и узнать, что произошло в доме после твоего ухода."}
 }
 
@@ -75,19 +76,39 @@ const OPTIONS: Dictionary = {
 		"duty": {"title": "Попросить её пока не отвлекать от управления", "response": "Адела кивает и переходит на официальный тон. Просьбу она исполнила; близости этот разговор не добавил.", "changes": {"trust": -2, "resentment": 2}},
 		"new_guard_at_home": {
 			"title": "Спросить Аделу, как дети привыкли к новой охране",
-			"lead": "Адела хочет поговорить после смены охраны",
 			"response": "«Милица спросила, куда делся Степан. Он каждый вечер давал ей ключ, чтобы она сама заперла дверь. Я сказала, что его перевели. Познакомь её с новым караулом, ладно? При тебе она не будет бояться подойти».",
 			"requires_event": "family_warning",
-			"requires_choices": ["double_guard"],
-			"changes": {"trust": 2, "affection": 1}
+			"requires_choices": ["double_guard"]
+		},
+		"introduce_guards": {
+			"title": "Самому познакомить детей с дежурными",
+			"lead": "Адела просит познакомить детей с новой охраной",
+			"story_case": "guard_introductions",
+			"response": "Вы по очереди назвали детям дежурных и попросили Милицу самой отнести ключ на пост. Она вернулась с ним в руке: новый караульный согласился отдавать ключ ей, как прежде делал Степан.",
+			"requires_event": "family_warning", "requires_choices": ["double_guard"],
+			"sets_facts": {"family_guard_handoff": "introduced"}, "changes": {"trust": 3, "affection": 2}
+		},
+		"ask_adela_to_introduce_guards": {
+			"title": "Поручить Аделе знакомство с караулом и право менять дежурных",
+			"story_case": "guard_introductions",
+			"response": "Адела согласилась и попросила дать ей список смен. Вечером она привела детей к двум часовым. Один из них теперь сообщает ей о заменах ещё до выхода на пост. «Раз уж ты доверил это мне, я буду отвечать за это до конца».",
+			"requires_event": "family_warning", "requires_choices": ["double_guard"],
+			"sets_facts": {"family_guard_handoff": "delegated"}, "changes": {"respect": 3}
 		},
 		"apologize_to_elina": {
-			"title": "Признать перед Аделой, что нельзя было рисковать Всеволодом",
+			"title": "Самому сказать Всеволоду, что приказ был вашим",
 			"lead": "Адела ждёт разговора о случившемся в детской",
-			"response": "«Он думает, что прачку схватили, потому что он не сумел спрятать воск. Я два вечера объясняла ему, что он не виноват. Теперь скажи ему сам. А со мной мы об этом ещё поговорим».",
+			"response": "Всеволод спросил, хорошо ли он спрятал воск. Вы сказали, что это взрослые оставили его одного, и отвечаете за это вы. Мальчик попросил больше не давать ему секретных поручений. Адела дождалась, пока он уйдёт, и только тогда поблагодарила.",
 			"requires_event": "family_warning",
 			"requires_choices": ["bait"],
-			"changes": {"trust": 1, "resentment": -1}
+			"sets_facts": {"family_bait_repair": "owned"}, "changes": {"trust": 3, "resentment": -1}
+		},
+		"defer_explaining_to_child": {
+			"title": "Попросить Аделу поговорить с ним без вас",
+			"story_case": "apologize_to_elina",
+			"response": "Адела объяснила Всеволоду, что он ни в чём не виноват и больше не должен прятать воск для взрослых. Потом она пришла к вам: «Я его успокоила. За тебя я ему ничего объяснять не стала».",
+			"requires_event": "family_warning", "requires_choices": ["bait"],
+			"sets_facts": {"family_bait_repair": "deferred"}, "changes": {"trust": -2, "resentment": 2}
 		}
 	},
 	"sister": {
@@ -575,10 +596,11 @@ func _decision_case(person_id: String, option_id: String) -> Dictionary:
 	var request: Dictionary = REQUESTS.get(person_id, {})
 	if option_id in request.get("options", []):
 		return {"id": request["id"], "title": request["title"], "brief": request["brief"]}
-	if STORY_REQUESTS.has(option_id) and _main_options(person_id).has(option_id):
-		var story_request: Dictionary = STORY_REQUESTS[option_id]
-		return {"id": option_id, "title": story_request["title"], "brief": story_request["brief"]}
 	var data := option(person_id, option_id)
+	var story_id := str(data.get("story_case", option_id))
+	if STORY_REQUESTS.has(story_id) and _main_options(person_id).has(option_id):
+		var story_request: Dictionary = STORY_REQUESTS[story_id]
+		return {"id": story_id, "title": story_request["title"], "brief": story_request["brief"]}
 	if data.get("kind") == "decision":
 		return {"id": data["case_id"], "title": data["case_title"], "brief": data["brief"]}
 	return {}

@@ -5,6 +5,7 @@ const CONVERSATIONS_SCRIPT := preload("res://simulation/character_conversations.
 const LOCATION_PEOPLE := preload("res://simulation/location_people.gd")
 const PERIOD_REPORT := preload("res://simulation/period_report.gd")
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
+const FAMILY_CORRESPONDENCE := preload("res://simulation/family_correspondence.gd")
 
 const SAVE_VERSION: int = 1
 const TEXT_REVISION: int = 3
@@ -117,6 +118,7 @@ func advance_period() -> bool:
 	_update_ruler_condition()
 	story_timeline.update(self)
 	COURT_AUTHORITY.update(self)
+	FAMILY_CORRESPONDENCE.update(self)
 	if grain_crisis.update(calendar.cycle):
 		var inspection := str(facts.get("granary_inspection", ""))
 		if inspection == "double_check":

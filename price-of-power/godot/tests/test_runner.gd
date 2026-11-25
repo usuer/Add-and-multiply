@@ -4,6 +4,7 @@ const LOCATION_CATALOG := preload("res://world/location_catalog.gd")
 const CITY_MAP := preload("res://world/illustrated_capital_map.gd")
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const SEAL_CASE_FILE := preload("res://simulation/seal_case_file.gd")
+const FAMILY_CORRESPONDENCE := preload("res://simulation/family_correspondence.gd")
 
 var failures: Array[String] = []
 
@@ -55,9 +56,11 @@ func _initialize() -> void:
 	_test_diplomacy_and_workshop_issue_actual_reports()
 	_test_case_file_only_contains_discovered_evidence()
 	_test_renaming_preserves_save_roles_and_existing_text()
+	_test_family_correspondence_tracks_promises_and_safeguards()
+	_test_family_conversations_close_with_different_outcomes()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 48 checks")
+		print("PASS Godot foundation: 50 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -390,6 +393,45 @@ func _test_opening_promises_have_followthrough() -> void:
 		"О прибытии купленного обоза должен сообщить отдельный отчёт")
 	_expect(int(state.resources["grain"]) == local_grain and state.opening_decision.observed_reactions(state) == reactions,
 		"Покупка не тратит местное зерно, поздние решения не переписывают летопись похорон")
+
+func _test_family_correspondence_tracks_promises_and_safeguards() -> void:
+	var evacuated := WorldState.new()
+	while evacuated.calendar.cycle < 11:
+		evacuated.advance_period()
+	evacuated.story_timeline.choose(evacuated, "family_warning", "evacuate")
+	_expect(FAMILY_CORRESPONDENCE.terms(evacuated).is_empty(), "Письмо не должно появляться в момент отъезда")
+	evacuated.advance_period()
+	var listened := WorldState.from_data(evacuated.to_data())
+	_expect(not FAMILY_CORRESPONDENCE.choose(listened, "listen").is_empty(), "Уехавшую семью должно быть можно выслушать через Ладу")
+	_expect(FAMILY_CORRESPONDENCE.choose(listened, "guarantee").is_empty(), "Ответ на письмо нельзя заменить другим после отправки")
+	listened = WorldState.from_data(listened.to_data())
+	listened.advance_period()
+	_expect(listened.facts.get("family_letter_reply") == "trust_through_lada" and str(SEAL_CASE_FILE.entries(listened)).contains("Смена у детской"),
+		"Выслушав Аделу, игрок получает её показание после доставки ответа")
+	FAMILY_CORRESPONDENCE.choose(evacuated, "guarantee")
+	evacuated.advance_period()
+	_expect(evacuated.facts.get("family_letter_reply") == "awaiting_guards", "Обещание без проверяемых условий не должно возвращать семью")
+	while evacuated.calendar.cycle < 16:
+		evacuated.advance_period()
+	evacuated.story_timeline.choose(evacuated, "divided_command", "joint")
+	evacuated.advance_period()
+	_expect(evacuated.facts.get("family_letter_reply") == "ready_to_discuss", "После решения о совместной проверке Адела должна пересмотреть ответ")
+	_expect("spouse" not in evacuated.conversations.people_at("castle", evacuated), "Согласие на проверку не должно переносить семью во дворец")
+
+func _test_family_conversations_close_with_different_outcomes() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 11:
+		state.advance_period()
+	var guards := WorldState.from_data(state.to_data())
+	guards.story_timeline.choose(guards, "family_warning", "double_guard")
+	_expect(not guards.conversations.choose(guards, "spouse", "introduce_guards").is_empty(), "После смены охраны князь должен иметь возможность познакомить детей с караулом")
+	_expect(guards.conversations.choose(guards, "spouse", "ask_adela_to_introduce_guards").is_empty() and guards.facts.get("family_guard_handoff") == "introduced",
+		"Знакомство должно закрывать противоположное распоряжение")
+	_expect(not guards.conversations.choose(guards, "spouse", "new_guard_at_home").is_empty(), "Вопрос о реакции детей должен остаться доступным")
+	state.story_timeline.choose(state, "family_warning", "bait")
+	_expect(not state.conversations.choose(state, "spouse", "apologize_to_elina").is_empty() and state.facts.get("family_bait_repair") == "owned",
+		"Последствие должно фиксировать личное признание ответственности")
+	_expect(state.conversations.choose(state, "spouse", "defer_explaining_to_child").is_empty(), "Последствия разговора с ребёнком должны быть взаимоисключающими")
 
 func _test_exchange_resolves_before_the_crisis() -> void:
 	var base := WorldState.new()

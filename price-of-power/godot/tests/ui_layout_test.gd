@@ -149,6 +149,7 @@ func _run() -> void:
 	await _check_compact_dialogue(location, state)
 	await _check_battle_clicks(app, state)
 	await _check_authority_confirmation(app, state)
+	await _check_family_letter_from_secretary(app, state)
 	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
 	_check_exit_confirmation(app)
@@ -438,6 +439,37 @@ func _check_seal_dossier(app: Node) -> void:
 	await process_frame
 	if title.text != "Дела княжеской канцелярии":
 		failures.append("Из папки нужно возвращаться к открытым делам")
+
+func _check_family_letter_from_secretary(app: Node, original: WorldState) -> void:
+	var family := WorldState.new()
+	family.opening_decision.choose_funeral("modest")
+	family.opening_decision.choose_grain("partial")
+	family.opening_decision.resolve(family)
+	while family.calendar.cycle < 11:
+		family.advance_period()
+	family.story_timeline.choose(family, "family_warning", "evacuate")
+	family.advance_period()
+	app.set("state", family)
+	app.call("_open_secretary")
+	await process_frame
+	await process_frame
+	var body := app.get("secretary_case_body") as Control
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	var choice := _find_button(body, "Спросить, что нужно семье")
+	if choice == null:
+		failures.append("Письмо из-за города должно появиться в открытых делах канцелярии")
+	else:
+		scroll.ensure_control_visible(choice)
+		await process_frame
+		_click(choice.get_global_rect().get_center())
+		await process_frame
+		var receipt := body.get_node_or_null("StoryResult") as Label
+		if family.facts.get("family_letter") != "listen" or receipt == null or not receipt.text.contains("Ладу"):
+			failures.append("Отправка письма должна показать результат и назначить ответ на следующий период")
+		if _find_button(body, "Предложить письменные гарантии") != null:
+			failures.append("После отправки из канцелярии оба ответа на письмо должны исчезнуть")
+	app.call("_close_secretary")
+	app.set("state", original)
 
 func _check_compact_dialogue(location: Control, state: WorldState) -> void:
 	var normal_scale := root.content_scale_size

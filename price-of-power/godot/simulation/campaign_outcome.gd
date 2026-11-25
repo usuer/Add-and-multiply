@@ -44,6 +44,9 @@ func _family_summary(state: WorldState) -> String:
 			result = "Адела увезла детей по своему решению. Двор всё ещё не знает, где они: она согласна говорить о возвращении только через Ладу."
 		"child_bait":
 			result = "Всеволод всё ещё принимает случай в детской за собственную вину. Адела просит, чтобы объяснение он услышал от вас."
+			match str(state.facts.get("family_bait_repair", "")):
+				"owned": result = "Всеволод услышал от вас, чьим решением было оставить его в детской. Он снова приходит к вам сам, но просит больше не давать ему тайных поручений."
+				"deferred": result = "Адела объяснила Всеволоду, что он ни в чём не виноват. С вами мальчик об этом ещё не говорил."
 		_:
 			var spouse: CharacterState = state.characters["spouse"]
 			if spouse.trust < 20:
@@ -52,6 +55,13 @@ func _family_summary(state: WorldState) -> String:
 				result = "Адела и дети остаются в замке. Адела просит заранее познакомить их с теми, кто будет дежурить за дверью."
 	if int(state.facts.get("debt_to_family", 0)) > 0:
 		result += " Обещание вернуть семейные деньги остаётся в силе."
+	match str(state.facts.get("family_guard_handoff", "")):
+		"introduced": result += " Милица уже знает караульных по именам и сама относит им ключ."
+		"delegated": result += " Адела знает обе смены у детской и сама утверждает замену дежурных."
+	match str(state.facts.get("family_letter_reply", "")):
+		"ready_to_discuss": result += " Собственного свидетеля она уже согласилась прислать к караулу."
+		"awaiting_guards": result += " Условия, присланные вами в письме, она ещё не смогла проверить."
+		"trust_through_lada": result += " Через Ладу вы снова начали переписываться, и место укрытия осталось в семье."
 	return result
 
 func _border_summary(state: WorldState) -> String:

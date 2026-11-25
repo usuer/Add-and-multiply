@@ -9,6 +9,7 @@ const PERIOD_REPORT := preload("res://world/period_report_panel.gd")
 const PROLOGUE := preload("res://world/prologue_scene.gd")
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const SEAL_CASE_FILE := preload("res://simulation/seal_case_file.gd")
+const FAMILY_CORRESPONDENCE := preload("res://simulation/family_correspondence.gd")
 const USE_3D_PLACEHOLDERS: bool = false
 const SETTINGS_PATH: String = "user://settings.cfg"
 
@@ -735,6 +736,7 @@ func _refresh_secretary_case() -> void:
 		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
 			_add_opening_followup()
 		_add_family_debt()
+		_add_family_letter()
 		if not SEAL_CASE_FILE.entries(state).is_empty():
 			var file := Button.new()
 			file.text = "Материалы дела о печати"
@@ -1024,6 +1026,34 @@ func _settle_family_debt(choice_id: String) -> void:
 	if not outcome.is_empty():
 		_refresh_ui(outcome)
 		_show_story_record({"title": "Семейное обещание", "outcome": outcome})
+
+func _add_family_letter() -> void:
+	var terms := FAMILY_CORRESPONDENCE.terms(state)
+	if terms.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = str(terms["title"])
+	heading.add_theme_font_size_override("font_size", 19)
+	secretary_case_body.add_child(heading)
+	var context := Label.new()
+	context.text = str(terms["context"])
+	context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(context)
+	for choice_id: String in terms["options"]:
+		var choice := Button.new()
+		choice.text = str(terms["options"][choice_id])
+		choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		choice.custom_minimum_size.y = 40
+		choice.disabled = not state.can_govern()
+		choice.pressed.connect(_reply_to_family_letter.bind(choice_id))
+		secretary_case_body.add_child(choice)
+
+func _reply_to_family_letter(choice_id: String) -> void:
+	var response := FAMILY_CORRESPONDENCE.choose(state, choice_id)
+	if response.is_empty():
+		return
+	_refresh_ui("Ответ Аделе передан через Ладу.")
+	_show_story_record({"title": "Ответ Аделе", "outcome": response})
 
 func _set_seal_dossier(open: bool) -> void:
 	seal_dossier_open = open
@@ -2240,6 +2270,8 @@ func _refresh_ui(message: String) -> void:
 		if state.opening_decision.status != OpeningDecision.Status.RESOLVED:
 			open_cases += 1
 		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
+			open_cases += 1
+		if not FAMILY_CORRESPONDENCE.terms(state).is_empty():
 			open_cases += 1
 		open_cases += state.story_timeline.unread_reports().size()
 		if state.campaign_outcome.generated:
