@@ -17,7 +17,7 @@ const DELEGATES: Dictionary = {
 	"captain": {
 		"name": "Капитан гарнизона",
 		"duration": 1,
-		"finding": "Мост выдержит телеги, но разбитая дорога задержит обоз. Охрана склада недостаточна."
+		"finding": "Плотники временно вернули настил, но разбитая дорога к мосту задержит обоз. Подъезд через мельницу суше. Охрана склада недостаточна."
 	},
 	"agent": {
 		"name": "Агент тайной службы",
@@ -57,7 +57,7 @@ func status_text() -> String:
 		Stage.FINDINGS_READY:
 			return findings.back()
 		Stage.RESOLVED:
-			return "Дело завершено."
+			return findings.back() if not findings.is_empty() else "Отчёт изучен."
 	return ""
 
 func to_data() -> Dictionary:

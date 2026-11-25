@@ -19,10 +19,10 @@ const DEFINITIONS: Dictionary = {
 		"zlata": Vector2(0.24, 0.57), "miron": Vector2(0.5, 0.55), "aglaia": Vector2(0.76, 0.58)
 	}},
 	"school": {"title": "Школьный двор", "hotspots": {"tikhon": Vector2(0.55, 0.57)}},
-	"granary": {"title": "Княжеские амбары"},
-	"embassy": {"title": "Двор послов", "hotspots": {"vardan": Vector2(0.52, 0.58)}},
-	"temple": {"title": "Храмовый двор", "hotspots": {"savva": Vector2(0.52, 0.58)}},
-	"smithy": {"title": "Оружейная кузница"}
+	"granary": {"title": "Княжеские амбары", "hotspots": {"granary_keeper": Vector2(0.46, 0.54)}},
+	"embassy": {"title": "Двор послов", "hotspots": {"envoy": Vector2(0.40, 0.51), "vardan": Vector2(0.68, 0.54)}},
+	"temple": {"title": "Храмовый двор", "hotspots": {"chaplain": Vector2(0.38, 0.54), "savva": Vector2(0.65, 0.57)}},
+	"smithy": {"title": "Оружейная кузница", "hotspots": {"forge_master": Vector2(0.54, 0.58)}}
 }
 
 static func has_location(location_id: String) -> bool:

@@ -6,8 +6,9 @@ const ILLUSTRATED_MAP := preload("res://world/illustrated_capital_map.gd")
 const LOCATION_SCENE := preload("res://world/location_scene.gd")
 const LOCATION_CATALOG := preload("res://world/location_catalog.gd")
 const PERIOD_REPORT := preload("res://world/period_report_panel.gd")
-const CAPITAL_ART: Texture2D = preload("res://assets/art/arden_capital.png")
-const FATHER_LAST_NIGHT_ART: Texture2D = preload("res://assets/art/fathers_last_night.png")
+const PROLOGUE := preload("res://world/prologue_scene.gd")
+const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
+const SEAL_CASE_FILE := preload("res://simulation/seal_case_file.gd")
 const USE_3D_PLACEHOLDERS: bool = false
 const SETTINGS_PATH: String = "user://settings.cfg"
 
@@ -21,6 +22,9 @@ var selected_building: CityBuilding
 var building_panel: PanelContainer
 var building_close_button: Button
 var battle_primary_button: Button
+var authority_confirmation: ConfirmationDialog
+var authority_selected_person: String
+var authority_selected_action: String
 var building_title: Label
 var building_context: Label
 var building_picture: TextureRect
@@ -57,19 +61,13 @@ var sound_enabled: bool = true
 var castle_section: String = "council"
 var selected_person: String = "spouse"
 var intro_overlay: Control
-var intro_title: Label
-var intro_body: Label
-var intro_page_label: Label
-var intro_back_button: Button
-var intro_next_button: Button
-var intro_picture: TextureRect
-var intro_page: int = 0
 var objectives_label: Label
 var illustrated_map: IllustratedCapitalMap
 var location_scene: Control
 var selected_location_id: String = ""
 var management_from_location: bool = false
 var selected_story_record: Dictionary = {}
+var seal_dossier_open: bool = false
 var battle_view: Control
 var interface_root: VBoxContainer
 var modal_shade: ColorRect
@@ -94,14 +92,6 @@ const PEOPLE_ROLES: Dictionary = {
 	"vardan": "Речной торговец и организатор собственной силовой сети"
 }
 
-const INTRO_PAGES: Array[Dictionary] = [
-	{"title": "Последняя ночь старого князя", "body": "Отец зовёт вас незадолго до рассвета. Лекари уже вышли из комнаты. На столе лежат зерновые книги, сломанная печать и карта северных дорог. «Я оставляю тебе не трон, а множество обещаний, данных разным людям», — говорит он."},
-	{"title": "Предупреждение, которое он не успел закончить", "body": "Отец просит защитить Ладу и проверить пропавшее зерно. Затем показывает на сломанную печать: «Кто-то в моём совете передавал северянам наши дороги. Не обвиняй первого, на кого укажут. Ищи того, кому выгодно…» Последнее имя он произнести не успевает."},
-	{"title": "На рассвете власть переходит к вам", "body": "К полудню город узнаёт о смерти князя. Семья ждёт решения о похоронах, из Долинной области требуют открыть амбары, а старые советники уже спорят, какой приказ вы должны подписать первым. Отказ отвечать тоже станет решением."},
-	{"title": "Арденское княжество · весна 1248 года", "body": "Вы наследуете действующее государство: укреплённую столицу, чиновников, ремесленные кварталы и области со своими интересами. Казна не пуста, но почти у каждого запаса есть прежнее назначение."},
-	{"title": "Город — главное меню", "body": "Выбирайте здания на карте. Замок открывает совет, правила и суд; амбар — расследование; казармы — армию; двор послов — торговлю и разведку. Некоторые проблемы ухудшаются, если оставить их без ответа."}
-]
-
 func _ready() -> void:
 	get_tree().auto_accept_quit = false
 	_create_audio_feedback()
@@ -109,7 +99,7 @@ func _ready() -> void:
 	_create_capital_placeholder()
 	_create_camera()
 	_create_ui()
-	_refresh_ui("Первая техническая сцена: укреплённый Арден")
+	_refresh_ui("Выберите место на карте Ардена.")
 	if not state.guide.prologue_seen or not state.guide.intro_seen:
 		_show_intro()
 
@@ -391,6 +381,7 @@ func _create_ui() -> void:
 	location_scene.back_requested.connect(_close_location_scene)
 	location_scene.person_selected.connect(_open_character_dialogue)
 	location_scene.option_selected.connect(_choose_character_dialogue)
+	location_scene.new_case_requested.connect(_open_character_dialogue)
 	location_scene.management_requested.connect(_open_location_management)
 	layer.add_child(location_scene)
 	# Godot uses sibling order for GUI hit testing, regardless of z_index.
@@ -431,61 +422,12 @@ func _panel_style() -> StyleBoxFlat:
 	return style
 
 func _create_intro_overlay(layer: CanvasLayer) -> void:
-	intro_overlay = Control.new()
-	intro_overlay.visible = false
-	intro_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	intro_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	intro_overlay = PROLOGUE.new()
 	intro_overlay.z_index = 110
+	intro_overlay.finished.connect(_finish_intro)
+	intro_overlay.burial_finished.connect(_finish_burial)
+	intro_overlay.contact_met.connect(_meet_in_prologue)
 	layer.add_child(intro_overlay)
-	var shade := ColorRect.new()
-	shade.color = Color(0.025, 0.045, 0.04, 0.88)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	intro_overlay.add_child(shade)
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-410, -350)
-	panel.size = Vector2(820, 700)
-	intro_overlay.add_child(panel)
-	var margin := MarginContainer.new()
-	for side: String in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 30)
-	panel.add_child(margin)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 18)
-	margin.add_child(column)
-	intro_page_label = Label.new()
-	intro_page_label.modulate = Color("d9bd72")
-	column.add_child(intro_page_label)
-	intro_picture = TextureRect.new()
-	intro_picture.texture = FATHER_LAST_NIGHT_ART
-	intro_picture.custom_minimum_size = Vector2(0, 285)
-	intro_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	intro_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	intro_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(intro_picture)
-	intro_title = Label.new()
-	intro_title.add_theme_font_size_override("font_size", 28)
-	intro_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(intro_title)
-	intro_body = Label.new()
-	intro_body.add_theme_font_size_override("font_size", 18)
-	intro_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	intro_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(intro_body)
-	var navigation := HBoxContainer.new()
-	navigation.add_theme_constant_override("separation", 10)
-	column.add_child(navigation)
-	intro_back_button = Button.new()
-	intro_back_button.text = "Назад"
-	intro_back_button.pressed.connect(_intro_back)
-	navigation.add_child(intro_back_button)
-	var nav_spacer := Control.new()
-	nav_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	navigation.add_child(nav_spacer)
-	intro_next_button = Button.new()
-	intro_next_button.custom_minimum_size = Vector2(190, 46)
-	intro_next_button.pressed.connect(_intro_next)
-	navigation.add_child(intro_next_button)
 
 func _create_pause_menu(layer: CanvasLayer) -> void:
 	pause_overlay = Control.new()
@@ -607,33 +549,23 @@ func _refresh_fullscreen_caption() -> void:
 	pause_fullscreen_button.text = "Оконный режим" if fullscreen else "На весь экран"
 
 func _show_intro() -> void:
-	intro_page = 0
-	intro_overlay.visible = true
-	_refresh_intro()
-
-func _refresh_intro() -> void:
-	var page: Dictionary = INTRO_PAGES[intro_page]
-	intro_page_label.text = "ВВЕДЕНИЕ · %d/%d" % [intro_page + 1, INTRO_PAGES.size()]
-	intro_title.text = page["title"]
-	intro_body.text = page["body"]
-	intro_picture.texture = FATHER_LAST_NIGHT_ART if intro_page < 3 else CAPITAL_ART
-	intro_back_button.disabled = intro_page == 0
-	intro_next_button.text = "Начать правление" if intro_page == INTRO_PAGES.size() - 1 else "Далее"
-
-func _intro_back() -> void:
-	intro_page = maxi(0, intro_page - 1)
-	_refresh_intro()
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	intro_overlay.restart()
 
 func _intro_next() -> void:
-	if intro_page < INTRO_PAGES.size() - 1:
-		intro_page += 1
-		_refresh_intro()
-		return
+	intro_overlay.advance()
+
+func _meet_in_prologue(person_id: String) -> void:
+	state.facts["prologue_met_%s" % person_id] = true
+
+func _finish_intro() -> void:
 	state.guide.intro_seen = true
 	state.guide.prologue_seen = true
 	state.facts["father_warned_of_traitor"] = true
 	intro_overlay.visible = false
+	interface_root.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 	_refresh_ui("Первое дело ждёт в канцелярии. Откройте «Дела секретаря».")
+	cases_button.grab_focus()
 
 func _create_building_panel(layer: CanvasLayer) -> void:
 	building_panel = PanelContainer.new()
@@ -767,6 +699,7 @@ func _open_secretary() -> void:
 	secretary_close_button.grab_focus()
 	modal_shade.visible = true
 	selected_story_record.clear()
+	seal_dossier_open = false
 	_reveal_panel(secretary_panel)
 	_refresh_secretary_case()
 	secretary_scroll.set_deferred("scroll_vertical", 0)
@@ -783,6 +716,9 @@ func _refresh_secretary_case() -> void:
 	for child in secretary_case_body.get_children():
 		secretary_case_body.remove_child(child)
 		child.queue_free()
+	if seal_dossier_open:
+		_add_seal_dossier()
+		return
 	_add_selected_story_result()
 	_add_unread_reports()
 	var decision := state.opening_decision
@@ -798,6 +734,12 @@ func _refresh_secretary_case() -> void:
 			secretary_case_body.add_child(battle_route)
 		if state.opening_followup.status == OpeningFollowup.Status.AVAILABLE:
 			_add_opening_followup()
+		_add_family_debt()
+		if not SEAL_CASE_FILE.entries(state).is_empty():
+			var file := Button.new()
+			file.text = "Материалы дела о печати"
+			file.pressed.connect(_set_seal_dossier.bind(true))
+			secretary_case_body.add_child(file)
 		_add_pending_story_topics()
 		_add_available_story_events()
 		_add_story_history()
@@ -809,7 +751,7 @@ func _refresh_secretary_case() -> void:
 	secretary_introduction.text = "Определите церемонию, помощь области и источник средств. Точные последствия заранее неизвестны."
 
 	var funeral_context := Label.new()
-	funeral_context.text = "Отец умер этой ночью. До полудня нужно решить, как простится с ним княжеский дом и приглашать ли представителей дальних областей."
+	funeral_context.text = "Ночью близкие простились с отцом. Марек ждёт вашего распоряжения о самих похоронах: кого позвать и сколько людей готовить к церемонии."
 	funeral_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	funeral_context.modulate = Color("c7d0c3")
 	secretary_case_body.add_child(funeral_context)
@@ -818,7 +760,7 @@ func _refresh_secretary_case() -> void:
 	funeral_choice_label.text = _chosen_title(OpeningDecision.FUNERAL_PLANS, decision.funeral_plan)
 	secretary_case_body.add_child(funeral_choice_label)
 	var grain_context := Label.new()
-	grain_context.text = "Из Долинной области приехали трое старост. После двух слабых урожаев, паводка и падежа скота запасов нескольких деревень хватит примерно на две недели. В областных книгах зерно числится, но старосты утверждают, что амбары почти пусты."
+	grain_context.text = "Лада привела трёх старост из Долинной области. Они просят выдать зерно: в нескольких деревнях его осталось на две недели. По книге один обоз уже дошёл. Отец перед смертью говорил, что в тот день с моста сняли настил. Сейчас нужно решить, отправлять ли помощь до сверки."
 	grain_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	grain_context.modulate = Color("c7d0c3")
 	secretary_case_body.add_child(grain_context)
@@ -953,6 +895,11 @@ func _add_available_story_events() -> void:
 		for choice_id: String in event["choices"]:
 			var choice := Button.new()
 			choice.text = str(event["choices"][choice_id])
+			var cost := state.story_timeline.choice_gold_cost(event_id, choice_id)
+			if cost > 0:
+				choice.text += " · %d монет" % cost
+				if state.state_treasury < cost:
+					choice.tooltip_text = "В казне не хватает денег на это распоряжение."
 			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			choice.custom_minimum_size = Vector2(0, 40)
@@ -962,6 +909,10 @@ func _add_available_story_events() -> void:
 
 func _add_story_history() -> void:
 	var history := state.story_timeline.resolved_history(6)
+	history.append_array(state.conversations.decision_history())
+	history.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["cycle"]) > int(b["cycle"]))
+	if history.size() > 6:
+		history.resize(6)
 	if state.opening_followup.status == OpeningFollowup.Status.RESOLVED:
 		history.append({"cycle": 1, "title": state.opening_followup.title, "choice": "Личный разговор", "outcome": state.opening_followup.closing_text})
 	history.append({"cycle": 1, "title": "Первые решения нового князя", "choice": "Похороны и помощь области", "outcome": _opening_result_text()})
@@ -1041,13 +992,68 @@ func _add_pending_story_topics() -> void:
 		visit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		visit.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		visit.custom_minimum_size = Vector2(0, 40)
-		visit.pressed.connect(_visit_story_contact.bind(str(topic["location_id"]), str(topic["person_id"])))
+		var requested_topic := str(topic.get("option_id", ""))
+		if requested_topic.is_empty():
+			requested_topic = str(topic.get("city_case", ""))
+		visit.pressed.connect(_visit_story_contact.bind(str(topic["location_id"]), str(topic["person_id"]), requested_topic))
 		secretary_case_body.add_child(visit)
 
-func _visit_story_contact(location_id: String, person_id: String) -> void:
+func _add_family_debt() -> void:
+	var terms := state.opening_followup.family_debt_terms(state)
+	if terms.is_empty():
+		return
+	var title := Label.new()
+	title.text = str(terms["title"])
+	title.add_theme_font_size_override("font_size", 19)
+	secretary_case_body.add_child(title)
+	var context := Label.new()
+	context.text = str(terms["context"])
+	context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	secretary_case_body.add_child(context)
+	for choice_id: String in terms["options"]:
+		var option: Dictionary = terms["options"][choice_id]
+		var button := Button.new()
+		button.text = str(option["title"])
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		button.disabled = not option["enabled"]
+		button.pressed.connect(_settle_family_debt.bind(choice_id))
+		secretary_case_body.add_child(button)
+
+func _settle_family_debt(choice_id: String) -> void:
+	var outcome := state.opening_followup.settle_family_debt(state, choice_id)
+	if not outcome.is_empty():
+		_refresh_ui(outcome)
+		_show_story_record({"title": "Семейное обещание", "outcome": outcome})
+
+func _set_seal_dossier(open: bool) -> void:
+	seal_dossier_open = open
+	_refresh_secretary_case()
+	secretary_scroll.set_deferred("scroll_vertical", 0)
+
+func _add_seal_dossier() -> void:
+	secretary_title.text = "Дело о второй печати"
+	secretary_introduction.text = "Собранные сведения и то, что по ним пока нельзя установить."
+	resolve_opening_button.visible = false
+	var back := Button.new()
+	back.text = "← К делам канцелярии"
+	back.pressed.connect(_set_seal_dossier.bind(false))
+	secretary_case_body.add_child(back)
+	back.grab_focus()
+	for entry: Dictionary in SEAL_CASE_FILE.entries(state):
+		var heading := Label.new()
+		heading.text = "%s · %s" % [entry["title"], entry["status"]]
+		heading.modulate = Color("d9bd72")
+		heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(heading)
+		var detail := Label.new()
+		detail.text = str(entry["text"])
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		secretary_case_body.add_child(detail)
+
+func _visit_story_contact(location_id: String, person_id: String, requested_topic: String) -> void:
 	_close_secretary()
 	_open_location_scene(location_id)
-	_open_character_dialogue(person_id)
+	_open_character_dialogue(person_id, requested_topic)
 
 func _open_active_battle() -> void:
 	_close_secretary()
@@ -1136,6 +1142,12 @@ func _resolve_opening_decision() -> void:
 		return
 	_refresh_ui("Печать поставлена. Секретарь передал распоряжения исполнителям.")
 	_show_story_record({"title": "Решения скреплены печатью", "outcome": _opening_result_text()})
+	intro_overlay.show_burial(state.opening_decision.funeral_plan)
+
+func _finish_burial() -> void:
+	state.facts["burial_seen"] = true
+	if secretary_panel.visible:
+		secretary_close_button.grab_focus()
 
 func _opening_result_text() -> String:
 	var lines: Array[String] = [state.opening_decision.observed_outcome]
@@ -1222,7 +1234,10 @@ func _open_location_scene(location_id: String) -> void:
 	var title := str(definition["title"])
 	var hotspots := definition.get("hotspots", {}) as Dictionary
 	var people: Array[String] = state.conversations.people_at(location_id, state)
-	location_scene.configure(location_id, title, texture, hotspots, people, state.characters, state.conversations.PROFILES)
+	var profiles: Dictionary = {}
+	for person_id: String in people:
+		profiles[person_id] = state.conversations.profile(person_id, state)
+	location_scene.configure(location_id, title, texture, hotspots, people, state.characters, profiles)
 	location_scene.visible = true
 	_play_ui_sound("click")
 
@@ -1235,26 +1250,66 @@ func _close_location_scene() -> void:
 	illustrated_map.visible = true
 	illustrated_map.reset_overview()
 
-func _open_character_dialogue(person_id: String) -> void:
+func _open_character_dialogue(person_id: String, requested_topic: String = "") -> void:
 	if not location_scene.visible or person_id not in state.conversations.people_at(selected_location_id, state):
 		return
-	var option_data: Dictionary = {}
-	for option_id: String in state.conversations.available_options(person_id, state):
-		option_data[option_id] = state.conversations.option(person_id, option_id)
-	var brief: String = state.conversations.city_case_brief(person_id, state)
-	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data, state.conversations.last_response(person_id), true, state.can_govern(), brief)
+	var cases: Array[Dictionary] = state.conversations.decision_cases(person_id, state)
+	var case_data := _find_dialogue_case(cases, requested_topic)
+	if case_data.is_empty() and not cases.is_empty():
+		case_data = cases[0]
+	_show_character_dialogue(person_id, case_data, "", cases)
 	_play_ui_sound("click")
 
 func _choose_character_dialogue(person_id: String, option_id: String) -> void:
+	if not location_scene.dialogue_layer.visible or location_scene.active_person != person_id:
+		return
+	var cases: Array[Dictionary] = state.conversations.decision_cases(person_id, state)
+	var chosen_case := _find_dialogue_case(cases, option_id)
+	if not chosen_case.is_empty() and str(chosen_case["id"]) != location_scene.active_case_id:
+		return
 	var response: String = state.conversations.choose(state, person_id, option_id)
 	if response.is_empty():
 		return
-	var option_data: Dictionary = {}
-	for available_id: String in state.conversations.available_options(person_id, state):
-		option_data[available_id] = state.conversations.option(person_id, available_id)
-	location_scene.show_dialogue(person_id, state.characters[person_id], state.conversations.profile(person_id), option_data, response, false, state.can_govern())
+	if chosen_case.is_empty():
+		_show_character_dialogue(person_id, _find_dialogue_case(cases, location_scene.active_case_id), response, cases)
+		_play_ui_sound("click")
+		return
+	var remaining: Array[Dictionary] = state.conversations.decision_cases(person_id, state)
+	_show_character_dialogue(person_id, {}, "", remaining)
 	_play_ui_sound("decision")
-	_refresh_ui("Разговор с %s сохранён в памяти персонажа." % (state.characters[person_id] as CharacterState).display_name)
+	_refresh_ui("Решение принято и сохранено в летописи.")
+
+func _find_dialogue_case(cases: Array[Dictionary], topic: String) -> Dictionary:
+	if not topic.is_empty():
+		for case_data: Dictionary in cases:
+			if case_data["id"] == topic or case_data["options"].has(topic):
+				return case_data
+	return {}
+
+func _show_character_dialogue(person_id: String, case_data: Dictionary, answer: String, cases: Array[Dictionary]) -> void:
+	var receipt: Dictionary = state.conversations.latest_decision(person_id) if case_data.is_empty() else {}
+	var other_cases: Array[Dictionary] = []
+	for entry: Dictionary in cases:
+		if entry["id"] != case_data.get("id", ""):
+			other_cases.append(entry)
+	var view := {
+		"case": case_data,
+		"questions": state.conversations.question_options(person_id, state),
+		"receipt": receipt,
+		"answer": answer,
+		"can_reply": state.can_govern(),
+		"other_cases": other_cases
+	}
+	var profile: Dictionary = state.conversations.profile(person_id, state).duplicate()
+	if state.calendar.cycle <= 2 and state.facts.get("prologue_met_%s" % person_id, false):
+		match person_id:
+			"secretary":
+				profile["prompt"] = "Марек, с которым вы говорили у храма, перенёс книгу отца в канцелярию. Он держит её под рукой, пока старосты ждут ответа."
+			"radomir":
+				profile["prompt"] = "Радомир сдержал слово, данное у храма. Караулы не меняются до конца похорон, а воевода принёс список людей на воротах."
+			"spouse":
+				profile["prompt"] = "Адела вернулась из храма к детям. Она ждёт, что вы исполните её просьбу и зайдёте к ним перед приёмом."
+	location_scene.show_dialogue(person_id, state.characters[person_id], profile, view)
 
 func _open_location_management(location_id: String) -> void:
 	for child: Node in get_children():
@@ -1340,6 +1395,11 @@ func _refresh_building_actions() -> void:
 				button.text = "Поручить: %s" % delegate["name"]
 				button.pressed.connect(_assign_grain_investigation.bind(delegate_id))
 				building_actions.add_child(button)
+		elif state.grain_crisis.stage == GrainCrisis.Stage.FINDINGS_READY:
+			var record := Button.new()
+			record.text = "Принять отчёт к сведению"
+			record.pressed.connect(_read_grain_report)
+			building_actions.add_child(record)
 	else:
 		var inspect_button := Button.new()
 		inspect_button.text = "Осмотреть объект"
@@ -1610,6 +1670,7 @@ func _add_justice_actions() -> void:
 	heading.text = "СУД И ТЮРЬМА · %d/%d МЕСТ" % [state.justice.prisoners, state.justice.prison_capacity]
 	heading.modulate = Color("d9bd72")
 	building_actions.add_child(heading)
+	_add_authority_actions()
 	var cases := state.justice.available_cases()
 	if cases.is_empty():
 		var empty := Label.new()
@@ -1635,6 +1696,62 @@ func _add_justice_actions() -> void:
 			button.pressed.connect(_judge_case.bind(case_id, option_id))
 			building_actions.add_child(button)
 		building_actions.add_child(HSeparator.new())
+
+func _add_authority_actions() -> void:
+	var eligible := COURT_AUTHORITY.eligible_people(state)
+	if eligible.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = "Распоряжения о чиновниках"
+	heading.add_theme_font_size_override("font_size", 18)
+	building_actions.add_child(heading)
+	for person_id: String in eligible:
+		var person := state.characters[person_id] as CharacterState
+		var label := Label.new()
+		label.text = "%s · %s" % [person.display_name, COURT_AUTHORITY.status_text(state, person_id)]
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		building_actions.add_child(label)
+		var actions := COURT_AUTHORITY.options(state, person_id)
+		for action_id: String in actions:
+			var action: Dictionary = actions[action_id]
+			var button := Button.new()
+			button.text = str(action["title"])
+			button.tooltip_text = str(action["context"])
+			button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			button.disabled = not action["enabled"]
+			button.pressed.connect(_confirm_authority_action.bind(person_id, action_id))
+			building_actions.add_child(button)
+		building_actions.add_child(HSeparator.new())
+
+func _confirm_authority_action(person_id: String, action_id: String) -> void:
+	var action: Dictionary = COURT_AUTHORITY.options(state, person_id).get(action_id, {})
+	if not action.get("enabled", false):
+		return
+	if authority_confirmation == null:
+		authority_confirmation = ConfirmationDialog.new()
+		authority_confirmation.ok_button_text = "Подтвердить приказ"
+		authority_confirmation.cancel_button_text = "Отмена"
+		authority_confirmation.confirmed.connect(_apply_authority_action)
+		add_child(authority_confirmation)
+	authority_selected_person = person_id
+	authority_selected_action = action_id
+	var person := state.characters[person_id] as CharacterState
+	authority_confirmation.title = str(action["title"])
+	authority_confirmation.dialog_text = "%s\n%s" % [person.display_name, action["context"]]
+	authority_confirmation.popup_centered(Vector2i(520, 200))
+
+func _apply_authority_action() -> void:
+	var result := COURT_AUTHORITY.choose(state, authority_selected_person, authority_selected_action)
+	if result.is_empty():
+		return
+	_refresh_ui(result)
+	_refresh_building_actions()
+	var outcome := Label.new()
+	outcome.text = result
+	outcome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	outcome.modulate = Color("e8ca8b")
+	building_actions.add_child(outcome)
+	building_actions.move_child(outcome, 0)
 
 func _judge_case(case_id: String, option_id: String) -> void:
 	if state.justice.judge(state, case_id, option_id):
@@ -1757,6 +1874,14 @@ func _add_army_actions() -> void:
 	terrain.text = "%s · провиант %d\n%s" % [stage, state.army.supplies, state.army.terrain.capitalize()]
 	terrain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	building_actions.add_child(terrain)
+	if state.army.status in [ArmyState.BattleStatus.DEPLOYMENT, ArmyState.BattleStatus.FIGHTING]:
+		var objective := Label.new()
+		objective.text = state.army.objective_text()
+		objective.tooltip_text = state.army.defence_orders_text()
+		objective.mouse_filter = Control.MOUSE_FILTER_PASS
+		objective.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		objective.modulate = Color("c7d0c3")
+		building_actions.add_child(objective)
 	if state.army.status == ArmyState.BattleStatus.DEPLOYMENT:
 		battle_primary_button.text = "Начать бой"
 		battle_primary_button.disabled = false
@@ -1912,6 +2037,9 @@ func _add_council_actions() -> void:
 			button.text = "Назначить на должность"
 			button.custom_minimum_size = Vector2(0, 42)
 			button.tooltip_text = str(candidate["profile"])
+			if not COURT_AUTHORITY.is_present(state, candidate_id):
+				button.text = COURT_AUTHORITY.status_text(state, candidate_id)
+				button.disabled = true
 			button.pressed.connect(_appoint_councillor.bind(role_id, candidate_id))
 			role_content.add_child(button)
 
@@ -1939,6 +2067,11 @@ func _assign_grain_investigation(delegate_id: String) -> void:
 	if state.assign_grain_investigation(delegate_id):
 		_refresh_ui("Расследование поручено: %s" % GrainCrisis.DELEGATES[delegate_id]["name"])
 	_refresh_building_actions()
+
+func _read_grain_report() -> void:
+	if state.read_grain_report():
+		_refresh_ui("Отчёт по амбарам принят. Его сведения пригодятся в связанных делах.")
+		_refresh_building_actions()
 
 func _inspect_selected_building() -> void:
 	if selected_building != null:
@@ -2020,8 +2153,7 @@ func _on_load() -> void:
 	_refresh_ui("Сохранение загружено")
 	intro_overlay.visible = not state.guide.prologue_seen or not state.guide.intro_seen
 	if intro_overlay.visible:
-		intro_page = 0
-		_refresh_intro()
+		_show_intro()
 	elif not state.period_report.is_empty() and not state.period_report.get("dismissed", false):
 		_open_period_report()
 
@@ -2037,6 +2169,8 @@ func _on_new_campaign() -> void:
 	_refresh_ui("Начата новая кампания. Предыдущее ручное сохранение не удалено.")
 
 func _reset_city_view() -> void:
+	if authority_confirmation != null:
+		authority_confirmation.hide()
 	_close_period_report()
 	_close_secretary()
 	_close_location_scene()

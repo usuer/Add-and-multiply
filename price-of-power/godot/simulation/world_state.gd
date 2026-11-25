@@ -2,17 +2,25 @@ class_name WorldState
 extends Resource
 
 const CONVERSATIONS_SCRIPT := preload("res://simulation/character_conversations.gd")
+const LOCATION_PEOPLE := preload("res://simulation/location_people.gd")
 const PERIOD_REPORT := preload("res://simulation/period_report.gd")
+const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 
 const SAVE_VERSION: int = 1
+const TEXT_REVISION: int = 3
+const LEGACY_NAMES := {
+	"Злата": "Ярина", "Златы": "Ярины", "Злате": "Ярине", "Злату": "Ярину", "Златой": "Яриной",
+	"Элина": "Адела", "Элины": "Аделы", "Элине": "Аделе", "Элину": "Аделу", "Элиной": "Аделой",
+	"Анна": "Адела", "Анны": "Аделы", "Анне": "Аделе", "Анну": "Аделу", "Анной": "Аделой"
+}
 const CORE_CAST: Dictionary = {
-	"spouse": {"name": "Княгиня Элина", "affection": 34, "respect": 28, "trust": 24, "courage": 68, "conscience": 72, "ambition": 64, "violence": 12},
+	"spouse": {"name": "Княгиня Адела", "affection": 34, "respect": 28, "trust": 24, "courage": 68, "conscience": 72, "ambition": 64, "violence": 12},
 	"sister": {"name": "Лада, сестра князя", "affection": 48, "respect": 16, "trust": 31, "courage": 61, "conscience": 84, "ambition": 32, "violence": 8},
 	"secretary": {"name": "Марек, секретарь", "affection": 8, "respect": 42, "trust": 37, "courage": 46, "conscience": 59, "ambition": 55, "violence": 18},
 	"radomir": {"name": "Радомир Седой", "affection": 5, "respect": 24, "trust": 22, "courage": 86, "conscience": 63, "ambition": 38, "violence": 61},
 	"borin": {"name": "Борин Вежа", "affection": 0, "respect": 26, "trust": 11, "courage": 42, "conscience": 39, "ambition": 67, "violence": 24},
 	"daren": {"name": "Дарен Клин", "affection": 0, "respect": 17, "trust": 12, "courage": 72, "conscience": 48, "ambition": 58, "violence": 54},
-	"zlata": {"name": "Злата Радич", "affection": 0, "respect": 6, "trust": 0, "courage": 65, "conscience": 57, "ambition": 82, "violence": 22},
+	"zlata": {"name": "Ярина Радич", "affection": 0, "respect": 6, "trust": 0, "courage": 65, "conscience": 57, "ambition": 82, "violence": 22},
 	"miron": {"name": "Мирон Светоч", "affection": -2, "respect": 4, "trust": -6, "courage": 78, "conscience": 76, "ambition": 62, "violence": 16},
 	"aglaia": {"name": "Аглая Лис", "affection": 0, "respect": 9, "trust": 0, "courage": 70, "conscience": 44, "ambition": 77, "violence": 31},
 	"tikhon": {"name": "Тихон Лучин", "affection": 0, "respect": 5, "trust": 2, "courage": 35, "conscience": 79, "ambition": 48, "violence": 3},
@@ -74,10 +82,11 @@ func _init() -> void:
 		}
 
 func _ensure_core_cast() -> void:
-	for character_id: String in CORE_CAST:
+	var cast := CORE_CAST.merged(LOCATION_PEOPLE.CAST)
+	for character_id: String in cast:
 		if characters.has(character_id):
 			continue
-		var profile: Dictionary = CORE_CAST[character_id]
+		var profile: Dictionary = cast[character_id]
 		var character := _make_character(character_id, str(profile["name"]), int(profile["affection"]), int(profile["respect"]), int(profile["trust"]))
 		character.courage = int(profile["courage"])
 		character.conscience = int(profile["conscience"])
@@ -107,7 +116,13 @@ func advance_period() -> bool:
 		return false
 	_update_ruler_condition()
 	story_timeline.update(self)
+	COURT_AUTHORITY.update(self)
 	if grain_crisis.update(calendar.cycle):
+		var inspection := str(facts.get("granary_inspection", ""))
+		if inspection == "double_check":
+			grain_crisis.findings[-1] += " Свидетели у весов Марты подтвердили разницу между двумя мерками. Для новых обозов в ведомостях теперь можно отдельно сверить вес и число мер."
+		elif inspection == "daily_log":
+			grain_crisis.findings[-1] += " В новом журнале Марты записан вес каждой выдачи. Для прежних обозов остались только расписки, поэтому их вес пока подтвердить нельзя."
 		consequence_log.append({
 			"cycle": calendar.cycle,
 			"kind": "grain_findings_ready",
@@ -129,6 +144,14 @@ func advance_period() -> bool:
 	if not period_report.is_empty():
 		period_archive.append(period_report)
 	period_report = PERIOD_REPORT.build(self, before, income)
+	return true
+
+func read_grain_report() -> bool:
+	if grain_crisis.stage != GrainCrisis.Stage.FINDINGS_READY:
+		return false
+	grain_crisis.stage = GrainCrisis.Stage.RESOLVED
+	facts["grain_report_read"] = grain_crisis.delegate_id
+	consequence_log.append({"cycle": calendar.cycle, "kind": "grain_report_read", "delegate": grain_crisis.delegate_id})
 	return true
 
 func dismiss_period_report() -> void:
@@ -204,6 +227,7 @@ func _apply_monthly_economy() -> Dictionary:
 func to_data() -> Dictionary:
 	return {
 		"version": SAVE_VERSION,
+		"text_revision": TEXT_REVISION,
 		"seed": seed,
 		"calendar": calendar.to_data(),
 		"state_treasury": state_treasury,
@@ -244,6 +268,8 @@ func _resources_to_data(source: Dictionary) -> Dictionary:
 	return result
 
 static func from_data(data: Dictionary) -> WorldState:
+	if int(data.get("text_revision", 1)) < TEXT_REVISION:
+		data = _rename_saved_text(data)
 	var state := WorldState.new()
 	state.seed = str(data.get("seed", "Арден-1248"))
 	state.calendar.load_data(data.get("calendar", {}))
@@ -286,4 +312,23 @@ static func from_data(data: Dictionary) -> WorldState:
 	if state.factions.is_empty():
 		state._init()
 	return state
+
+static func _rename_saved_text(value: Variant) -> Variant:
+	# Character and decision IDs keep their old values; only displayed text changes.
+	if value is String:
+		var renamed: String = value
+		for previous: String in LEGACY_NAMES:
+			renamed = renamed.replace(previous, LEGACY_NAMES[previous])
+		return renamed
+	if value is Dictionary:
+		var replacement: Dictionary = value.duplicate()
+		for key in value:
+			replacement[key] = _rename_saved_text(value[key])
+		return replacement
+	if value is Array:
+		var replacement: Array = value.duplicate()
+		for index in value.size():
+			replacement[index] = _rename_saved_text(value[index])
+		return replacement
+	return value
 

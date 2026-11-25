@@ -16,12 +16,31 @@ const GRAIN_RESPONSES: Dictionary = {
 	"defer": {"title": "Сначала проверить областные книги", "description": "Не выдавать зерно, пока писцы не выяснят, куда делся прежний запас. Деревни пока помощи не получат.", "grain": 0, "gold": 0}
 }
 
+const NOBILITY_REACTIONS := {
+	"modest": "Часть знати сочла прощание с прежним князем слишком скромным.",
+	"solemn": "Знать увидела в церемонии уважение к традиции без показной роскоши.",
+	"grand": "Великая церемония укрепила представление о силе княжеского дома."
+}
+const RURAL_REACTIONS := {
+	"partial": "Ближние деревни ждут обоз. Дальние старосты просят сообщить, когда помощь дойдёт и до них.",
+	"full": "Старосты благодарят за большой обоз. В дальних деревнях пока сокращают порции в ожидании зерна.",
+	"purchase": "Старосты получили грамоту об оплаченном заказе. Пока купцы не доставили зерно, раздавать нечего.",
+	"defer": "Просителей отправили ждать проверки, пока в деревнях сокращают хлебные пайки."
+}
+const FAMILY_REACTIONS := {
+	"modest": "Вы предпочли сдержанность во время семейного траура.",
+	"solemn": "Вы устроили достойное прощание с отцом.",
+	"grand": "Вы превратили семейный траур в событие всего княжества.",
+	"family_funds": "Вы распорядились семейными средствами ради государственного решения."
+}
+
 @export var status: Status = Status.WAITING
 @export var funeral_plan: String = ""
 @export var grain_response: String = ""
 @export var funding_source: String = "state"
 @export var resolved_cycle: int = 0
 @export var observed_outcome: String = ""
+@export var reaction_snapshot: Array[String] = []
 
 func choose_funeral(plan_id: String) -> bool:
 	if status == Status.RESOLVED or not FUNERAL_PLANS.has(plan_id):
@@ -73,9 +92,13 @@ func resolve(state: WorldState) -> bool:
 	observed_outcome = _build_outcome()
 	state.facts["father_funeral_completed"] = true
 	state.facts["grain_response"] = grain_response
+	state.facts["opening_grain_dispatch"] = {
+		"partial": "in_transit", "full": "in_transit", "purchase": "contracted", "defer": "withheld"
+	}[grain_response]
 	state.facts["funeral_plan"] = funeral_plan
 	state.add_fatigue(5)
 	_apply_social_consequences(state)
+	reaction_snapshot = _opening_reactions()
 	state.opening_followup.prepare(self)
 	state.consequence_log.append({
 		"cycle": resolved_cycle,
@@ -95,44 +118,51 @@ func _apply_social_consequences(state: WorldState) -> void:
 	var rural: FactionState = state.factions["rural"]
 	match funeral_plan:
 		"modest":
-			nobility.react(cycle, -4, "Часть знати сочла прощание с прежним князем слишком скромным.")
+			nobility.react(cycle, -4, NOBILITY_REACTIONS[funeral_plan])
 			clergy.react(cycle, -1, "Духовенство приняло церемонию, но ожидало большего почтения.")
-			spouse.remember(cycle, "father_funeral", "Вы предпочли сдержанность во время семейного траура.", {"respect": 1})
+			spouse.remember(cycle, "father_funeral", FAMILY_REACTIONS[funeral_plan], {"respect": 1})
 		"solemn":
-			nobility.react(cycle, 3, "Знать увидела в церемонии уважение к традиции без показной роскоши.")
+			nobility.react(cycle, 3, NOBILITY_REACTIONS[funeral_plan])
 			clergy.react(cycle, 3, "Духовенство отметило достойное соблюдение обряда.")
-			spouse.remember(cycle, "father_funeral", "Вы устроили достойное прощание с отцом.", {"affection": 2, "respect": 2})
+			spouse.remember(cycle, "father_funeral", FAMILY_REACTIONS[funeral_plan], {"affection": 2, "respect": 2})
 		"grand":
-			nobility.react(cycle, 7, "Великая церемония укрепила представление о силе княжеского дома.")
+			nobility.react(cycle, 7, NOBILITY_REACTIONS[funeral_plan])
 			clergy.react(cycle, 5, "Щедрый обряд возвысил храм и память покойного князя.")
-			spouse.remember(cycle, "father_funeral", "Вы превратили семейный траур в событие всего княжества.", {"respect": 4})
+			spouse.remember(cycle, "father_funeral", FAMILY_REACTIONS[funeral_plan], {"respect": 4})
 	match grain_response:
-		"partial": rural.react(cycle, 3, "Первый обоз дошёл до нескольких нуждающихся селений, но зерна хватило не всем.")
-		"full": rural.react(cycle, 8, "Большой обоз из княжеских амбаров снял остроту голода в Долинной области.")
-		"purchase": rural.react(cycle, 6, "Закупленное зерно отправлено в область, не опустошая местные амбары.")
-		"defer": rural.react(cycle, -6, "Просителей отправили ждать проверки, пока в деревнях сокращают хлебные пайки.")
+		"partial": rural.react(cycle, 3, RURAL_REACTIONS[grain_response])
+		"full": rural.react(cycle, 8, RURAL_REACTIONS[grain_response])
+		"purchase": rural.react(cycle, 6, RURAL_REACTIONS[grain_response])
+		"defer": rural.react(cycle, -6, RURAL_REACTIONS[grain_response])
 	if grain_response in ["partial", "full", "purchase"]:
-		sister.remember(cycle, "grain_relief", "Вы не оставили областных жителей без помощи.", {"trust": 3})
+		sister.remember(cycle, "grain_relief", "Вы распорядились отправить помощь жителям области.", {"trust": 3})
 	else:
 		sister.remember(cycle, "grain_relief", "Вы поставили проверку выше немедленной помощи голодающим.", {"trust": -3, "resentment": 2})
 	if funding_source == "family":
-		spouse.remember(cycle, "family_funds", "Вы распорядились семейными средствами ради государственного решения.", {"trust": -2, "resentment": 2})
+		spouse.remember(cycle, "family_funds", FAMILY_REACTIONS["family_funds"], {"trust": -2, "resentment": 2})
 	state.facts["opening_social_consequences_applied"] = true
 
-func observed_reactions(state: WorldState) -> Array[String]:
+func observed_reactions(_state: WorldState) -> Array[String]:
 	if status != Status.RESOLVED:
 		return []
-	return [
-		str((state.factions["nobility"] as FactionState).latest_reaction()),
-		str((state.factions["rural"] as FactionState).latest_reaction()),
-		str((state.characters["spouse"] as CharacterState).memories.back().get("summary", ""))
-	]
+	return reaction_snapshot.duplicate()
+
+func _opening_reactions() -> Array[String]:
+	var family_key := "family_funds" if funding_source == "family" else funeral_plan
+	return [str(NOBILITY_REACTIONS[funeral_plan]), str(RURAL_REACTIONS[grain_response]), str(FAMILY_REACTIONS[family_key])]
 
 func _build_outcome() -> String:
 	var funeral_text := str(FUNERAL_PLANS[funeral_plan]["title"])
-	var grain_text := str(GRAIN_RESPONSES[grain_response]["title"])
-	var source_text := "государственной казны" if funding_source == "state" else "личных средств семьи"
-	return "Похороны: %s. Помощь Долинной области: %s. Денежные расходы обоих распоряжений оплачены из %s; выданное зерно взято из княжеских амбаров. Реакции людей проявятся позднее." % [funeral_text, grain_text, source_text]
+	var source_text := "государственной казны" if funding_source == "state" else "семейного сундука"
+	var delivery := ""
+	match grain_response:
+		"partial", "full":
+			delivery = "Из княжеских амбаров выделили %d мер для обоза. Деревни ещё ждут доставку." % required_grain()
+		"purchase":
+			delivery = "Сарнские купцы приняли оплату за привозное зерно. Заказ ещё в пути, княжеский запас не тронули."
+		"defer":
+			delivery = "Зерно оставили в княжеских амбарах. Старосты ушли ждать проверки и пока не получат продовольствия."
+	return "Утверждён порядок похорон «%s». Распоряжения оплачены из %s.\n%s" % [funeral_text, source_text, delivery]
 
 func _update_readiness() -> void:
 	status = Status.READY if not funeral_plan.is_empty() and not grain_response.is_empty() else Status.WAITING
@@ -141,7 +171,8 @@ func to_data() -> Dictionary:
 	return {
 		"status": int(status), "funeral_plan": funeral_plan,
 		"grain_response": grain_response, "funding_source": funding_source,
-		"resolved_cycle": resolved_cycle, "observed_outcome": observed_outcome
+		"resolved_cycle": resolved_cycle, "observed_outcome": observed_outcome,
+		"reaction_snapshot": reaction_snapshot.duplicate()
 	}
 
 func load_data(data: Dictionary) -> void:
@@ -151,4 +182,8 @@ func load_data(data: Dictionary) -> void:
 	funding_source = str(data.get("funding_source", "state"))
 	resolved_cycle = maxi(0, int(data.get("resolved_cycle", 0)))
 	observed_outcome = str(data.get("observed_outcome", ""))
+	reaction_snapshot.assign(data.get("reaction_snapshot", []))
+	if status == Status.RESOLVED and reaction_snapshot.is_empty() and FUNERAL_PLANS.has(funeral_plan) and GRAIN_RESPONSES.has(grain_response):
+		reaction_snapshot = _opening_reactions()
+		observed_outcome = _build_outcome()
 

@@ -1,25 +1,36 @@
 class_name StoryTimeline
 extends Resource
 
+const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
+
 const DEFINITIONS: Dictionary = {
 	"granary_roof": {
 		"cycle": 2, "title": "Вода в старом амбаре", "location": "Княжеский амбар",
-		"summary": "После ночного дождя смотритель обнаружил мокрые балки. Зерно пока цело, но следующая непогода может пройти сквозь кровлю.",
-		"choices": {"repair": "Послать плотников немедленно", "inspect": "Сначала проверить смету и виновных", "relocate": "Перенести зерно по соседним складам"}
+		"summary": "Марта, смотрительница амбара, застала воду на верхних полках. Под ними зерно, а в сухом углу лежат старые накладные. Плотники могут закрыть течь сегодня. Если сначала вскрыть кладовку и сверить бумаги, крышу до вечера не успеют разобрать.",
+		"choices": {"repair": "Оплатить срочный ремонт и оставить зерно на месте", "inspect": "Спасти накладные и сверить их со сметой", "relocate": "Развезти зерно по сухим складам"}
 	},
 	"dead_prince_order": {
 		"cycle": 3, "title": "Приказ, подписанный после смерти", "location": "Городская стража",
-		"summary": "Дарен Клин принёс приказ о переводе заключённого Саввы Лунина. На документе стоит печать вашего отца, однако приказ датирован утром после его смерти. Заключённый по дороге бежал; писец Савва Лунь, его старший брат, сегодня не вышел на службу.",
-		"choices": {"quiet": "Тихо проверить канцелярию и семью Саввы", "public": "Объявить печать поддельной и начать открытый розыск", "guard": "Задержать стражников, исполнивших невозможный приказ"}
+		"summary": "Дарен принёс приказ о переводе должника Ильи Луня. Караул вывел его из тюрьмы, но до места Илья не доехал. Приказ помечен утром после смерти отца. На воске его малая дорожная печать, которой обычно заверяли пропуска для обозов. Марек говорит, что печать не нашли в футляре. Писец Савва, брат Ильи, не явился на службу.",
+		"choices": {"quiet": "Сверить приказы в канцелярии и найти Савву без огласки", "public": "Предупредить караулы и публично объявить розыск грамоты", "guard": "Отстранить караул и отдельно допросить его людей"}
 	},
 	"smiths_dispute": {
 		"cycle": 4, "title": "Кузнецы закрыли ворота", "location": "Ремесленный квартал",
-		"summary": "Оружейный двор Ратибора остановился: восемьдесят мастеров и работников не получили жалованье. Борин показывает ведомость об оплате, но денег у людей нет. Злата Радич предлагает независимо сверить книги казны и мастерских.",
-		"choices": {"mediate": "Поручить Злате сверить обе книги", "pay": "Выплатить людям спорную сумму сейчас", "seize": "Ввести стражу и забрать государственный заказ"}
+		"summary": "На оружейном дворе перестали работать горны. Люди неделю ждут жалованья, а в ведомости казны стоит отметка об оплате. Ярина Радич принесла расчёт из мастерской и просит увидеть платёжное поручение. К сроку нужен и ответ работникам, и готовый заказ для караулов.",
+		"choices": {"mediate": "Поручить Ярине сверить обе книги", "pay": "Выплатить людям спорную сумму сейчас", "seize": "Ввести стражу и забрать государственный заказ"}
+	},
+	"east_gate_witness": {
+		"cycle": 4, "title": "Самуил просит убрать его имя из книги", "location": "Восточные ворота",
+		"summary": "По подписи на спасённой накладной нашли возчика Самуила. Он говорит, что его телегой воспользовались, когда мост был разобран. Он видел, кто встречал груз, но боится за дочь: её хозяин держит семью в долгу. Самуил просит выслушать его при одном свидетеле.",
+		"choices": {
+			"seal": "Принять показания при Мареке и закрыть имя до суда",
+			"public": "Просить Самуила подтвердить накладную открыто",
+			"refuse": "Отпустить Самуила и сохранить только бумагу"
+		}
 	},
 	"aglaia_letter": {
 		"cycle": 5, "title": "Письмо в рукаве", "location": "Дом семи фонарей",
-		"summary": "Стража задержала работницу Аглаи Лис. В её рукаве нашли письмо о зерновых обозах, подписанное словами «вторая рука». Аглая утверждает, что письмо девушке подбросил один из посетителей, и требует разговора без посторонних.",
+		"summary": "Стража задержала Милену, работницу Аглаи Лис. У неё нашли письмо с номерами зерновых накладных и припиской «принять второй рукой». Аглая говорит, что посетитель передал девушке плату за комнату, а письмо оказалось между монетами. Она просит дать Милене рассказать свою версию без караула.",
 		"choices": {"question": "Отдельно допросить девушку и Аглаю", "deal": "Дать Аглае ночь, чтобы найти владельца письма", "guard": "Передать письмо и задержанную Дарену"}
 	},
 	"market_speech": {
@@ -44,7 +55,7 @@ const DEFINITIONS: Dictionary = {
 	},
 	"savva_at_chapel": {
 		"cycle": 9, "title": "Савва просит один разговор", "location": "Заброшенная часовня",
-		"summary": "Марек получил записку от пропавшего писца Саввы Луня. Тот обещает вернуть вторую печать и назвать человека, оплатившего побег его брата, если князь придёт без городской стражи. Радомир готов дать скрытое прикрытие; Дарен настаивает на немедленном аресте.",
+		"summary": "Марек получил записку от Саввы Луня. Писец пишет, что знает, кто заплатил за освобождение его брата. Он обещает принести список подложных приказов, если князь его выслушает без городской стражи. Радомир готов прикрыть встречу. Дарен просит сначала взять Савву под стражу.",
 		"choices": {"meet": "Прийти со скрытым прикрытием Радомира", "arrest": "Послать Дарена взять Савву живым", "safe_passage": "Дать Савве письменное обещание безопасного допроса"}
 	},
 	"fever_outbreak": {
@@ -54,7 +65,7 @@ const DEFINITIONS: Dictionary = {
 	},
 	"family_warning": {
 		"cycle": 11, "title": "Печать в детской", "location": "Семейные покои",
-		"summary": "Элина нашла у девятилетнего Всеволода кусок воска с оттиском второй печати. Сын говорит, что его дал «старый друг деда» и попросил спрятать до игры в тайного посланника. Незнакомец сумел пройти во внутренний двор, не вызвав тревоги охраны.",
+		"summary": "Адела нашла у девятилетнего Всеволода кусок воска с оттиском второй печати. Сын говорит, что его дал «старый друг деда» и попросил спрятать до игры в тайного посланника. Незнакомец сумел пройти во внутренний двор, не вызвав тревоги охраны.",
 		"choices": {"evacuate": "Тайно вывезти детей в загородную обитель", "double_guard": "Оставить семью во дворце и сменить внутреннюю охрану", "bait": "Попросить Всеволода продолжить игру под наблюдением"}
 	},
 	"tikhon_pump": {
@@ -65,7 +76,7 @@ const DEFINITIONS: Dictionary = {
 	"fathers_ledger": {
 		"cycle": 13, "title": "Книга отцовских платежей", "location": "Личный архив князя",
 		"summary": "За фальшивой стенкой найден счёт вашего отца. В нём — выплаты северным офицерам, городским старостам и человеку с пометкой «В. Речной». Эти деньги, вероятно, сорвали прошлую войну, но часть зерновых недостач началась именно здесь.",
-		"choices": {"publish": "Открыть книгу совету и городским судьям", "inner_circle": "Показать только Элине, Мареку и Радомиру", "continue_scheme": "Сохранить тайну и использовать старые связи отца"}
+		"choices": {"publish": "Открыть книгу совету и городским судьям", "inner_circle": "Ограничить доступ к книге близким советникам", "continue_scheme": "Сохранить тайну и использовать старые связи отца"}
 	},
 	"aglaia_invitation": {
 		"cycle": 14, "title": "Закрытый вечер у Аглаи", "location": "Дом семи фонарей",
@@ -89,7 +100,7 @@ const DEFINITIONS: Dictionary = {
 	},
 	"new_rule": {
 		"cycle": 18, "title": "Первое утро после второй печати", "location": "Большой зал совета",
-		"summary": "Бой закончился, но прежний порядок уже не вернётся. В зале ждут пленные люди Вардана, цеховые старшины, военные и семьи погибших. Все хотят услышать не только кого накажут, но и кто отныне сможет проверять княжеский приказ.",
+		"summary": "Заговорщики больше не распоряжаются в столице. Цеховые старшины, судьи и военные ждут решения о том, кто сможет проверять княжеский приказ и как поступить с людьми, которые выполняли ложные грамоты.",
 		"choices": {"law": "Учредить открытый суд и реестр всех княжеских приказов", "mercy": "Предложить рядовым участникам амнистию за показания", "purge": "Провести закрытую чистку двора и служб безопасности"}
 	}
 }
@@ -120,6 +131,10 @@ func _is_unlocked(event_id: String) -> bool:
 		return str(border.get("choice", "")) in ["envoy", "dismiss"]
 	if event_id == "new_rule":
 		return resolved.has("night_of_second_seal")
+	if event_id == "divided_command":
+		return not resolved.has("night_of_second_seal")
+	if event_id == "east_gate_witness":
+		return (resolved.get("granary_roof", {}) as Dictionary).get("choice") == "inspect"
 	return true
 
 func update(state: WorldState) -> void:
@@ -127,6 +142,19 @@ func update(state: WorldState) -> void:
 	_resolve_neglected_events(state)
 
 func _apply_delayed_results(state: WorldState) -> void:
+	_update_opening_dispatch(state)
+	_resolve_vardan_exchange(state)
+	_resolve_northern_reply(state)
+	_resolve_pump_workshop(state)
+	var roof: Dictionary = resolved.get("granary_roof", {})
+	if roof.get("choice") == "inspect" and not roof.get("followup_applied", false) and state.calendar.cycle >= int(roof["cycle"]) + 2:
+		roof["followup_applied"] = true
+		if int(state.development.levels.get("granary", 0)) > 1:
+			_add_report(state.calendar.cycle, "Накладные и зерно уцелели", "Мешки успели перенести в расширенное крыло амбара. Проверка бумаг закончилась, прежде чем следующая вода дошла до запасов.")
+		else:
+			state.resources["grain"] = maxi(0, int(state.resources["grain"]) - 6)
+			state.facts["granary_roof"] = "water_damage"
+			_add_report(state.calendar.cycle, "Дождь дошёл до зерна", "Пока разбирали накладные, над старой кладовкой снова потекло. Зерно с верхней полки отсырело. Спасённая бумага уже у Марека.")
 	if resolved.has("border_courier"):
 		var record: Dictionary = resolved["border_courier"]
 		if str(record.get("choice", "")) == "scouts" and not bool(record.get("followup_applied", false)) and state.calendar.cycle >= int(record.get("cycle", 0)) + 2:
@@ -141,10 +169,10 @@ func _apply_delayed_results(state: WorldState) -> void:
 			smiths["followup_applied"] = true
 			resolved["smiths_dispute"] = smiths
 			state.facts["missing_armory_payment"] = true
-			var link_text := "Злата нашла перевод на несуществующий перевозочный двор. Получатель вписан после составления ведомости."
+			var link_text := "Ярина нашла перевод на несуществующий перевозочный двор. Получатель вписан после составления ведомости."
 			if not str(state.facts.get("second_seal_investigation", "")).is_empty():
 				link_text += " Марек сравнил росчерк с приказом об освобождении заключённого: оба исправления сделаны одной рукой."
-			_add_report(state.calendar.cycle, "Злата закончила сверку счетов", link_text)
+			_add_report(state.calendar.cycle, "Ярина закончила сверку счетов", link_text)
 	if resolved.has("aglaia_letter"):
 		var letter: Dictionary = resolved["aglaia_letter"]
 		if not bool(letter.get("followup_applied", false)) and state.calendar.cycle >= int(letter.get("cycle", 0)) + 1:
@@ -160,6 +188,75 @@ func _apply_delayed_results(state: WorldState) -> void:
 				_add_report(state.calendar.cycle, "Задержанная изменила показания", "После ночи в управлении стражи девушка заявила, что сама украла письмо у неизвестного клиента. Дарен считает признание достаточным; имя посетителя так и не появилось в деле.")
 			letter["followup_applied"] = true
 			resolved["aglaia_letter"] = letter
+
+func _update_opening_dispatch(state: WorldState) -> void:
+	var dispatch := str(state.facts.get("opening_grain_dispatch", ""))
+	if dispatch not in ["in_transit", "contracted"]:
+		return
+	var lag := 2 if dispatch == "contracted" else 1
+	if state.calendar.cycle < state.opening_decision.resolved_cycle + lag:
+		return
+	state.facts["opening_grain_dispatch"] = "delivered"
+	if dispatch == "contracted":
+		_add_report(state.calendar.cycle, "Сарнский обоз прибыл", "Купцы привезли оплаченное зерно. Старосты расписались за мешки. Купленные запасы не выводили из княжеских амбаров.")
+	elif state.opening_decision.grain_response == "partial":
+		_add_report(state.calendar.cycle, "Первую помощь получили ближние деревни", "Восьми мер хватило на первую выдачу у южной дороги. Несколько дальних деревень всё ещё ждут. Лада просит не закрывать дело одной распиской.")
+	else:
+		_add_report(state.calendar.cycle, "Большой обоз дошёл до Долинной области", "Старосты приняли зерно вместе с конвоем. Это выиграло время, но не объяснило запись о прежнем обозе, который будто бы прошёл по снятому мосту.")
+
+func _resolve_vardan_exchange(state: WorldState) -> void:
+	var offer: Dictionary = resolved.get("vardan_offer", {})
+	if offer.get("choice") != "counterfeit" or offer.get("followup_applied", false):
+		return
+	if state.calendar.cycle <= int(offer["cycle"]):
+		return
+	offer["followup_applied"] = true
+	var warned: bool = state.facts.get("aglaia_evening") == "attended" or bool(state.facts.get("second_seal_order_proof", false))
+	var has_space := state.justice.prisoners < state.justice.prison_capacity
+	if warned and has_space:
+		state.facts["vardan_stance"] = "in_custody"
+		state.facts["second_seal_custody"] = "judges"
+		state.facts.erase("second_seal_holder")
+		state.justice.prisoners += 1
+		_add_report(state.calendar.cycle, "Вардан в руках городских судей", "Дарен дождался встречи. Вардан принёс печать. Судьи приняли её при свидетелях, а Вардан под стражей ждёт разбирательства. Люди, которые ему подчинялись, в руки суда пока не попали.")
+	else:
+		state.facts["vardan_stance"] = "escaped_exchange"
+		state.facts["second_seal_custody"] = "unknown"
+		state.facts.erase("second_seal_holder")
+		var result := "Вардан не пришёл на встречу. Пришедший от него возчик передал пустой футляр и сказал, что сделка отменена. Где печать, судьи не знают."
+		if warned and not has_space:
+			result = "Городские судьи не согласились принимать задержанного: в тюрьме не осталось места. Пока Дарен ждал другого распоряжения, Вардан отменил встречу. Где печать, пока неизвестно."
+		_add_report(state.calendar.cycle, "Обмен сорвался", result)
+
+func _resolve_northern_reply(state: WorldState) -> void:
+	for event_id: String in ["scout_report", "border_consequence"]:
+		var record: Dictionary = resolved.get(event_id, {})
+		if record.get("choice") not in ["parley", "reopen_talks"] or record.get("followup_applied", false):
+			continue
+		if state.calendar.cycle < int(record["cycle"]) + 2:
+			continue
+		record["followup_applied"] = true
+		var standing := int(state.diplomacy.relations.get("north_march", 0))
+		var case_notes: bool = state.facts.get("envoy_meetings") == "written_first"
+		if standing >= 0 or (case_notes and standing > -20):
+			state.facts["northern_negotiation"] = "stand_down"
+			state.diplomacy.relations["north_march"] = mini(100, standing + 4)
+			_add_report(state.calendar.cycle, "Северная марка согласилась отвести обоз", "Маркграф обещал оставить войско за переправой до общего осмотра складов. Это касается его рот. За людей, нанятых частными баронами, он отвечать отказался.")
+		else:
+			state.facts["northern_negotiation"] = "refused"
+			_add_report(state.calendar.cycle, "Посланник вернулся без соглашения", "Северная марка требует сначала признать спорные земли её владением. Илва привезла грамоту обратно, чтобы никто не принял молчание за согласие. Пока обозы остаются на дороге.")
+
+func _resolve_pump_workshop(state: WorldState) -> void:
+	var record: Dictionary = resolved.get("tikhon_pump", {})
+	if record.get("choice") != "workshop" or record.get("followup_applied", false):
+		return
+	if state.calendar.cycle < int(record["cycle"]) + 3:
+		return
+	record["followup_applied"] = true
+	state.facts["tikhon_pump"] = "workshop_ready"
+	var prepared := bool(state.facts.get("tikhon_trial_prepared", false))
+	state.public_health = mini(100, state.public_health + (5 if prepared else 3))
+	_add_report(state.calendar.cycle, "Тихон закончил работу в литейной", "После месяца работы машину установили у красильни. Тихон показал дворовым, как менять клапан. Лекари подтверждают, что чистую воду теперь не приходится носить с нижнего берега." if prepared else "Механизм запустили у красильни. Он подаёт чистую воду в один двор. Тихон оставил там чертёж клапана: если мастер снова понадобится, ему смогут объяснить, какая деталь вышла из строя.")
 
 func _resolve_neglected_events(state: WorldState) -> void:
 	for event_id: String in DEFINITIONS:
@@ -194,11 +291,11 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 		var record: Dictionary = resolved[event_id]
 		var event: Dictionary = DEFINITIONS[event_id]
 		var choice_id := str(record.get("choice", ""))
-		var choice_title := "Оставлено без ответа" if choice_id == "neglected" else str((event.get("choices", {}) as Dictionary).get(choice_id, choice_id))
+		var choice_title := "Оставлено без ответа" if choice_id == "neglected" else str(record.get("choice_title", (event.get("choices", {}) as Dictionary).get(choice_id, choice_id)))
 		history.append({
 			"event_id": event_id,
 			"cycle": int(record.get("cycle", 0)),
-			"title": str(event.get("title", event_id)),
+			"title": str(record.get("title", event.get("title", event_id))),
 			"choice": choice_title,
 			"outcome": str(record.get("outcome", ""))
 		})
@@ -216,6 +313,8 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 		"dead_prince_order":
 			state.facts["second_seal_investigation"] = "trail_cold"
 			return "Пока двор не отвечал, семья Саввы исчезла из дома. В печи канцелярии нашли обгоревшие черновики приказов, но самого писца уже никто не видел."
+		"east_gate_witness":
+			return "К утру Самуил забрал дочь и уехал из Ардена. Подпись на накладной осталась, но возчик больше не может подтвердить, что видел у ворот."
 		"smiths_dispute":
 			state.resources["tools"] = maxi(0, int(state.resources.get("tools", 0)) - 2)
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -5, "Княжеский двор две недели не отвечал на остановку кузниц.")
@@ -246,7 +345,7 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 		"family_warning":
 			state.facts["family_security"] = "breached"
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "children_left_exposed", "После находки в детской вы не изменили охрану семьи.", {"trust": -7, "resentment": 4})
-			return "Элина сама увезла детей из столицы и отказалась сообщить маршрут дворцовой канцелярии. Во внутренних покоях она больше не доверяет вашей охране."
+			return "Адела сама увезла детей из столицы и отказалась сообщить маршрут дворцовой канцелярии. Во внутренних покоях она больше не доверяет вашей охране."
 		"tikhon_pump":
 			(state.characters["tikhon"] as CharacterState).remember(state.calendar.cycle, "proposal_ignored", "Княжеский двор не ответил на предложение испытать насос во время горячки.", {"trust": -3, "respect": -2})
 			return "Тихон разобрал насос, чтобы расплатиться с помощниками. Один кожевник выкупил трубы для своей мастерской; проверить устройство теперь невозможно."
@@ -266,7 +365,7 @@ func _neglect_consequence(state: WorldState, event_id: String) -> String:
 		"night_of_second_seal":
 			state.facts["second_seal_crisis"] = "command_collapsed"
 			state.public_order = maxi(0, state.public_order - 18)
-			return "Противоречивые приказы парализовали гарнизон. Люди Вардана ушли с зерном, а северный отряд занял переправу без большого боя."
+			return "Противоречивые приказы задержали гарнизон. Часть зерна успели увезти. " + _settle_northern_front(state, "neglected")
 		"new_rule":
 			state.facts["new_rule"] = "old_order_survived"
 			return "Совет разошёлся без нового порядка. Печать заменили, но право проверять княжеский приказ так и осталось неясным."
@@ -277,6 +376,35 @@ func definition(event_id: String) -> Dictionary:
 
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
+	if event_id == "granary_roof":
+		if state.facts.get("grain_response") in ["partial", "full"]:
+			event["summary"] += " Часть запасов уже обещана старостам. Марта отложила эти мешки ближе к выходу."
+		if state.facts.get("granary_inspection") == "double_check":
+			event["summary"] += " У Марты на руках вес последнего обоза. Теперь его можно сравнить со старыми накладными."
+		if not COURT_AUTHORITY.is_present(state, "granary_keeper"):
+			event["summary"] = str(event["summary"]).replace("Марта, смотрительница амбара, застала", "Дежурный писец заметил").replace("Марта отложила", "Писцы отложили").replace("У Марты", "У писца")
+	if event_id == "dead_prince_order" and bool(state.facts.get("bridge_receipt_found", false)):
+		event["summary"] += " На грамоте Марек видит ту же приписку «через Восточные ворота», что и в накладной на обоз, который не мог пройти по разобранному мосту."
+	if event_id == "dead_prince_order" and state.facts.get("marek_briefing") == "evidence_first":
+		event["summary"] += " По вашему распоряжению Марек вынес бумаги, прежде чем называть подозреваемых. Он показывает две даты и спрашивает, кого позвать свидетелем."
+	if event_id == "smiths_dispute" and bool(state.facts.get("bridge_receipt_found", false)):
+		event["summary"] += " В строке о получателе на обеих бумагах значатся Восточные ворота. Без имени возчика это пока совпадение, а не обвинение."
+	if event_id == "aglaia_letter" and bool(state.facts.get("missing_armory_payment", false)):
+		event["summary"] += " Один номер Ярина узнаёт: под ним списали деньги за кузнечный заказ. Марек хочет сохранить письмо рядом с ведомостью."
+	if event_id == "aglaia_letter" and state.facts.get("bridge_testimony") == "public":
+		event["summary"] += " После открытого разговора у ворот на рынке уже называют один из номеров. Аглая предупреждает: его мог вписать и человек, слышавший Самуила, чтобы направить стражу по ложному следу."
+	if event_id == "aglaia_letter" and state.facts.get("aglaia_interview_terms") == "witness":
+		event["summary"] += " Аглая напоминает: вы уже согласились, что при первом разговоре будет знакомый девушкам писец."
+	if event_id == "smiths_dispute" and state.facts.get("zlata_payroll_handling") == "copy_shared":
+		event["summary"] += " У подмастерьев осталась обещанная им копия расчёта. Она позволяет сверить суммы, даже если придворный писец закроет книги."
+	if event_id == "border_courier" and state.facts.get("envoy_meetings") == "written_first":
+		event["summary"] += " Илва предлагает сверить объяснение соседа с письменными условиями, полученными при первом приёме."
+	if event_id == "border_courier" and state.facts.get("grain_report_read") == "captain":
+		event["summary"] += " В отчёте капитана уже отмечена разбитая дорога к мосту. Выезд лучше планировать по дороге через мельницу."
+	if event_id == "fever_outbreak":
+		match str(state.facts.get("temple_food_line", "")):
+			"household_tokens": event["summary"] += " У отца Луки уже есть список дворов для доставки еды, но недавно приехавшие семьи в него не попали."
+			"open_pots": event["summary"] += " К храмовой кухне привыкли ходить и новые жители. Отец Лука просит, чтобы на время горячки пищу развозили по дворам вместо общей очереди."
 	if event_id == "border_consequence":
 		var first_choice := str((resolved.get("border_courier", {}) as Dictionary).get("choice", ""))
 		if first_choice == "envoy":
@@ -295,10 +423,22 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			event["summary"] = str(event["summary"]) + " С его запиской совпадает %s." % " и ".join(clues)
 		if bool(state.facts.get("marek_copy_saved", false)):
 			event["summary"] += " У Марека есть копия книги приказов. Даже если сумка Саввы пропадёт, подлинные распоряжения будет с чем сверить."
+		if bool(state.facts.get("bridge_receipt_found", false)):
+			event["summary"] += " Савва просит захватить накладную с именем возчика. Он утверждает, что знает, почему тот расписался за рейс по разобранному мосту."
+		if state.facts.get("bridge_testimony") == "sealed":
+			event["summary"] += " У Марека есть закрытое показание Самуила о человеке, который встречал обоз. Именем возчика по-прежнему нельзя делиться без его согласия."
+		elif state.facts.get("bridge_witness_refuge") == "safe_house":
+			event["summary"] += " Лада сохранила связь с Самуилом через людей, которые укрыли его семью. Марек может сверить подробности показаний без новой встречи на площади."
+		if state.facts.get("grain_report_read") == "agent":
+			event["summary"] += " Путь телег совпал с тем, который указал агент в отчёте об амбарах. Пока это подтверждает маршрут, но не имя заказчика."
 	if event_id == "market_speech":
 		match str(state.facts.get("lowland_register", "")):
 			"open": event["summary"] += " Мирон держит в руках копию сверки, которую Лада вывесила на площади. Он требует назвать владельцев амбаров, чьи записи расходятся с выдачами."
 			"sealed": event["summary"] += " Марек принёс сверку Лады. По ней можно назвать размер недостачи, сохранив имена деревенских свидетелей в тайне."
+		if state.facts.get("grain_report_read") in ["sister", "steward"]:
+			event["summary"] += " Ответ можно начать с проверенных сведений из отчёта по Долинной области. Отдельно придётся признать, чего двор ещё не знает."
+		if bool(state.facts.get("miron_hearing_promised", false)):
+			event["summary"] += " Мирон считает, что это и есть открытый разговор, который вы ему ранее обещали."
 	if event_id == "family_warning" and str(state.facts.get("second_seal_investigation", "")) == "public":
 		event["summary"] = str(event["summary"]) + " Это произошло несмотря на объявленный по всему городу розыск печати."
 	if event_id == "tikhon_pump":
@@ -316,15 +456,14 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 		if str(state.facts.get("fathers_ledger", "")) == "published":
 			event["summary"] = str(event["summary"]) + " После публикации книги Вардан уже потерял часть покровителей."
 		if bool(state.facts.get("second_seal_order_proof", false)):
-			event["summary"] += " Список поддельных приказов Марек сверил со своей копией. Его выводы можно показать судьям, даже если Савва откажется повторить показания."
+			event["summary"] += " Марек свёл собранные свидетельства и бумаги по поддельным приказам. Судьи смогут проверить его выводы, даже если Савва не повторит показания публично."
+	if event_id == "fathers_ledger" and _family_away(state):
+		event["choices"]["inner_circle"] = "Показать книгу Мареку и Радомиру"
+		event["summary"] += " Аделы и детей нет в столице. Отправлять семейные копии по дороге Марек пока не советует."
 	if event_id == "night_of_second_seal":
-		if str(state.facts.get("vardan_stance", "")) == "inside_council":
-			event["summary"] = "Колокола звонят у речных складов и северных ворот. Вардан принёс возвращённую печать в совет: новые приказы разослали его бывшие люди, которые отказались подчиниться сделке. Часть стражи уже снялась с постов. За границей показались огни военного обоза."
-		var posture := str(state.facts.get("northern_posture", "unprepared"))
-		if posture == "fortified":
-			event["summary"] = str(event["summary"]) + " Укреплённые переправы задержат чужой обоз, но гарнизоны ждут команды."
-		elif posture == "ambush":
-			event["summary"] = str(event["summary"]) + " Засада у переправы ещё не раскрыта, и Радомир просит не выдавать её преждевременно."
+		event["summary"] = _night_brief(state)
+		if not _has_full_ledger(state):
+			event["choices"]["expose"] = "Показать горожанам сохранившиеся бумаги и предупредить о ложных приказах"
 		match str(state.facts.get("command_structure", "")):
 			"joint": event["summary"] = str(event["summary"]) + " Совместный штаб уже сверяет спорные приказы двумя подписями."
 			"split": event["summary"] = str(event["summary"]) + " Заранее разделённые зоны ответственности позволяют обоим командирам действовать без нового совещания."
@@ -340,37 +479,129 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			"inspectors": event["summary"] += " Вечерняя смена Дарена уже стоит у выезда с рынка и знает, как отправить задержанный груз обратно к складам."
 	if event_id == "new_rule":
 		match str(state.facts.get("second_seal_crisis", "")):
-			"capital_held": event["summary"] = str(event["summary"]) + " Семьи с оставленного севера требуют ответить, почему столицу спасли за их счёт."
+			"capital_held":
+				if state.facts.get("northern_crossing") == "lost":
+					event["summary"] += " Семьи с оставленного севера требуют ответить, почему столицу спасли за их счёт."
+				else:
+					event["summary"] += " Начальники складов просят закрепить проверку пропусков, пока дозоры остаются у переправы."
 			"border_held": event["summary"] = str(event["summary"]) + " Владельцы сгоревших складов требуют возмещения за победу на границе."
 			"false_orders_rejected": event["summary"] = str(event["summary"]) + " Цехи, отказавшиеся выполнять ложные приказы, требуют закрепить своё право на проверку власти."
-			"command_collapsed": event["summary"] = "К утру гарнизон снова выполняет приказы из замка, но склады разграблены, а северная переправа потеряна. Совет требует решить, кто отныне сможет проверять княжеские распоряжения."
+			"command_collapsed": event["summary"] = "К утру гарнизон снова выполняет приказы из замка, но часть складов разграблена. Совет требует решить, кто отныне сможет проверять княжеские распоряжения."
+		if state.facts.get("vardan_stance") == "in_custody":
+			event["summary"] += " Судьи требуют решить, в каком порядке слушать дело Вардана. Его самого в зале нет."
+		if _has_full_ledger(state) and bool(state.facts.get("second_seal_order_proof", false)):
+			event["summary"] += " Марек разделил два дела: прежние выплаты, которые подписал ваш отец, и новые грамоты, которые канцелярия не выдавала. Суд может проверить оба дела по разным бумагам."
+		if bool(state.facts.get("court_order_exposed", false)):
+			event["summary"] += " Родные погибшего чиновника принесли прошение. Они спрашивают, сможет ли новый суд проверять и распоряжения самого князя."
 	return event
+
+func _family_away(state: WorldState) -> bool:
+	return state.facts.get("family_security") in ["country_cloister", "breached"]
+
+func _has_full_ledger(state: WorldState) -> bool:
+	return state.facts.get("fathers_ledger") in ["published", "inner_circle", "network_reactivated"]
+
+func _night_brief(state: WorldState) -> String:
+	var text := "Одновременно звонят колокола у речных складов и северных ворот. "
+	match str(state.facts.get("vardan_stance", "")):
+		"inside_council":
+			text += "Возвращённая Варданом печать остаётся в замке. Его бывшие люди предъявляют копии грамоты, подписанной до сделки. Первые телеги уже у складов."
+			if state.facts.get("vardan_river_manifest") == "listed":
+				text += " Вардан принёс обещанный список перевозчиков. Имена помогут отличить новые телеги от обычного обоза."
+		"in_custody":
+			text += "Вардан под стражей, печать у судей. Люди, которые остались на свободе, поднимают складские караулы по заранее заготовленным грамотам."
+		"escaped_exchange":
+			text += "После сорванного обмена Вардан не появлялся. Его возчики уже у складов, а городской караул не может проверить, откуда взялись их грамоты."
+		_:
+			if state.facts.get("command_structure") == "joint":
+				text += "У складов задержали возчиков с грамотами без второй подписи. Но такие же бумаги разнесли по всему городу, и штаб ещё не знает, кто успел поверить им."
+			else:
+				text += "По ложным распоряжениям часть городской стражи снялась с постов. У складов ждут незнакомые возчики."
+	match state.army.status:
+		ArmyState.BattleStatus.VICTORY:
+			text += " Дружина выиграла сражение на северной дороге. Гонец просит людей, чтобы удержать переправу на случай нового удара."
+		ArmyState.BattleStatus.DEFEAT, ArmyState.BattleStatus.RETREATED:
+			text += " Дружина уже отошла с северной дороги. Угроза теперь дошла до городских ворот."
+		ArmyState.BattleStatus.DEPLOYMENT:
+			text += " Полевой отряд ещё на исходных позициях. Если сейчас выбрать приоритет для столицы, Радомир отведёт его к воротам."
+		ArmyState.BattleStatus.FIGHTING:
+			text += " Полевой бой не закончен. Для нового приказа Радомиру придётся вывести этот отряд к воротам."
+		_:
+			if state.facts.get("northern_negotiation") == "stand_down":
+				text += " Основной обоз отвели по соглашению. У заставы всё равно заметили людей без знамён."
+			else:
+				text += " За границей показались огни военного обоза."
+	return text + " Это не случайный налёт: кто-то проверяет, кому ещё подчиняются оба караула."
+
+func _settle_northern_front(state: WorldState, choice_id: String) -> String:
+	var recalled := state.army.status in [ArmyState.BattleStatus.DEPLOYMENT, ArmyState.BattleStatus.FIGHTING]
+	var victory := state.army.status == ArmyState.BattleStatus.VICTORY
+	var defeated := state.army.status in [ArmyState.BattleStatus.DEFEAT, ArmyState.BattleStatus.RETREATED]
+	var posture := str(state.facts.get("northern_posture", ""))
+	var prepared := posture in ["fortified", "local_watch"]
+	var crossing := "contested"
+	if state.facts.get("northern_negotiation") == "stand_down" and choice_id != "neglected":
+		crossing = "held"
+	elif (victory and choice_id != "neglected") or (prepared and choice_id == "border" and not defeated and not recalled):
+		crossing = "held"
+	elif defeated or (choice_id in ["capital", "neglected"] and not victory):
+		crossing = "lost"
+	state.facts["northern_crossing"] = crossing
+	var text := ""
+	if recalled:
+		state.army.status = ArmyState.BattleStatus.RETREATED
+		state.army.pending_orders.clear()
+		state.facts["northern_patrol_recalled"] = true
+		text = "Радомир отозвал полевой отряд к городским воротам. "
+	match crossing:
+		"held":
+			return text + "Дальняя переправа осталась за Арденом."
+		"lost":
+			return text + "Северяне заняли дальнюю переправу, но за городские ворота не прошли."
+	return text + "К рассвету ни одна сторона не удерживает оба берега переправы."
 
 func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	if state.calendar.is_demo_complete() or not state.can_govern() or event_id not in available_events(state.calendar.cycle):
 		return false
 	if not (definition(event_id).get("choices", {}) as Dictionary).has(choice_id):
 		return false
-	var required_gold := 0
-	if event_id == "granary_roof" and choice_id == "repair": required_gold = 5
-	if event_id == "smiths_dispute" and choice_id == "pay": required_gold = 8
-	if event_id == "scout_report" and choice_id == "fortify": required_gold = 12
-	if event_id == "fever_outbreak" and choice_id == "quarantine": required_gold = 6
-	if event_id == "fever_outbreak" and choice_id == "clinics": required_gold = 10
-	if event_id == "fathers_ledger" and choice_id == "continue_scheme": required_gold = 6
-	if event_id == "tikhon_pump" and choice_id == "field_test": required_gold = 3
-	if event_id == "tikhon_pump" and choice_id == "workshop": required_gold = 8
-	return state.state_treasury >= required_gold
+	return state.state_treasury >= choice_gold_cost(event_id, choice_id)
+
+func choice_gold_cost(event_id: String, choice_id: String) -> int:
+	match "%s:%s" % [event_id, choice_id]:
+		"granary_roof:repair": return 5
+		"smiths_dispute:pay": return 8
+		"scout_report:fortify": return 12
+		"fever_outbreak:quarantine", "fathers_ledger:continue_scheme": return 6
+		"fever_outbreak:clinics": return 10
+		"tikhon_pump:field_test": return 3
+		"tikhon_pump:workshop": return 8
+	return 0
 
 func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	if not can_choose(state, event_id, choice_id):
 		return false
+	var presented := contextual_definition(state, event_id)
+	if event_id == "night_of_second_seal" and not resolved.has("divided_command"):
+		var missed := _neglect_consequence(state, "divided_command")
+		resolved["divided_command"] = {"choice": "neglected", "cycle": state.calendar.cycle, "outcome": missed}
+		_add_report(state.calendar.cycle, "Решение штаба опоздало", missed)
 	var outcome := _apply_choice(state, event_id, choice_id)
+	if event_id == "night_of_second_seal":
+		outcome += " " + _settle_northern_front(state, choice_id)
+	if event_id == "granary_roof" and not COURT_AUTHORITY.is_present(state, "granary_keeper"):
+		outcome = outcome.replace("Марта нашла", "Писец нашёл").replace("Марта подняла", "Писец поднял").replace("Марта вывела", "Писец вывел").replace("Марта отправила", "Писец отправил")
 	if event_id == "savva_at_chapel" and bool(state.facts.get("marek_copy_saved", false)):
 		state.facts["second_seal_order_proof"] = true
 		outcome += " Марек сверил показания Саввы со своей копией книги и нашёл номера двух приказов, которых канцелярия не выдавала. Свидетельство можно проверить и без печати."
+	if event_id == "savva_at_chapel":
+		state.facts["savva_named_vardan"] = true
+	var verified_witness: bool = state.facts.get("bridge_testimony") == "sealed" or state.facts.get("bridge_witness_refuge") == "safe_house"
+	if event_id == "savva_at_chapel" and choice_id != "arrest" and verified_witness:
+		state.facts["second_seal_order_proof"] = true
+		outcome += " Марек сверил записи двух свидетелей. Оба назвали одну и ту же телегу и человека, который встречал её у ворот. Каждый сообщил деталь, которой не мог знать со слов другого."
 	state.add_fatigue(4)
-	resolved[event_id] = {"choice": choice_id, "cycle": state.calendar.cycle, "outcome": outcome}
+	resolved[event_id] = {"choice": choice_id, "cycle": state.calendar.cycle, "outcome": outcome, "title": presented["title"], "choice_title": presented["choices"][choice_id]}
 	state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "story_event_resolved", "event": event_id, "choice": choice_id})
 	return true
 
@@ -379,14 +610,18 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 		"granary_roof:repair":
 			state.state_treasury -= 5
 			state.facts["granary_roof"] = "repaired"
-			return "Плотники заменили прогнившие стропила до следующего дождя. Смотритель просит позже разобраться, почему ремонт откладывали годами."
+			return "Плотники перекрыли течь до следующего дождя. Зерно сухое. Марта нашла под лестницей пломбу с одной из старых телег, но накладные из кладовки ещё не разобрали."
 		"granary_roof:inspect":
 			state.facts["granary_roof"] = "inspecting"
-			return "Проверка нашла старые подложные отметки о ремонте. Крыша всё ещё требует работы, зато у дела появился виновник."
+			state.facts["bridge_receipt_found"] = true
+			return "Марта подняла накладную: во вторник обоз приняли у Восточных ворот. Но настил моста сняли ещё в понедельник, как и говорил отец. Подпись возчика есть, слова проверяющего нет. Бумагу унесли сушиться. Крыша всё ещё течёт."
 		"granary_roof:relocate":
-			state.resources["grain"] = maxi(0, int(state.resources["grain"]) - 2)
+			var water_gate_repaired: bool = state.facts.get("forge_priorities") == "water_parts"
+			state.resources["grain"] = maxi(0, int(state.resources["grain"]) - (0 if water_gate_repaired else 2))
 			state.facts["granary_roof"] = "grain_relocated"
-			return "Зерно разнесли по частным складам. Часть просыпали в дороге, а купцы теперь знают точный размер княжеских запасов."
+			if water_gate_repaired:
+				return "Марта отправила мешки к сухим складам через проезд у плотины. Мастерская уже заменила скобу, ворота открылись, обоз прошёл. В частных складах зерно уцелело, но теперь купцы знают, сколько его было."
+			return "Марта вывела обоз к трём частным складам. Два мешка рассыпались, но остальные теперь под крышей. Купцы увидели размер запаса и к вечеру начали спрашивать, сколько зерна князь сможет продать."
 		"dead_prince_order:quiet":
 			state.facts["second_seal_investigation"] = "quiet"
 			state.facts["savva_family_watched"] = true
@@ -394,29 +629,40 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 		"dead_prince_order:public":
 			state.facts["second_seal_investigation"] = "public"
 			(state.factions["nobility"] as FactionState).react(state.calendar.cycle, -2, "Двор узнал, что от имени умершего князя продолжают выходить приказы.")
-			return "На воротах вывесили описание Саввы и предупреждение о поддельной печати. Теперь старые приказы будут проверять внимательнее — и тот, у кого находится печать, тоже знает о розыске."
+			return "На воротах велели сверять грамоты с реестром. Подлинный дорожный знак на воске больше не пропускал людей сам по себе. Теперь и тот, кто унес печать, знает о розыске."
 		"dead_prince_order:guard":
 			state.facts["second_seal_investigation"] = "guard_detained"
 			state.public_order = maxi(0, state.public_order - 2)
 			return "Троих стражников заперли до допроса. Они настаивают, что исполнили безупречный документ; остальные караулы теперь требуют письменного подтверждения даже обычных распоряжений."
+		"east_gate_witness:seal":
+			state.facts["bridge_testimony"] = "sealed"
+			return "Самуил описал телегу и человека у ворот, но отказался назвать его хозяина без подтверждения. Марек убрал показание в книгу и дал Самуилу копию обещания не оглашать имя до суда."
+		"east_gate_witness:public":
+			state.facts["bridge_testimony"] = "public"
+			var guilds := state.factions["guilds"] as FactionState
+			guilds.react(state.calendar.cycle, 2, "Возчик подтвердил разницу между княжеской книгой и реальной выдачей.")
+			return "Самуил прочитал накладную при старшинах. Двор уже не сможет замолчать недостачу. До ночи плательщик долга разыскал его семью, и Самуил попросил Марека убрать их имена из книги."
+		"east_gate_witness:refuse":
+			state.facts["bridge_testimony"] = "document_only"
+			return "Самуил уехал домой с дочерью. Опавшая печать и подпись остались в деле. Кто принимал груз у ворот, теперь придётся выяснять по другим документам."
 		"smiths_dispute:mediate":
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 3, "Князь лично выслушал спор ремесленников с казной.")
 			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "first_commission", "Вы доверили ей независимо сверить счета оружейного двора и казны.", {"respect": 4, "trust": 2})
 			state.facts["zlata_met"] = true
 			state.facts["smith_payment_audit"] = true
-			return "Злата согласилась проверить обе книги при представителях работников. Она сразу нашла странность: казна отмечает выплату на два дня раньше, чем Ратибор выставил окончательный счёт."
+			return "Ярина согласилась проверить обе книги при представителях работников. Она сразу нашла странность: казна отмечает выплату на два дня раньше, чем Ратибор выставил окончательный счёт."
 		"smiths_dispute:pay":
 			state.state_treasury -= 8
 			state.resources["tools"] = int(state.resources.get("tools", 0)) + 4
 			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "workmen_paid", "Вы предпочли немедленно заплатить работникам, не дожидаясь спора чиновников.", {"respect": 2})
 			state.facts["zlata_met"] = true
-			return "Людям выдали жалованье, и горны снова зажгли. Злата предупреждает: повторная выплата спасла заказ, но не ответила, куда ушли первые деньги."
+			return "Людям выдали жалованье, и горны снова зажгли. Ярина предупреждает: повторная выплата спасла заказ, но не ответила, куда ушли первые деньги."
 		"smiths_dispute:seize":
 			state.resources["tools"] = int(state.resources.get("tools", 0)) + 5
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -8, "Княжеская стража изъяла товар из кузниц во время спора об оплате.")
 			(state.characters["zlata"] as CharacterState).remember(state.calendar.cycle, "workshop_seizure", "Вы забрали заказ силой, пока рабочие требовали жалованье.", {"trust": -5, "resentment": 6})
 			state.facts["zlata_met"] = true
-			return "Стража забрала заказ без драки. К вечеру погасли почти все горны, а Злата начала собирать владельцев мастерских на отдельное совещание."
+			return "Стража забрала заказ без драки. К вечеру погасли почти все горны, а Ярина начала собирать владельцев мастерских на отдельное совещание."
 		"aglaia_letter:question":
 			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "first_audience", "Вы выслушали её и задержанную раздельно, не обещая освобождения.", {"respect": 3})
 			state.facts["aglaia_met"] = true
@@ -446,7 +692,9 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 					return "Мирон прочитал расхождение вслух. Староста уже не мог спорить, сколько зерна дошло до деревень. Когда Мирон потребовал назвать всех, кто давал показания, Лада попросила оставить эти имена суду."
 				"sealed":
 					return "Вы назвали размер недостачи по сверке Лады. Мирон попросил показать подписи. Марек предъявил итоговый лист, оставив имена свидетелей закрытыми. Площадь разошлась, но Мирон пообещал вернуться к вопросу после суда."
-			return "Вы рассказали о проверке книг и приказе с печатью умершего князя. Мирон признал ответ, но спросил, почему двор сообщил об этом только после публичного требования."
+			if state.facts.get("second_seal_investigation") == "public":
+				return "Вы рассказали о проверке книг и о грамоте, которую уже объявили подложной. Мирон признал ответ, но спросил, почему о зерне двор сообщил только после публичного требования."
+			return "Вы рассказали, какие выдачи подтверждены, а каких расписок не хватает. Мирон признал, что это ответ, но попросил назначить день, когда писцы покажут расчёт старшинам."
 		"market_speech:disperse":
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "speech_dispersed", "Вы разогнали мирное собрание вместо ответа.", {"trust": -7, "resentment": 8, "grievance": 8})
 			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -7, "Стража разогнала людей, требовавших объяснить недостачу зерна.")
@@ -509,6 +757,9 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.public_health = mini(100, state.public_health + 2)
 			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Стража перекрыла больной квартал вместе со здоровыми семьями.")
 			state.facts["fever_policy"] = "quarantine"
+			if state.facts.get("temple_food_line") == "open_pots":
+				state.public_order = mini(100, state.public_order + 2)
+				return "Оцепление закрыли. Списки на казённой кухне заменили обходом дворов, как просил Лука. Пища дошла и до семей, которых не успели записать в приход. Лавочники всё ещё требуют открыть улицу."
 			return "Стража закрыла улицы до рассвета. Болезнь распространяется медленнее, но запертые жители требуют лекаря и ясного срока."
 		"fever_outbreak:clinics":
 			state.state_treasury -= 10
@@ -523,7 +774,7 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 		"family_warning:evacuate":
 			state.facts["family_security"] = "country_cloister"
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "children_evacuated", "Вы поставили безопасность детей выше видимости спокойствия во дворце.", {"trust": 4, "affection": 2})
-			return "Элина уехала с детьми под видом паломничества. Во дворце никто не знает точного места, но отсутствие наследника скоро заметят послы и знать."
+			return "Адела уехала с детьми под видом паломничества. Во дворце никто не знает точного места, но отсутствие наследника скоро заметят послы и знать."
 		"family_warning:double_guard":
 			state.facts["family_security"] = "new_guard"
 			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "palace_guard_replaced", "Вы потребовали заменить его людей во внутренних покоях после провала охраны.", {"respect": -2, "resentment": 3})
@@ -533,7 +784,7 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.facts["family_security"] = "child_bait"
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "son_used_as_bait", "Вы сознательно оставили сына приманкой для человека, проникшего во дворец.", {"trust": -10, "affection": -5, "resentment": 7})
 			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "nursery_trap", "Вы позволили ему устроить ловушку во внутренних покоях.", {"trust": 3})
-			return "Всеволоду велели вести себя как обычно. Ночью за восковой фигуркой пришла дворцовая прачка; при задержании она назвала имя Вардана и попросила защитить её сына. Элина не простила способ, которым добыто признание."
+			return "Всеволоду велели вести себя как обычно. Ночью за восковой фигуркой пришла дворцовая прачка; при задержании она назвала имя Вардана и попросила защитить её сына. Адела не простила способ, которым добыто признание."
 		"tikhon_pump:field_test":
 			state.state_treasury -= 3
 			state.facts["tikhon_pump"] = "field_tested"
@@ -566,19 +817,25 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			return "Судьи сняли копии книги. Мирон публично признал, что вы не спрятали вину отца; знать требует закрыть разбирательство ради безопасности государства."
 		"fathers_ledger:inner_circle":
 			state.facts["fathers_ledger"] = "inner_circle"
-			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "ledger_confidence", "Вы доверили ей опасную правду о наследии отца.", {"trust": 5})
 			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "ledger_confidence", "Вы включили его в узкий круг, решающий судьбу старой сети.", {"trust": 4})
-			return "Марек составил список живых получателей. Элина заметила, что три выплаты совпадают с поездками Вардана, а Радомир узнал имя северного офицера, которого встречал на прошлой войне."
+			if _family_away(state):
+				return "Марек составил список получателей. Радомир узнал имя северного офицера, которого встречал на прошлой войне. Копию для Аделы оставили в замке, чтобы не выдавать её укрытие."
+			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "ledger_confidence", "Вы доверили ей опасную правду о наследии отца.", {"trust": 5})
+			return "Марек составил список живых получателей. Адела заметила, что три выплаты совпадают с поездками Вардана, а Радомир узнал имя северного офицера, которого встречал на прошлой войне."
 		"fathers_ledger:continue_scheme":
 			state.facts["fathers_ledger"] = "network_reactivated"
 			state.state_treasury = maxi(0, state.state_treasury - 6)
-			(state.characters["borin"] as CharacterState).remember(state.calendar.cycle, "secret_fund", "Вы поручили ему возобновить скрытые выплаты из старой книги.", {"trust": 5, "respect": 3})
-			return "Борин отправил первые шесть монет старым путём. Один адресат ответил условной фразой отца: сеть ещё жива, но теперь её участники знают, что вы приняли правила прежнего князя."
+			if COURT_AUTHORITY.is_present(state, "borin"):
+				(state.characters["borin"] as CharacterState).remember(state.calendar.cycle, "secret_fund", "Вы поручили ему возобновить скрытые выплаты из старой книги.", {"trust": 5, "respect": 3})
+			var clerk := "Борин" if COURT_AUTHORITY.is_present(state, "borin") else "Дежурный писец"
+			return "%s отправил первые шесть монет старым путём. Один адресат ответил условной фразой отца: сеть ещё жива, но её участники теперь знают, что вы приняли правила прежнего князя." % clerk
 		"aglaia_invitation:attend":
 			state.facts["aglaia_evening"] = "attended"
 			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "private_evening", "Вы приняли риск и пришли лично слушать людей Вардана.", {"trust": 5, "affection": 3})
+			if _family_away(state):
+				return "За игрой в кости управляющий Вардана проговорился: северный обоз ждёт сигнала из столицы. Утром Марек предупредил, что выезд из дома Аглаи заметили. До Аделы, которой сейчас нет в городе, этот слух ещё не дошёл."
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "night_absence", "Вы солгали об отсутствии и провели закрытый вечер в доме Аглаи.", {"trust": -5, "resentment": 3})
-			return "За игрой в кости управляющий Вардана проговорился: северный обоз ждёт сигнала из столицы, а не наоборот. Аглая отвела вас через задний двор. Утром Элина спросила, почему ваша дорожная обувь пахнет благовониями Семи фонарей."
+			return "За игрой в кости управляющий Вардана проговорился: северный обоз ждёт сигнала из столицы, а не наоборот. Аглая отвела вас через задний двор. Утром Адела спросила, почему ваша дорожная обувь пахнет благовониями Семи фонарей."
 		"aglaia_invitation:agent":
 			state.facts["aglaia_evening"] = "agent_sent"
 			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "agent_received", "Вы не пришли сами, но доверили ей принять вашего наблюдателя.", {"respect": 3})
@@ -588,19 +845,20 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			(state.characters["aglaia"] as CharacterState).remember(state.calendar.cycle, "invitation_declined", "Вы прямо отказались от личного визита, не пытаясь использовать её дом.", {"respect": 2})
 			if str(state.facts.get("family_security", "")) in ["country_cloister", "breached"]:
 				(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "letter_to_family", "Вместо визита к Аглае вы написали ей и детям.", {"trust": 2})
-				return "Вы отказались от вечера и написали Элине и детям. Письмо оставили у сестры: ей известен безопасный путь передачи. Люди Вардана тем временем закончили встречу без ваших свидетелей."
+				return "Вы отказались от вечера и написали Аделе и детям. Письмо оставили у сестры: ей известен безопасный путь передачи. Люди Вардана тем временем закончили встречу без ваших свидетелей."
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "family_evening", "В опасный вечер вы остались с ней и детьми, не превращая семью в остаток свободного времени.", {"trust": 4, "affection": 4})
-			return "Вы впервые за несколько недель ужинали с детьми без раскрытых донесений на столе. Политические сведения потеряны, зато Элина сама рассказала о слуге, который расспрашивал Всеволода о распорядке охраны."
+			return "Вы впервые за несколько недель ужинали с детьми без раскрытых донесений на столе. Политические сведения потеряны, зато Адела сама рассказала о слуге, который расспрашивал Всеволода о распорядке охраны."
 		"vardan_offer:accept":
 			state.facts["vardan_stance"] = "inside_council"
+			state.facts["second_seal_custody"] = "crown"
+			state.facts.erase("second_seal_holder")
 			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "council_bargain", "Вы признали его силу и дали место у власти вместо суда.", {"respect": 8, "trust": 3})
 			(state.characters["spouse"] as CharacterState).remember(state.calendar.cycle, "vardan_accepted", "Вы впустили в совет человека, чьи люди проникли к детям.", {"trust": -7, "resentment": 5})
 			return "Вардан вернул печать при свидетелях и занял кресло советника по речной торговле. Его люди прекратили вывоз зерна, но уже к вечеру к нему потянулись просители, прежде ожидавшие княжеской аудиенции."
 		"vardan_offer:counterfeit":
 			state.facts["vardan_stance"] = "false_bargain"
 			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "vardan_trap", "Вы доверили ему тайную подготовку задержания Вардана.", {"trust": 4})
-			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "false_bargain", "Вы согласились на сделку, намереваясь арестовать его после передачи печати.", {"grievance": 8})
-			return "Вардан принял согласие слишком спокойно и назначил обмен через два дня. Дарен готовит людей, но предупреждает: если Вардан ждёт обмана, место встречи станет ловушкой для обеих сторон."
+			return "Вардан принял согласие и назначил обмен до следующего доклада. Дарен просит принести на встречу то, что убедит судей принять и печать, и самого Вардана."
 		"vardan_offer:refuse":
 			state.facts["vardan_stance"] = "open_enemy"
 			(state.characters["vardan"] as CharacterState).remember(state.calendar.cycle, "declared_enemy", "Вы отвергли сделку и публично назвали его врагом княжества.", {"resentment": 10, "grievance": 10})
@@ -626,16 +884,21 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			state.public_order = mini(100, state.public_order + 4)
 			(state.characters["radomir"] as CharacterState).remember(state.calendar.cycle, "border_command", "Вы доверили ему самостоятельно удержать северную границу, пока спасали столицу.", {"trust": 6, "respect": 4})
 			if bool(state.facts.get("radomir_handover_ready", false)):
-				return "К рассвету склады отбиты. Связные Радомира вовремя предупредили дальнюю переправу: люди отвели обоз под прикрытие гарнизона до отхода с берега. Столицу удержали, обоз уцелел, но переправа осталась за северянами."
+				return "К рассвету склады отбиты. Связные Радомира предупредили обоз на северной дороге. Возчики успели вывести груз под прикрытие гарнизона."
 			if state.facts.get("market_watch") == "inspectors":
-				return "Вечерняя смена Дарена остановила первые телеги у рынка и вернула зерно под охрану. Радомир удержал северные ворота, но отступил от дальней переправы и оставил там часть обоза."
-			return "К рассвету склады отбиты, а поддельные приказы собраны. Радомир удержал ворота, но отступил от дальней переправы и потерял часть обоза: столицу спасли ценой земли на севере."
+				return "Вечерняя смена Дарена остановила первые телеги у рынка и вернула зерно под охрану. Радомир держит северные ворота, пока городская стража проверяет склады."
+			return "К рассвету склады отбиты, а поддельные приказы собраны. Пока вы возвращали караулы на посты, Радомир удерживал городские ворота без новых подкреплений."
 		"night_of_second_seal:border":
 			state.facts["second_seal_crisis"] = "border_held"
-			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "capital_command", "Вы оставили ему столицу и семью, пока лично повели войско к воротам.", {"trust": 6, "respect": 5})
+			(state.characters["daren"] as CharacterState).remember(state.calendar.cycle, "capital_command", "Вы доверили ему охрану столицы, пока сами отправились к воротам.", {"trust": 6, "respect": 5})
 			if bool(state.facts.get("radomir_handover_ready", false)):
 				state.resources["grain"] = maxi(0, int(state.resources.get("grain", 0)) - 4)
 				return "Северный обоз остановлен у ворот. Один из связных Радомира успел предупредить Дарена о поддельном приказе. Прежде чем загорелся речной склад, стража успела вывезти большую часть зерна."
+			if state.facts.get("command_structure") == "joint" or state.facts.get("aglaia_evening") in ["attended", "agent_sent"]:
+				state.resources["grain"] = maxi(0, int(state.resources.get("grain", 0)) - 7)
+				if state.facts.get("command_structure") == "joint":
+					return "Пока вы удерживали ворота, общий штаб остановил подмену караула: в спорной грамоте не оказалось подписи Дарена. Один склад всё же загорелся, соседний успели отстоять."
+				return "Сведения из дома Аглаи пригодились. Когда зазвонили колокола, Дарен уже ждал телеги у склада и вернул часть увезённых мешков. Городские ворота остались закрыты для чужого обоза."
 			state.resources["grain"] = maxi(0, int(state.resources.get("grain", 0)) - 10)
 			return "Ваше появление остановило колебание гарнизона, и северный обоз не прошёл ворота. Дарен удержал дворец, но заговорщики сожгли речной склад и увели часть зерна."
 		"night_of_second_seal:expose":
@@ -643,9 +906,12 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			if bool(state.facts.get("miron_public_witnesses", false)):
 				state.public_order = mini(100, state.public_order + 8)
 				return "Мирон привёл на площадь двух цеховых старшин. Они показали, какие распоряжения получали раньше, и при всех сверили их с ночными приказами. Даже те, кто не поверил княжескому глашатаю, отнесли ложные грамоты старшинам и оставили склады под охраной."
-			var miron_support := (state.characters["miron"] as CharacterState).respect >= 8
+			var miron := state.characters["miron"] as CharacterState
+			var miron_support := miron.respect >= 8 and miron.grievance < 8
 			if miron_support:
 				state.public_order = mini(100, state.public_order + 8)
+				if not _has_full_ledger(state):
+					return "Мирон потребовал принести ночные грамоты на площадь. Горожане сравнили их с теми, что получали накануне, и цеховые старшины вернули охрану на склады. Об отцовских выплатах Мирон пока просит говорить только то, что подтверждается уцелевшими листами."
 				return "Мирон прочитал имена из книги на Рыночной площади, а цеховые старшины отказались выполнять приказы со второй печатью. Заговор лишился толпы и укрытий; у ворот ещё идёт бой, но столица выбрала сторону."
 			if bool(state.facts.get("second_seal_order_proof", false)):
 				state.public_order = mini(100, state.public_order + 2)
@@ -654,15 +920,21 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 				state.public_order = mini(100, state.public_order + 2)
 				return "Лавочники привели на площадь возчика, которого знали по караульному списку. Он показал грамоту, полученную уже после закрытия склада. Люди разобрались, какие приказы поддельные. Спор о роли вашего отца продолжался до утра."
 			state.public_order = maxi(0, state.public_order - 5)
+			if not _has_full_ledger(state):
+				return "Глашатай зачитал ночные грамоты и уцелевшие бумаги из архива. Часть горожан вернула караулу ключи, другие говорят, что без утраченных страниц им снова предлагают поверить на слово. Склады удержали, но площадь не разошлась до утра."
 			return "Книгу читали вслух прямо под колоколами. Одни горожане отказались подчиняться печати, другие увидели доказательство, что княжеский дом годами покупал их вождей. Заговор расколот, но вместе с ним расколота и площадь."
 		"new_rule:law":
 			state.facts["new_rule"] = "public_law"
+			var miron := state.characters["miron"] as CharacterState
+			if miron.grievance >= 8 or miron.trust < 0:
+				miron.remember(state.calendar.cycle, "public_registry", "Вы учредили открытые слушания. Он запросил место для свидетелей от рынка.", {"respect": 4})
+				return "Чрезвычайные приказы будут заносить в реестр. Первые слушания возглавят городские судьи. Мирон согласился привести свидетелей от рынка, но заявил, что не сядет за стол княжеского совета."
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "public_registry", "Вы согласились ограничить собственный приказ открытым реестром и судом.", {"trust": 8, "respect": 8})
 			return "С нового месяца каждый чрезвычайный приказ получает номер, запись писца и подпись ответственного советника. Мирон возглавит открытые слушания, включая дела людей вашего отца."
 		"new_rule:mercy":
 			state.facts["new_rule"] = "conditional_amnesty"
 			state.public_order = mini(100, state.public_order + 5)
-			return "Рядовым участникам дали три дня назвать вербовщиков и вернуть похищенное. Камеры начали пустеть, а список организаторов — расти; семьи погибших называют это торговлей вместо правосудия."
+			return "Глашатай обещает помилование тем, кто в течение трёх дней назовёт вербовщиков и вернёт похищенное. Первые участники уже пришли к судьям. Родные пострадавших ждут, заведут ли дело на тех, кто отдавал приказы."
 		"new_rule:purge":
 			state.facts["new_rule"] = "secret_purge"
 			state.public_order = mini(100, state.public_order + 2)

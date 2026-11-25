@@ -17,8 +17,7 @@ func _run() -> void:
 	_press_key(KEY_ESCAPE)
 	if app.get("pause_overlay").visible:
 		failures.append("Escape не должен открывать меню позади вступления")
-	for page in range(5):
-		app.call("_intro_next")
+	await _check_playable_prologue(app)
 	await process_frame
 	_check_header(app, "при запуске")
 	app.call("_show_pause_menu")
@@ -32,7 +31,7 @@ func _run() -> void:
 	await process_frame
 	app.call("_on_illustrated_building_selected", &"granary")
 	await process_frame
-	_check_location_scene(app, 0)
+	_check_location_scene(app, 1)
 	var manage := _find_button(app.get("location_scene"), "Управление местом")
 	if manage != null:
 		_click(manage.get_global_rect().get_center())
@@ -50,7 +49,7 @@ func _run() -> void:
 	if manage != null and not manage.has_focus():
 		failures.append("При закрытии управления фокус должен вернуться к кнопке локации")
 	await process_frame
-	_check_location_scene(app, 0)
+	_check_location_scene(app, 1)
 	app.call("_close_location_scene")
 	app.call("_on_illustrated_building_selected", &"market")
 	await process_frame
@@ -68,18 +67,20 @@ func _run() -> void:
 	var choices := location.get("dialogue_options") as Control
 	var reply := _find_button(choices, "Рассказать, чего")
 	if reply == null:
-		failures.append("В разговоре отсутствует доступная реплика Элине")
+		failures.append("В разговоре отсутствует доступная реплика Аделе")
 	else:
 		_click(reply.get_global_rect().get_center())
 		await process_frame
-		if _find_button(choices, "Рассказать, чего") != null:
-			failures.append("Выбранная реплика должна исчезнуть после ответа")
+		if _find_button(choices, "Рассказать, чего") != null or _find_button(choices, "Попросить её пока") != null:
+			failures.append("После ответа должны исчезнуть все варианты того же решения")
+		if _find_button(choices, "Спросить, что сейчас тревожит") == null:
+			failures.append("После решения вопрос о семье должен оставаться доступным")
 	_click(Vector2(8, 8))
 	if location.get("dialogue_layer").visible:
 		failures.append("Нажатие по затемнённой области должно закрывать разговор")
 	_click(spouse.get_global_rect().get_center())
 	await process_frame
-	if not location.get("dialogue_response").text.begins_with("В прошлый раз"):
+	if location.get("dialogue_case_heading").text != "Решение принято" or not location.get("dialogue_response").text.contains("Всеволод"):
 		failures.append("Повторная встреча должна напомнить предыдущий ответ")
 	_click(Vector2(8, 8))
 	app.call("_open_location_management", "castle")
@@ -116,8 +117,7 @@ func _run() -> void:
 	state.opening_decision.choose_funeral("solemn")
 	state.opening_decision.choose_grain("partial")
 	state.opening_decision.choose_funding("state")
-	if not state.opening_decision.resolve(state):
-		failures.append("Не удалось подготовить вступительное решение для UI-сценария")
+	await _check_formal_burial(app, state)
 	_click(advance.get_global_rect().get_center())
 	await process_frame
 	_check_header(app, "после завершения периода")
@@ -144,9 +144,11 @@ func _run() -> void:
 	app.call("_open_secretary")
 	await process_frame
 	_check_header(app, "при повторном открытии секретаря")
+	await _check_seal_dossier(app)
 	await _check_campaign_contact(app, state)
 	await _check_compact_dialogue(location, state)
 	await _check_battle_clicks(app, state)
+	await _check_authority_confirmation(app, state)
 	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
 	_check_exit_confirmation(app)
@@ -188,6 +190,51 @@ func _check_period_report(app: Node, state: WorldState, advance: Button) -> void
 		failures.append("Из повторно открытой сводки должен работать переход к секретарю")
 	app.call("_close_secretary")
 
+func _check_playable_prologue(app: Node) -> void:
+	var intro := app.get("intro_overlay") as Control
+	var stage := intro.get("stage") as Control
+	var next := intro.get("next_button") as Button
+	var began := float(stage.get("elapsed"))
+	await create_timer(0.12).timeout
+	if float(stage.get("elapsed")) <= began:
+		failures.append("Графическая сцена вступления должна двигаться")
+	for beat in range(3):
+		_click(next.get_global_rect().get_center())
+		await process_frame
+	var contacts: Dictionary = intro.get("contact_buttons")
+	var marek := contacts.get("secretary") as Button
+	if marek == null or not marek.is_visible_in_tree():
+		failures.append("У входа в храм должна быть возможность поговорить с Мареком")
+	else:
+		_click(marek.get_global_rect().get_center())
+		await process_frame
+		var state := app.get("state") as WorldState
+		if not state.facts.get("prologue_met_secretary", false):
+			failures.append("Знакомство в храме должно оставаться фактом кампании")
+	for beat in range(2):
+		_click(next.get_global_rect().get_center())
+		await process_frame
+	if intro.visible:
+		failures.append("Последняя сцена должна выводить в город")
+		intro.call("skip")
+
+func _check_formal_burial(app: Node, state: WorldState) -> void:
+	app.call("_open_secretary")
+	await process_frame
+	var seal := app.get("resolve_opening_button") as Button
+	_click(seal.get_global_rect().get_center())
+	await process_frame
+	var intro := app.get("intro_overlay") as Control
+	if state.opening_decision.status != OpeningDecision.Status.RESOLVED or not intro.visible or intro.get("burial_plan") != "solemn":
+		failures.append("Только подпись должна открывать выбранные княжеские похороны")
+	else:
+		var next := intro.get("next_button") as Button
+		_click(next.get_global_rect().get_center())
+		await process_frame
+		if intro.visible or not state.facts.get("burial_seen", false) or not app.get("secretary_panel").visible:
+			failures.append("Из похорон нужно вернуться к итогам подписанного дела")
+	app.call("_close_secretary")
+
 func _check_city_case_from_map(app: Node, state: WorldState) -> void:
 	var map := app.get("illustrated_map") as Control
 	var marker := _find_button(map, "✦  Замок")
@@ -213,6 +260,9 @@ func _check_city_case_from_map(app: Node, state: WorldState) -> void:
 		failures.append("В деле Лады должно быть доступно решение о публичной сверке")
 	else:
 		var funds := state.state_treasury
+		var conversation_scroll := location.get("dialogue_scroll") as ScrollContainer
+		conversation_scroll.ensure_control_visible(reply)
+		await process_frame
 		state.state_treasury = 0
 		_click(reply.get_global_rect().get_center())
 		await process_frame
@@ -304,6 +354,34 @@ func _check_formation_depth(field: Control, unit_id: String, rank_count: int) ->
 	if count != 9 or ranks.size() != rank_count:
 		failures.append("Для %s ожидалось %d рядов и девять фигур, показано %d рядов и %d фигур" % [unit_id, rank_count, ranks.size(), count])
 
+func _check_authority_confirmation(app: Node, state: WorldState) -> void:
+	app.call("_on_illustrated_building_selected", &"castle")
+	app.call("_open_location_management", "castle")
+	app.call("_set_castle_section", "justice")
+	await process_frame
+	await process_frame
+	var actions := app.get("building_actions") as Control
+	var detain := _find_button(actions, "Взять под стражу")
+	if detain == null:
+		failures.append("В суде должно быть распоряжение о задержании чиновника")
+	else:
+		var scroll := actions.get_parent() as ScrollContainer
+		scroll.ensure_control_visible(detain)
+		await process_frame
+		var before := state.justice.prisoners
+		_click(detain.get_global_rect().get_center())
+		await process_frame
+		var confirmation := app.get("authority_confirmation") as ConfirmationDialog
+		if confirmation == null or not confirmation.visible or state.justice.prisoners != before:
+			failures.append("Взятие под стражу должно требовать отдельного подтверждения")
+		else:
+			confirmation.confirmed.emit()
+			confirmation.hide()
+			if state.justice.prisoners != before + 1:
+				failures.append("Подтверждённое задержание должно занимать место в тюрьме")
+	app.call("_close_building_panel")
+	app.call("_close_location_scene")
+
 func _check_campaign_contact(app: Node, state: WorldState) -> void:
 	# Set up the case, then use the same input as a player for the entire visit.
 	app.call("_choose_story_event", "dead_prince_order", "quiet")
@@ -340,6 +418,27 @@ func _check_campaign_contact(app: Node, state: WorldState) -> void:
 	if location.visible:
 		failures.append("Второй Escape должен вернуть из тронного зала на карту")
 
+func _check_seal_dossier(app: Node) -> void:
+	var body := app.get("secretary_case_body") as Control
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	var link := _find_button(body, "Материалы дела о печати")
+	if link == null:
+		failures.append("Из канцелярии должны открываться материалы расследования")
+		return
+	scroll.ensure_control_visible(link)
+	await process_frame
+	_click(link.get_global_rect().get_center())
+	await process_frame
+	var title := app.get("secretary_title") as Label
+	var back := _find_button(body, "← К делам канцелярии")
+	if title.text != "Дело о второй печати" or back == null:
+		failures.append("Папка должна открываться отдельной страницей с возвратом")
+		return
+	_click(back.get_global_rect().get_center())
+	await process_frame
+	if title.text != "Дела княжеской канцелярии":
+		failures.append("Из папки нужно возвращаться к открытым делам")
+
 func _check_compact_dialogue(location: Control, state: WorldState) -> void:
 	var normal_scale := root.content_scale_size
 	root.content_scale_size = Vector2i.ZERO
@@ -348,7 +447,7 @@ func _check_compact_dialogue(location: Control, state: WorldState) -> void:
 	var replies: Dictionary = {}
 	for index in range(6):
 		replies[str(index)] = {"title": ("Предложить обсудить следующий шаг без посторонних. ").repeat(7)}
-	location.call("show_dialogue", "spouse", state.characters["spouse"], state.conversations.profile("spouse"), replies)
+	location.call("show_dialogue", "spouse", state.characters["spouse"], state.conversations.profile("spouse"), {"questions": replies})
 	await process_frame
 	await process_frame
 	var panel := location.get("dialogue_panel") as Control
@@ -358,7 +457,7 @@ func _check_compact_dialogue(location: Control, state: WorldState) -> void:
 		failures.append("На 720×440 длинные реплики должны помещаться без горизонтальной прокрутки")
 	if not scroll.get_v_scroll_bar().visible:
 		failures.append("Шесть длинных реплик должны прокручиваться вертикально")
-	var last_reply := choices.get_child(5) as Control
+	var last_reply := choices.get_child(choices.get_child_count() - 1) as Control
 	last_reply.grab_focus()
 	await process_frame
 	if scroll.scroll_vertical <= 0:

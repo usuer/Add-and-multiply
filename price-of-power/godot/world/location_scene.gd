@@ -6,6 +6,7 @@ const CHARACTER_ACTOR := preload("res://world/character_actor.gd")
 signal back_requested
 signal person_selected(person_id: String)
 signal option_selected(person_id: String, option_id: String)
+signal new_case_requested(person_id: String, case_id: String)
 signal management_requested(location_id: String)
 
 var location_id: String = ""
@@ -21,10 +22,13 @@ var dialogue_name: Label
 var dialogue_role: Label
 var dialogue_prompt: Label
 var dialogue_response: Label
+var dialogue_answer: Label
+var dialogue_case_heading: Label
 var dialogue_options: VBoxContainer
 var dialogue_scroll: ScrollContainer
 var dialogue_cost: Label
 var active_person: String = ""
+var active_case_id: String = ""
 var person_hotspots: Dictionary = {}
 var dialogue_close: Button
 var portrait_actor: Control
@@ -147,6 +151,8 @@ func _create_dialogue_layer() -> void:
 	dialogue_role.modulate = Color("d9bd72")
 	dialogue_role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conversation.add_child(dialogue_role)
+	dialogue_case_heading = _dialogue_heading("")
+	conversation.add_child(dialogue_case_heading)
 	dialogue_prompt = Label.new()
 	dialogue_prompt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialogue_prompt.modulate = Color("c7d0c3")
@@ -156,8 +162,12 @@ func _create_dialogue_layer() -> void:
 	dialogue_response.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialogue_response.add_theme_font_size_override("font_size", 17)
 	conversation.add_child(dialogue_response)
+	dialogue_answer = Label.new()
+	dialogue_answer.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dialogue_answer.modulate = Color("ddd0b2")
+	conversation.add_child(dialogue_answer)
 	dialogue_cost = Label.new()
-	dialogue_cost.text = "Ответ: +1 к усталости князя"
+	dialogue_cost.text = "Решение окончательное. Усталость +1."
 	dialogue_cost.add_theme_color_override("font_color", Color("d9bd72"))
 	dialogue_cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	conversation.add_child(dialogue_cost)
@@ -193,7 +203,7 @@ func configure(new_location_id: String, title: String, texture: Texture2D, hotsp
 	_cycle_focus(focus_order)
 	call_deferred("_layout_people")
 
-func show_dialogue(person_id: String, character: CharacterState, profile: Dictionary, options: Dictionary, response: String = "", revisiting: bool = false, can_reply: bool = true, scene_brief: String = "") -> void:
+func show_dialogue(person_id: String, character: CharacterState, profile: Dictionary, view: Dictionary) -> void:
 	if active_person != person_id or portrait_actor == null:
 		if portrait_actor != null:
 			dialogue_portrait.remove_child(portrait_actor)
@@ -205,44 +215,85 @@ func show_dialogue(person_id: String, character: CharacterState, profile: Dictio
 		dialogue_portrait.add_child(portrait_actor)
 		_layout_portrait()
 	active_person = person_id
+	var case_data: Dictionary = view.get("case", {})
+	var receipt: Dictionary = view.get("receipt", {})
+	var questions: Dictionary = view.get("questions", {})
+	var can_reply: bool = view.get("can_reply", true)
+	var options: Dictionary = case_data.get("options", {})
+	active_case_id = str(case_data.get("id", ""))
 	dialogue_name.text = character.display_name
 	dialogue_role.text = str(profile.get("role", ""))
-	dialogue_prompt.text = scene_brief if not scene_brief.is_empty() else str(profile.get("prompt", ""))
-	dialogue_prompt.visible = not dialogue_prompt.text.is_empty() and (not scene_brief.is_empty() or response.is_empty())
-	dialogue_response.text = response
-	if response.is_empty() and scene_brief.is_empty():
-		dialogue_response.text = "«%s»" % str(profile.get("opening", ""))
-	if revisiting and not response.is_empty():
-		dialogue_response.text = "В прошлый раз\n%s" % response
+	var case_title := str(case_data.get("title", ""))
+	dialogue_case_heading.text = "Решение принято" if not receipt.is_empty() else case_title
+	dialogue_case_heading.visible = not dialogue_case_heading.text.is_empty()
+	dialogue_prompt.text = str(case_data.get("brief", profile.get("prompt", ""))) if receipt.is_empty() else str(receipt.get("title", ""))
+	dialogue_prompt.visible = not dialogue_prompt.text.is_empty()
+	dialogue_response.text = str(receipt.get("response", ""))
+	if case_data.is_empty() and receipt.is_empty() and not str(profile.get("opening", "")).is_empty():
+		dialogue_response.text = "«%s»" % str(profile["opening"])
 	dialogue_response.visible = not dialogue_response.text.is_empty()
+	dialogue_answer.text = str(view.get("answer", ""))
+	dialogue_answer.visible = not dialogue_answer.text.is_empty()
 	for child in dialogue_options.get_children():
 		dialogue_options.remove_child(child)
 		child.queue_free()
 	dialogue_cost.visible = can_reply and not options.is_empty()
 	var focus_order: Array[Control] = [dialogue_close]
-	if not dialogue_cost.visible:
+	if can_reply and not questions.is_empty():
+		dialogue_options.add_child(_dialogue_heading("Вопросы · без последствий"))
+		_add_dialogue_choices(questions, focus_order)
+	if dialogue_cost.visible:
+		dialogue_options.add_child(_dialogue_heading("Как распорядиться"))
+		_add_dialogue_choices(options, focus_order)
+	var other_cases: Array = view.get("other_cases", [])
+	if can_reply and not other_cases.is_empty():
+		dialogue_options.add_child(_dialogue_heading("Другие дела"))
+		for other: Dictionary in other_cases:
+			var next_case := Button.new()
+			next_case.text = str(other["title"]) + " →"
+			next_case.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			next_case.custom_minimum_size.y = 44
+			next_case.pressed.connect(_open_other_case.bind(str(other["id"])))
+			dialogue_options.add_child(next_case)
+			focus_order.append(next_case)
+	if not can_reply or (options.is_empty() and questions.is_empty() and receipt.is_empty()):
 		var complete := Label.new()
-		complete.text = "Все доступные сейчас темы уже обсуждены. Новые обстоятельства могут открыть другой разговор."
+		complete.text = "Сейчас у собеседника нет нового дела."
 		if not can_reply:
 			complete.text = "Князю сейчас нужен отдых. К разговору можно вернуться, когда он сможет заниматься делами."
 		complete.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		complete.modulate = Color("b9c2b3")
 		dialogue_options.add_child(complete)
-	else:
-		for option_id: String in options:
-			var choice := Button.new()
-			choice.text = str((options[option_id] as Dictionary).get("title", option_id))
-			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			choice.custom_minimum_size.y = 42
-			choice.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-			choice.pressed.connect(func(): option_selected.emit(person_id, option_id))
-			dialogue_options.add_child(choice)
-			focus_order.append(choice)
 	_cycle_focus(focus_order)
 	dialogue_layer.visible = true
 	dialogue_close.grab_focus()
 	dialogue_scroll.scroll_vertical = 0
+
+func _dialogue_heading(text: String) -> Label:
+	var heading := Label.new()
+	heading.text = text
+	heading.modulate = Color("d9bd72")
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	heading.add_theme_font_size_override("font_size", 17)
+	return heading
+
+func _open_other_case(case_id: String) -> void:
+	new_case_requested.emit(active_person, case_id)
+
+func _add_dialogue_choices(options: Dictionary, focus_order: Array[Control]) -> void:
+	for option_id: String in options:
+		var choice := Button.new()
+		var option: Dictionary = options[option_id]
+		choice.text = str(option.get("title", option_id))
+		if option.get("asked", false):
+			choice.text += " · ответ уже известен"
+		choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		choice.custom_minimum_size.y = 42
+		choice.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		choice.pressed.connect(func(): option_selected.emit(active_person, option_id))
+		dialogue_options.add_child(choice)
+		focus_order.append(choice)
 
 func _cycle_focus(focus_order: Array[Control]) -> void:
 	for index in range(focus_order.size()):
@@ -272,6 +323,7 @@ func close_dialogue() -> void:
 	var actor := person_actors.get(active_person) as Control
 	dialogue_layer.visible = false
 	active_person = ""
+	active_case_id = ""
 	if navigation_enabled and actor != null and actor.is_visible_in_tree():
 		actor.grab_focus()
 

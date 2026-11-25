@@ -1,6 +1,8 @@
 class_name CouncilState
 extends Resource
 
+const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
+
 const ROLES: Dictionary = {
 	"steward": "Управляющий казной",
 	"marshal": "Воевода",
@@ -31,6 +33,8 @@ func candidates_for(role_id: String) -> Array[String]:
 
 func appoint(state: WorldState, role_id: String, candidate_id: String) -> bool:
 	if not state.can_govern() or not ROLES.has(role_id) or not CANDIDATES.has(candidate_id):
+		return false
+	if not COURT_AUTHORITY.is_present(state, candidate_id):
 		return false
 	if str(CANDIDATES[candidate_id]["role"]) != role_id or str(appointments.get(role_id, "")) == candidate_id:
 		return false
