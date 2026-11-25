@@ -51,6 +51,7 @@ func _initialize() -> void:
 	_test_questions_do_not_replace_decisions()
 	_test_forge_request_changes_the_grain_route()
 	_test_opening_evidence_creates_a_distinct_branch()
+	_test_recovered_grain_reaches_its_chosen_destination_once()
 	_test_authority_changes_cast_and_records_fallout()
 	_test_opening_promises_have_followthrough()
 	_test_exchange_resolves_before_the_crisis()
@@ -65,7 +66,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 54 checks")
+		print("PASS Godot foundation: 55 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -333,6 +334,9 @@ func _test_every_story_choice_has_working_outcome() -> void:
 				state.story_timeline.resolved["night_of_second_seal"] = {"choice": "capital", "cycle": 17}
 			if event_id == "east_gate_witness":
 				state.story_timeline.resolved["granary_roof"] = {"choice": "inspect", "cycle": 2}
+			if event_id == "grain_restitution":
+				state.story_timeline.resolved["east_gate_witness"] = {"choice": "seal", "cycle": 4}
+				state.story_timeline.resolved["savva_at_chapel"] = {"choice": "safe_passage", "cycle": 9}
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
@@ -394,6 +398,51 @@ func _test_opening_evidence_creates_a_distinct_branch() -> void:
 		state.advance_period()
 	_expect(state.story_timeline.choose(state, "savva_at_chapel", "safe_passage"), "После показаний должно быть можно встретиться с Саввой")
 	_expect(state.facts.get("second_seal_order_proof") == true, "Независимые свидетельства должны давать альтернативный путь к доказательству")
+
+func _test_recovered_grain_reaches_its_chosen_destination_once() -> void:
+	const CASE_ID := "grain_restitution"
+	var state := WorldState.new()
+	state.advance_period()
+	state.story_timeline.choose(state, "granary_roof", "inspect")
+	while state.calendar.cycle < 4:
+		state.advance_period()
+	state.story_timeline.choose(state, "east_gate_witness", "seal")
+	while state.calendar.cycle < 9:
+		state.advance_period()
+	var interrupted := WorldState.from_data(state.to_data())
+	interrupted.story_timeline.choose(interrupted, "savva_at_chapel", "arrest")
+	interrupted.advance_period()
+	_expect(CASE_ID not in interrupted.story_timeline.available_events(10), "После ареста Саввы без сверки склад не должен появляться")
+	state.story_timeline.choose(state, "savva_at_chapel", "safe_passage")
+	_expect(CASE_ID not in state.story_timeline.available_events(9), "Мареку нужен период для проверки склада после встречи")
+	state.advance_period()
+	_expect(CASE_ID in state.story_timeline.available_events(10) and str(state.period_report["notes"]).contains("Нашли часть пропавшего зерна"),
+		"Найденное зерно должно открыть дело и появиться в сводке")
+	for choice_id: String in ["villages", "reserve", "court"]:
+		var branch := WorldState.from_data(state.to_data())
+		branch.state_treasury = 0
+		var grain := int(branch.resources["grain"])
+		_expect(branch.story_timeline.choose(branch, CASE_ID, choice_id), "Распоряжение должно быть доступно с пустой казной")
+		_expect(not branch.facts.has("grain_restitution_result") and int(branch.resources["grain"]) == grain, "Подтверждение отправки не должно мгновенно менять запас")
+		branch = WorldState.from_data(branch.to_data())
+		_expect(not branch.story_timeline.choose(branch, CASE_ID, "reserve"), "Сохранённое распоряжение нельзя повторить")
+		branch.advance_period()
+		var expected: String = {"villages": "delivered", "reserve": "in_reserve", "court": "registered"}[choice_id]
+		_expect(branch.facts.get("grain_restitution_result") == expected, "Каждый из трёх приказов должен дать собственный итог")
+		_expect(int(branch.resources["grain"]) == grain + (6 if choice_id == "reserve" else 0), "Только решение об амбаре увеличивает княжеский запас")
+		_expect(str(SEAL_CASE_FILE.entries(branch)).contains("Зерно со старого обоза"), "В досье должен остаться фактический исход")
+		var report_count := branch.story_timeline.reports.filter(func(report: Dictionary) -> bool: return report["title"] == "Что стало с зерном с речного склада").size()
+		branch.advance_period()
+		_expect(report_count == 1 and branch.story_timeline.reports.filter(func(report: Dictionary) -> bool: return report["title"] == "Что стало с зерном с речного склада").size() == 1,
+			"Донесение по одному приказу должно появиться ровно один раз")
+	while state.calendar.cycle < 18:
+		state.advance_period()
+	var older_save := WorldState.from_data(state.to_data())
+	_expect(older_save.story_timeline.choose(older_save, CASE_ID, "villages"), "Позднее сохранение должно позволять распорядиться зерном до конца главы")
+	older_save.advance_period()
+	_expect(str(older_save.campaign_outcome.summary_lines).contains("довезли шесть мер зерна"), "Последнее распоряжение должно успеть попасть в эпилог")
+	state.advance_period()
+	_expect(state.facts.get("grain_restitution_result") == "missed", "При пропуске до конца главы мешки должны выйти из распоряжения двора")
 
 func _test_authority_changes_cast_and_records_fallout() -> void:
 	var state := WorldState.new()

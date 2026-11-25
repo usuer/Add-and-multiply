@@ -12,6 +12,9 @@ static func entries(state: WorldState) -> Array[Dictionary]:
 			result.append(_entry("Показание возчика", "Закрытое показание", "Самуил описал телегу и человека у ворот. Марек хранит запись. Имя свидетеля обещали не оглашать до суда."))
 		"public":
 			result.append(_entry("Объяснение возчика", "Публичное показание", "Самуил подтвердил расхождение при старшинах. Его слова известны в городе, поэтому совпадение с ними само по себе не делает новое письмо подлинным."))
+	var grain_restitution := _grain_restitution_entry(str(facts.get("grain_restitution_result", "")))
+	if not grain_restitution.is_empty():
+		result.append(grain_restitution)
 	if facts.get("grain_report_read", "") != "" and not state.grain_crisis.findings.is_empty():
 		result.append(_entry("Отчёт по амбарам", "Донесение", state.grain_crisis.findings.back()))
 	if facts.get("second_seal_investigation") in ["quiet", "public", "guard_detained"]:
@@ -50,6 +53,16 @@ static func entries(state: WorldState) -> Array[Dictionary]:
 	if facts.has("second_seal_crisis") and facts.get("second_seal_order_proof", false):
 		result.append(_entry("Перед слушаниями", "Вывод по новому делу", "По прежним платежам и ночным приказам нужны разные слушания. То, что отец платил людям Вардана, само по себе не доказывает, что он давал им право действовать после его смерти."))
 	return result
+
+static func _grain_restitution_entry(outcome: String) -> Dictionary:
+	const TITLE := "Зерно со старого обоза"
+	const EVIDENCE := "Метки на мешках и складские расписки помогли найти у реки шесть мер из груза старого обоза."
+	match outcome:
+		"delivered": return _entry(TITLE, "Доставка подтверждена", EVIDENCE + " Старосты расписались за зерно в деревнях.")
+		"in_reserve": return _entry(TITLE, "Принято в запас", EVIDENCE + " Княжеский амбар записал зерно в свои запасы.")
+		"registered": return _entry(TITLE, "Передано на рассмотрение", EVIDENCE + " Судьи оставили мешки под печатью и приняли документы по спору о долге.")
+		"missed": return _entry(TITLE, "Распоряжение не принято", EVIDENCE + " Канцелярия не получила решения, куда передать зерно.")
+	return {}
 
 static func _entry(title: String, status: String, text: String) -> Dictionary:
 	return {"title": title, "status": status, "text": text}

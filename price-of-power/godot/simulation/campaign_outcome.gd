@@ -34,6 +34,11 @@ func _realm_summary(state: WorldState, rural: FactionState, guilds: FactionState
 		result = "В амбаре по-прежнему ждут плотников. Старосты помнят, сколько зерна отсырело под открытой кровлей."
 	elif rural.disposition >= 3 and guilds.disposition >= 0:
 		result = "В областях и цехах у нового князя появились сторонники. Пока те готовы отвечать лишь за решения, которые видели сами."
+	match str(state.facts.get("grain_restitution_result", "")):
+		"delivered": result += " В деревни довезли шесть мер зерна из старого обоза."
+		"in_reserve": result += " Часть груза старого обоза поступила в княжеский запас."
+		"registered": result += " Найденные мешки опечатаны до решения судей о долге."
+		"missed": result += " Деревни так и не получили ответа, что делать с найденным зерном."
 	match str(state.facts.get("miron_grain_oversight", "")):
 		"open_weighing": result += " Выдачу впервые проверили у весов при горожанах."
 		"ward_receipts": result += " У каждого квартала теперь есть расписка о его доле зерна."

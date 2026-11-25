@@ -58,6 +58,16 @@ const DEFINITIONS: Dictionary = {
 		"summary": "Дворцовый писец Савва Лунь передал Мареку записку. Он говорит, что знает, кто заплатил за вывод его брата Ильи из тюрьмы. Савва готов принести список подложных приказов в часовню, если там не будет городской стражи. Радомир предлагает незаметно охранять встречу, Дарен просит сначала задержать Савву.",
 		"choices": {"meet": "Прийти со скрытым прикрытием Радомира", "arrest": "Послать Дарена взять Савву живым", "safe_passage": "Дать Савве письменное обещание безопасного допроса"}
 	},
+	"grain_restitution": {
+		"cycle": 10, "title": "Нашли часть пропавшего зерна", "location": "Речной склад",
+		"open_until_finale": true,
+		"summary": "Савва узнал в накладной помету склада у реки. Марек проверил бирки на мешках и нашёл там шесть мер из старого обоза. Старосты просят отдать зерно деревням, которые тогда остались без него. Хозяин склада показывает расписку: по ней эти мешки полагались ему в счёт долга двора за помол.\n\nХозяин согласился не трогать мешки до конца лета. Ладе нужно знать, куда их везти: в деревни, в княжеский амбар или в кладовую судей, пока те проверяют расписку.",
+		"choices": {
+			"villages": "Вернуть найденное зерно пострадавшим деревням",
+			"reserve": "Забрать зерно в общий запас княжеского амбара",
+			"court": "Запечатать мешки у судей и проверить расписку о долге"
+		}
+	},
 	"fever_outbreak": {
 		"cycle": 10, "title": "Горячка в нижнем городе", "location": "Речной квартал",
 		"summary": "За три дня слегли семьи кожевников и двое лодочников. Причина неизвестна; слухи уже называют воду, чужеземцев и Божий гнев.",
@@ -121,6 +131,10 @@ func opening_cycle(event_id: String) -> int:
 	if event_id in ["scout_report", "border_consequence"]:
 		var border: Dictionary = resolved.get("border_courier", {})
 		return maxi(first_cycle, int(border.get("cycle", first_cycle)) + 2)
+	if event_id == "grain_restitution":
+		var witness: Dictionary = resolved.get("east_gate_witness", {})
+		var meeting: Dictionary = resolved.get("savva_at_chapel", {})
+		return maxi(first_cycle, maxi(int(witness.get("cycle", 0)), int(meeting.get("cycle", 0))) + 1)
 	return first_cycle
 
 func _is_unlocked(event_id: String) -> bool:
@@ -135,6 +149,10 @@ func _is_unlocked(event_id: String) -> bool:
 		return not resolved.has("night_of_second_seal")
 	if event_id == "east_gate_witness":
 		return (resolved.get("granary_roof", {}) as Dictionary).get("choice") == "inspect"
+	if event_id == "grain_restitution":
+		var witness: Dictionary = resolved.get("east_gate_witness", {})
+		var meeting: Dictionary = resolved.get("savva_at_chapel", {})
+		return witness.get("choice") in ["seal", "public"] and meeting.get("choice") in ["meet", "safe_passage"]
 	return true
 
 func update(state: WorldState) -> void:
@@ -146,6 +164,7 @@ func _apply_delayed_results(state: WorldState) -> void:
 	_resolve_vardan_exchange(state)
 	_resolve_northern_reply(state)
 	_resolve_pump_workshop(state)
+	_resolve_grain_restitution(state)
 	var roof: Dictionary = resolved.get("granary_roof", {})
 	if roof.get("choice") == "inspect" and not roof.get("followup_applied", false) and state.calendar.cycle >= int(roof["cycle"]) + 2:
 		roof["followup_applied"] = true
@@ -261,11 +280,38 @@ func _resolve_pump_workshop(state: WorldState) -> void:
 	state.public_health = mini(100, state.public_health + (5 if prepared else 3))
 	_add_report(state.calendar.cycle, "Тихон закончил работу в литейной", "После месяца работы машину установили у красильни. Тихон показал дворовым, как менять клапан. Лекари подтверждают, что чистую воду теперь не приходится носить с нижнего берега." if prepared else "Механизм запустили у красильни. Он подаёт чистую воду в один двор. Тихон оставил там чертёж клапана: если мастер снова понадобится, ему смогут объяснить, какая деталь вышла из строя.")
 
+func _resolve_grain_restitution(state: WorldState) -> void:
+	var record: Dictionary = resolved.get("grain_restitution", {})
+	if record.is_empty() or state.facts.has("grain_restitution_result") or state.calendar.cycle <= int(record["cycle"]):
+		return
+	var rural := state.factions["rural"] as FactionState
+	var guilds := state.factions["guilds"] as FactionState
+	var text := ""
+	match str(record.get("choice", "")):
+		"villages":
+			state.facts["grain_restitution_result"] = "delivered"
+			rural.react(state.calendar.cycle, 4, "Лада доставила найденное зерно в деревни по списку прежней недостачи.")
+			guilds.react(state.calendar.cycle, -2, "Хозяин склада потерял казённое зерно, которое считал платой за помол.")
+			text = "Лада привезла расписки от старост. Все шесть мер приняли деревни, которым их не довезли в прошлый раз. В этих расписках записано, сколько получил каждый двор. Хозяин склада принёс в канцелярию требование оплатить помол деньгами."
+		"reserve":
+			state.facts["grain_restitution_result"] = "in_reserve"
+			state.resources["grain"] = int(state.resources["grain"]) + 6
+			rural.react(state.calendar.cycle, -3, "Старосты увидели, что зерно со склада отправили в столичный резерв.")
+			text = "В княжеском амбаре приняли и взвесили все шесть мер. Старосты увидели возы у городских ворот и попросили Ладу добиться отдельного решения о выдаче. Расписку хозяина склада Марек оставил в деле."
+		"court":
+			state.facts["grain_restitution_result"] = "registered"
+			rural.react(state.calendar.cycle, -1, "Найденное зерно останется под печатью, пока судьи проверяют требование об оплате.")
+			guilds.react(state.calendar.cycle, 2, "Судьи записали претензии сторон, прежде чем распоряжаться запасом.")
+			text = "Судьи приняли шесть мер под свою печать. Лада получила копию описи и отнесла её старостам. Теперь суду нужно установить, действительно ли двор отдал эти мешки за помол. На выдачу зерно пока не пошло."
+		_:
+			return
+	_add_report(state.calendar.cycle, "Что стало с зерном с речного склада", text)
+
 func _resolve_neglected_events(state: WorldState) -> void:
 	for event_id: String in DEFINITIONS:
 		if resolved.has(event_id) or not _is_unlocked(event_id):
 			continue
-		if not state.calendar.is_demo_complete() and state.calendar.cycle < opening_cycle(event_id) + 2:
+		if not state.calendar.is_demo_complete() and (DEFINITIONS[event_id].get("open_until_finale", false) or state.calendar.cycle < opening_cycle(event_id) + 2):
 			continue
 		var result := _neglect_consequence(state, event_id)
 		resolved[event_id] = {"choice": "neglected", "cycle": state.calendar.cycle, "outcome": result}
@@ -309,6 +355,10 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
+		"grain_restitution":
+			state.facts["grain_restitution_result"] = "missed"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Двор не распорядился вернуть найденное зерно, пока оно было на складе.")
+			return "Хозяин склада пустил найденные мешки в помол по своей расписке. Лада увезла старостам только копию накладной. По бумаге можно разбираться с долгом, а вернуть эти шесть мер уже нельзя."
 		"granary_roof":
 			state.resources["grain"] = maxi(0, int(state.resources.get("grain", 0)) - 12)
 			state.facts["granary_roof"] = "collapsed"
@@ -627,6 +677,12 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> String:
 	match "%s:%s" % [event_id, choice_id]:
+		"grain_restitution:villages":
+			return "Лада забрала у хозяина список мешков и послала за телегами. У старост она попросит расписки о получении. Хозяину велели оставить в канцелярии свою расписку о долге."
+		"grain_restitution:reserve":
+			return "В княжеский амбар послали приказ принять мешки в общий запас, взвесить их отдельно и отметить, с какого склада они приехали. Лада предупредит старост, что зерно пока отвезут в город."
+		"grain_restitution:court":
+			return "Марек позвал судебного писца. Тот сверит бирки и опечатает мешки. Лада просит копию описи для старост и записку, когда судьи смогут выслушать обе стороны."
 		"granary_roof:repair":
 			state.state_treasury -= 5
 			state.facts["granary_roof"] = "repaired"

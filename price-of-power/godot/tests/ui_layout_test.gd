@@ -152,6 +152,7 @@ func _run() -> void:
 	await _check_castle_people_picker(app, state)
 	await _check_authority_confirmation(app, state)
 	await _check_family_letter_from_secretary(app, state)
+	await _check_grain_restitution_in_secretary(app, state)
 	await _check_hearing_and_epilogue(app, state)
 	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
@@ -557,6 +558,43 @@ func _check_family_letter_from_secretary(app: Node, original: WorldState) -> voi
 			failures.append("После отправки из канцелярии оба ответа на письмо должны исчезнуть")
 	app.call("_close_secretary")
 	app.set("state", original)
+
+func _check_grain_restitution_in_secretary(app: Node, original: WorldState) -> void:
+	var chapter := WorldState.new()
+	chapter.opening_decision.choose_funeral("modest")
+	chapter.opening_decision.choose_grain("partial")
+	chapter.opening_decision.resolve(chapter)
+	chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "granary_roof", "inspect")
+	while chapter.calendar.cycle < 4:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "east_gate_witness", "seal")
+	while chapter.calendar.cycle < 9:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "savva_at_chapel", "safe_passage")
+	chapter.advance_period()
+	app.set("state", chapter)
+	app.call("_refresh_ui", "В канцелярии новое дело")
+	app.call("_open_secretary")
+	var body := app.get("secretary_case_body") as Control
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	await _click_secretary_choice(body, scroll, "Вернуть найденное зерно")
+	var receipt := body.get_node_or_null("StoryResult") as Label
+	if receipt == null or not receipt.text.contains("расписки о получении"):
+		failures.append("В канцелярии должен быть виден приказ о возвращении найденного зерна")
+	if _find_button(body, "Запечатать мешки у судей") != null:
+		failures.append("После приказа другие способы распорядиться зерном должны исчезнуть")
+	app.call("_close_secretary")
+	app.call("_on_advance_period")
+	await process_frame
+	var report := app.get("period_report_panel") as Control
+	var labels: Array[String] = []
+	_collect_label_text(report, labels)
+	if not report.visible or not str(labels).contains("Все шесть мер приняли деревни"):
+		failures.append("Из следующей сводки должно быть понятно, куда доставили найденное зерно")
+	app.call("_close_period_report")
+	app.set("state", original)
+	app.call("_refresh_ui", "Кампания продолжается")
 
 func _check_hearing_and_epilogue(app: Node, original: WorldState) -> void:
 	var chapter := WorldState.new()
