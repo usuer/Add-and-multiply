@@ -606,12 +606,27 @@ func _check_grain_restitution_in_secretary(app: Node, original: WorldState) -> v
 	var paid_choice := _find_button(body, "Все шесть мер деревням")
 	if paid_choice == null or not paid_choice.disabled or not paid_choice.text.contains("4"):
 		failures.append("Платный вариант должен показывать цену и быть закрыт при пустой казне")
-	await _click_secretary_choice(body, scroll, "Три меры деревням")
+	await _click_secretary_choice(body, scroll, "Все шесть мер хозяину")
 	receipt = body.get_node_or_null("StoryResult") as Label
 	if receipt == null or not receipt.text.contains("за помол ему больше ничего не должны"):
-		failures.append("После бесплатного раздела канцелярия должна показать итог слушания")
-	if _find_button(body, "Все шесть мер хозяину") != null:
+		failures.append("После решения канцелярия должна показать итог слушания")
+	if _find_button(body, "Три меры деревням") != null:
 		failures.append("После вынесенного решения альтернативы суда должны исчезнуть")
+	app.call("_close_secretary")
+	app.call("_on_advance_period")
+	await process_frame
+	app.call("_close_period_report")
+	chapter.resources["grain"] = 0
+	chapter.state_treasury = 0
+	app.call("_open_secretary")
+	await process_frame
+	var grain_choice := _find_button(body, "Выдать зерно сейчас")
+	if grain_choice == null or not grain_choice.disabled or not grain_choice.text.contains("3 меры"):
+		failures.append("Немедленная выдача должна показать цену и блокироваться без зерна")
+	await _click_secretary_choice(body, scroll, "Дать дворам первое место")
+	receipt = body.get_node_or_null("StoryResult") as Label
+	if receipt == null or not receipt.text.contains("Гаврила расписались"):
+		failures.append("При пустом амбаре и казне игрок должен получить подписанную грамоту")
 	app.call("_close_secretary")
 	app.set("state", original)
 	app.call("_refresh_ui", "Кампания продолжается")

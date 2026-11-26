@@ -78,6 +78,15 @@ const DEFINITIONS: Dictionary = {
 			"creditor": "Все шесть мер хозяину, просьбу деревень отложить"
 		}
 	},
+	"rural_repair": {
+		"cycle": 13, "title": "С чем Гавриле вернуться в деревни", "location": "Двор княжеского амбара",
+		"open_until_finale": true,
+		"summary": "Судьи отдали зерно с речного склада мельнику. Староста Гаврила принёс Ладе список дворов, которым по-прежнему не хватает муки. Он просит выдать им три меры из княжеского амбара. Если запас нужен городу, Гаврила согласен увезти грамоту: пропустить эти дворы вперёд при осенней выдаче. Он просит подписать её при свидетелях и оставить копию в деревнях.",
+		"choices": {
+			"public_receipts": "Выдать зерно сейчас и дать старостам копию ведомости",
+			"winter_credit": "Дать дворам первое место при осенней выдаче"
+		}
+	},
 	"fever_outbreak": {
 		"cycle": 10, "title": "Горячка в нижнем городе", "location": "Речной квартал",
 		"summary": "За три дня слегли семьи кожевников и двое лодочников. Причина неизвестна; слухи уже называют воду, чужеземцев и Божий гнев.",
@@ -148,6 +157,9 @@ func opening_cycle(event_id: String) -> int:
 	if event_id == "grain_debt_hearing":
 		var referral: Dictionary = resolved.get("grain_restitution", {})
 		return maxi(first_cycle, int(referral.get("cycle", 0)) + 2)
+	if event_id == "rural_repair":
+		var hearing: Dictionary = resolved.get("grain_debt_hearing", {})
+		return maxi(first_cycle, int(hearing.get("cycle", 0)) + 1)
 	return first_cycle
 
 func deadline_cycle(event_id: String) -> int:
@@ -175,6 +187,9 @@ func _is_unlocked(event_id: String) -> bool:
 	if event_id == "grain_debt_hearing":
 		var referral: Dictionary = resolved.get("grain_restitution", {})
 		return referral.get("choice") == "court" and opening_cycle(event_id) <= deadline_cycle(event_id)
+	if event_id == "rural_repair":
+		var hearing: Dictionary = resolved.get("grain_debt_hearing", {})
+		return hearing.get("choice") == "creditor" and opening_cycle(event_id) <= deadline_cycle(event_id)
 	return true
 
 func update(state: WorldState) -> void:
@@ -377,6 +392,10 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
+		"rural_repair":
+			state.facts["rural_repair"] = "missed"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Старосты остались без зерна и без обещанной даты разговора.")
+			return "Гаврила подождал у амбара до отъезда последней телеги. Ему не выдали зерно и не дали грамоту об осенней очереди. Лада оставила список дворов в канцелярии."
 		"grain_debt_hearing":
 			state.facts["grain_debt_verdict"] = "unheard"
 			return "Судьи до конца лета ждали распоряжения о шести мерах со спорного склада. Мешки остались под печатью. Лада вернула старостам копию описи без даты выдачи."
@@ -456,6 +475,8 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
 	if event_id == "grain_restitution" and state.calendar.cycle + 2 > deadline_cycle("grain_debt_hearing"):
 		event["summary"] += " Если передать зерно судьям сейчас, они примут мешки на хранение. Слушание начнётся уже после конца лета."
+	if event_id == "grain_debt_hearing" and state.calendar.cycle == deadline_cycle(event_id):
+		event["summary"] += " Если всё зерно уйдёт хозяину склада, вернуться к просьбе старост получится уже после конца лета."
 	if event_id == "granary_roof":
 		if state.facts.get("father_warned_of_traitor", false):
 			event["summary"] += " В кладовке может быть накладная того обоза, о котором говорил отец."
@@ -662,7 +683,10 @@ func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 		return false
 	if not (definition(event_id).get("choices", {}) as Dictionary).has(choice_id):
 		return false
-	return state.state_treasury >= choice_gold_cost(event_id, choice_id)
+	return state.state_treasury >= choice_gold_cost(event_id, choice_id) and int(state.resources.get("grain", 0)) >= choice_grain_cost(event_id, choice_id)
+
+func choice_grain_cost(event_id: String, choice_id: String) -> int:
+	return 3 if event_id == "rural_repair" and choice_id == "public_receipts" else 0
 
 func choice_gold_cost(event_id: String, choice_id: String) -> int:
 	match "%s:%s" % [event_id, choice_id]:
@@ -705,6 +729,15 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> String:
 	match "%s:%s" % [event_id, choice_id]:
+		"rural_repair:public_receipts":
+			state.resources["grain"] = int(state.resources["grain"]) - choice_grain_cost(event_id, choice_id)
+			state.facts["rural_repair"] = "public_receipts"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, 4, "Старосты получили зерно из княжеского запаса и копию ведомости.")
+			return "При Ладе взвесили три меры из княжеского амбара. Гаврила отвёз их семьям из списка. Он прикрепил копию ведомости у мельницы, чтобы люди могли проверить, сколько получил каждый двор."
+		"rural_repair:winter_credit":
+			state.facts["rural_repair"] = "winter_credit"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, 1, "У дворов есть подписанная грамота на первую осеннюю выдачу.")
+			return "Марек внёс дворы в начало списка осенней выдачи. Лада и Гаврила расписались при свидетелях. Гаврила увёз копию с печатью и попросил назвать день, как только станет известен размер осеннего запаса."
 		"grain_debt_hearing:split", "grain_debt_hearing:villages", "grain_debt_hearing:creditor":
 			return _settle_grain_debt(state, choice_id)
 		"grain_restitution:villages":

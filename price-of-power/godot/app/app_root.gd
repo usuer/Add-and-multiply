@@ -935,6 +935,11 @@ func _add_available_story_events() -> void:
 				choice.text += " · %d монет" % cost
 				if state.state_treasury < cost:
 					choice.tooltip_text = "В казне не хватает денег на это распоряжение."
+			var grain_cost := state.story_timeline.choice_grain_cost(event_id, choice_id)
+			if grain_cost > 0:
+				choice.text += " · %d меры зерна" % grain_cost
+				if int(state.resources.get("grain", 0)) < grain_cost:
+					choice.tooltip_text = "В княжеском амбаре не хватает зерна."
 			choice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			choice.custom_minimum_size = Vector2(0, 40)

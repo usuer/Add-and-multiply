@@ -53,6 +53,7 @@ func _initialize() -> void:
 	_test_opening_evidence_creates_a_distinct_branch()
 	_test_recovered_grain_reaches_its_chosen_destination_once()
 	_test_grain_debt_hearing_has_distinct_settlements_and_deadlines()
+	_test_rural_repair_can_be_funded_with_grain_or_a_signed_commitment()
 	_test_authority_changes_cast_and_records_fallout()
 	_test_opening_promises_have_followthrough()
 	_test_exchange_resolves_before_the_crisis()
@@ -67,7 +68,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 56 checks")
+		print("PASS Godot foundation: 57 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -341,6 +342,8 @@ func _test_every_story_choice_has_working_outcome() -> void:
 			if event_id == "grain_debt_hearing":
 				state.story_timeline.resolved["grain_restitution"] = {"choice": "court", "cycle": 10}
 				state.facts["grain_restitution_result"] = "registered"
+			if event_id == "rural_repair":
+				state.story_timeline.resolved["grain_debt_hearing"] = {"choice": "creditor", "cycle": 12}
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
@@ -493,6 +496,36 @@ func _test_grain_debt_hearing_has_distinct_settlements_and_deadlines() -> void:
 	late.story_timeline.choose(late, "grain_restitution", "court")
 	late.advance_period()
 	_expect(late.facts.get("grain_restitution_result") == "registered" and not late.facts.has("grain_debt_verdict"), "Если дело только зарегистрировали, эпилог не должен считать слушание пропущенным")
+
+func _test_rural_repair_can_be_funded_with_grain_or_a_signed_commitment() -> void:
+	const CASE_ID := "rural_repair"
+	var state := WorldState.new()
+	while state.calendar.cycle < 12:
+		state.advance_period()
+	state.story_timeline.resolved["grain_restitution"] = {"choice": "court", "cycle": 10}
+	state.facts["grain_restitution_result"] = "registered"
+	var split := WorldState.from_data(state.to_data())
+	split.story_timeline.choose(split, "grain_debt_hearing", "split")
+	split.advance_period()
+	_expect(CASE_ID not in split.story_timeline.available_events(13), "Уже получившие долю старосты не должны возвращаться с этой просьбой")
+	_expect(state.story_timeline.choose(state, "grain_debt_hearing", "creditor"), "Решение отдать зерно мельнику должно быть доступно")
+	_expect(CASE_ID not in state.story_timeline.available_events(12), "Гавриле нужен период, чтобы собрать список дворов")
+	state = WorldState.from_data(state.to_data())
+	state.advance_period()
+	_expect(CASE_ID in state.story_timeline.available_events(13), "Список дворов должен появиться после загрузки")
+	state.state_treasury = 0
+	state.resources["grain"] = 2
+	_expect(not state.story_timeline.choose(state, CASE_ID, "public_receipts") and int(state.resources["grain"]) == 2, "Нельзя списать зерно сверх запаса")
+	var credit := WorldState.from_data(state.to_data())
+	_expect(credit.story_timeline.choose(credit, CASE_ID, "winter_credit") and int(credit.resources["grain"]) == 2, "Осенняя очередь должна быть доступна без расхода")
+	var direct := WorldState.from_data(state.to_data())
+	direct.resources["grain"] = 3
+	_expect(direct.story_timeline.choose(direct, CASE_ID, "public_receipts") and int(direct.resources["grain"]) == 0, "Немедленная выдача должна расходовать ровно три меры")
+	direct = WorldState.from_data(direct.to_data())
+	_expect(direct.facts.get("rural_repair") == "public_receipts" and not direct.story_timeline.choose(direct, CASE_ID, "winter_credit"), "Выданное зерно нельзя повторно заменить грамотой после загрузки")
+	while state.advance_period():
+		pass
+	_expect(state.facts.get("rural_repair") == "missed", "Пропуск просьбы старост должен остаться в итогах главы")
 
 func _test_authority_changes_cast_and_records_fallout() -> void:
 	var state := WorldState.new()
