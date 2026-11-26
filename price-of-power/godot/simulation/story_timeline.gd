@@ -2,6 +2,7 @@ class_name StoryTimeline
 extends Resource
 
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
+const RURAL_GRAIN_SHARE := 3
 
 const DEFINITIONS: Dictionary = {
 	"granary_roof": {
@@ -81,7 +82,7 @@ const DEFINITIONS: Dictionary = {
 	"rural_repair": {
 		"cycle": 13, "title": "С чем Гавриле вернуться в деревни", "location": "Двор княжеского амбара",
 		"open_until_finale": true,
-		"summary": "Судьи отдали зерно с речного склада мельнику. Староста Гаврила принёс Ладе список дворов, которым по-прежнему не хватает муки. Он просит выдать им три меры из княжеского амбара. Если запас нужен городу, Гаврила согласен увезти грамоту: пропустить эти дворы вперёд при осенней выдаче. Он просит подписать её при свидетелях и оставить копию в деревнях.",
+		"summary": "Судьи отдали зерно с речного склада мельнику. Староста Гаврила принёс Ладе список дворов, которым по-прежнему не хватает муки. Он просит выдать им три меры из княжеского амбара. Если запас нужен городу, Гаврила согласен ждать до осени. По подписанной грамоте эти дворы получат до трёх мер первыми, в пределах того, что будет в амбаре.",
 		"choices": {
 			"public_receipts": "Выдать зерно сейчас и дать старостам копию ведомости",
 			"winter_credit": "Дать дворам первое место при осенней выдаче"
@@ -357,6 +358,29 @@ func _resolve_neglected_events(state: WorldState) -> void:
 
 func _add_report(cycle: int, title: String, text: String) -> void:
 	reports.append({"cycle": cycle, "title": title, "text": text, "read": false})
+
+func settle_autumn_delivery(state: WorldState) -> void:
+	if not state.calendar.is_demo_complete() or state.facts.get("rural_repair") != "winter_credit" or state.facts.has("autumn_grain_delivery"):
+		return
+	var grain := int(state.resources.get("grain", 0))
+	var delivered := clampi(grain, 0, RURAL_GRAIN_SHARE)
+	state.resources["grain"] = grain - delivered
+	state.facts["autumn_grain_delivery"] = delivered
+	var note := "Гаврила приехал с грамотой. Из трёх мер, на которые рассчитывали деревни, ему выдали %d." % delivered
+	var reaction := 2
+	if delivered == 0:
+		note = "Гаврила приехал с грамотой. Его дворы стояли первыми, но в амбаре к осенней выдаче зерна не осталось. Лада записала недостачу и отдала старосте копию."
+		reaction = -3
+	else:
+		match str(state.facts.get("miron_grain_oversight", "")):
+			"open_weighing": note += " Гаврила сам поставил гирю на весы при получателях."
+			"ward_receipts": note += " Гавриле дали подписать только то количество, которое он получил."
+			_: note += " Лада внесла полученное количество в обе копии списка."
+		if delivered < RURAL_GRAIN_SHARE:
+			note += " На остальное запаса не хватило."
+			reaction = -1
+	(state.factions["rural"] as FactionState).react(state.calendar.cycle, reaction, note)
+	_add_report(state.calendar.cycle, "Первая осенняя выдача", note)
 
 func unread_reports() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -686,7 +710,7 @@ func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	return state.state_treasury >= choice_gold_cost(event_id, choice_id) and int(state.resources.get("grain", 0)) >= choice_grain_cost(event_id, choice_id)
 
 func choice_grain_cost(event_id: String, choice_id: String) -> int:
-	return 3 if event_id == "rural_repair" and choice_id == "public_receipts" else 0
+	return RURAL_GRAIN_SHARE if event_id == "rural_repair" and choice_id == "public_receipts" else 0
 
 func choice_gold_cost(event_id: String, choice_id: String) -> int:
 	match "%s:%s" % [event_id, choice_id]:

@@ -667,6 +667,8 @@ func decision_cases(person_id: String, state: WorldState) -> Array[Dictionary]:
 				var callback := _late_case_callback(id, state)
 				if not callback.is_empty():
 					case["brief"] = "%s %s" % [callback, case["brief"]]
+				if id == "miron_grain_oversight" and state.facts.get("rural_repair") == "winter_credit":
+					case["brief"] += " Мирон видел грамоту Гаврилы. Он предлагает применять тот же порядок проверки, когда осенью в очередь первыми встанут дворы из его списка."
 			case["options"] = {}
 			by_id[id] = case
 		by_id[id]["options"][option_id] = option(person_id, option_id)

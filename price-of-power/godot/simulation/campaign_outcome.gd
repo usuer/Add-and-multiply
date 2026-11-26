@@ -45,15 +45,23 @@ func _realm_summary(state: WorldState, rural: FactionState, guilds: FactionState
 					result += " Все шесть мер отдали в счёт старого долга."
 					match str(state.facts.get("rural_repair", "")):
 						"public_receipts": result += " Деревням выдали три меры из княжеского запаса по открытым распискам."
-						"winter_credit": result += " Двор и старосты подписали книгу, где за деревнями закрепили первую очередь на осеннее зерно."
+						"winter_credit":
+							if state.facts.has("autumn_grain_delivery"):
+								var delivered := int(state.facts["autumn_grain_delivery"])
+								match delivered:
+									0: result += " На осеннюю выдачу для деревень зерна в княжеском запасе не осталось."
+									3: result += " Осенью деревни первыми получили три меры зерна по грамоте."
+									_: result += " Осенью по грамоте деревням выдали %d из трёх мер." % delivered
+							else:
+								result += " Двор и старосты подписали книгу, где за деревнями закрепили первую очередь на осеннее зерно."
 						"missed": result += " К концу главы деревни так и не получили условий возмещения."
 						_: result += " Ответ на требование деревень ещё предстоит дать."
 				"unheard": result += " Дело о долге так и не рассмотрели. Найденное зерно осталось под печатью."
 				_: result += " Найденные мешки опечатаны до решения судей о долге."
 		"missed": result += " Деревни так и не получили ответа, что делать с найденным зерном."
 	match str(state.facts.get("miron_grain_oversight", "")):
-		"open_weighing": result += " Выдачу впервые проверили у весов при горожанах."
-		"ward_receipts": result += " У каждого квартала теперь есть расписка о его доле зерна."
+		"open_weighing": result += " Горожане сверили свою долю у весов."
+		"ward_receipts": result += " Зерно развезли по кварталам. Две расписки ещё предстоит сверить с получателями."
 	match str(state.facts.get("vardan_quay_terms", "")):
 		"shared_warehouse": result += " Разгрузку на причале ведут городской писец и старшина Вардана."
 		"city_only": result += " Ключи от причала остались у городского писца."

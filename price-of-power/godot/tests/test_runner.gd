@@ -54,6 +54,7 @@ func _initialize() -> void:
 	_test_recovered_grain_reaches_its_chosen_destination_once()
 	_test_grain_debt_hearing_has_distinct_settlements_and_deadlines()
 	_test_rural_repair_can_be_funded_with_grain_or_a_signed_commitment()
+	_test_autumn_grain_fulfills_the_commitment_once()
 	_test_authority_changes_cast_and_records_fallout()
 	_test_opening_promises_have_followthrough()
 	_test_exchange_resolves_before_the_crisis()
@@ -68,7 +69,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 57 checks")
+		print("PASS Godot foundation: 58 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -526,6 +527,37 @@ func _test_rural_repair_can_be_funded_with_grain_or_a_signed_commitment() -> voi
 	while state.advance_period():
 		pass
 	_expect(state.facts.get("rural_repair") == "missed", "Пропуск просьбы старост должен остаться в итогах главы")
+
+func _test_autumn_grain_fulfills_the_commitment_once() -> void:
+	var state := WorldState.new()
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	state.story_timeline.choose(state, "night_of_second_seal", "capital")
+	state.facts["grain_restitution_result"] = "registered"
+	state.facts["grain_debt_verdict"] = "creditor"
+	state.facts["rural_repair"] = "winter_credit"
+	var cases: Array[Dictionary] = state.conversations.decision_cases("miron", state)
+	_expect(str(cases).contains("грамоту Гаврилы"), "Мирон должен связать порядок проверки с осенней грамотой")
+	state.conversations.choose(state, "miron", "weigh_grain_in_public")
+	state.advance_period()
+	_expect(not state.facts.has("autumn_grain_delivery"), "Грамота не должна расходовать зерно до начала осени")
+	state.council.appointments.clear()
+	state.development.levels["granary"] = 1
+	state.technology.unlocked.clear()
+	for summer_stock: int in [0, 7, 9]:
+		var branch := WorldState.from_data(state.to_data())
+		branch.resources["grain"] = summer_stock
+		branch.advance_period()
+		var expected := clampi(summer_stock - 5, 0, 3)
+		var balance := maxi(0, summer_stock - 5) - expected
+		_expect(branch.facts.get("autumn_grain_delivery") == expected and branch.resources["grain"] == balance,
+			"Выдача должна использовать остаток после месячного расчёта и списывать только фактическое количество")
+		_expect(str(branch.period_report["notes"]).contains("Первая осенняя выдача"), "После выдачи должна появиться сводка")
+		if expected > 0:
+			_expect(str(branch.period_report["notes"]).contains("поставил гирю"), "Осенняя выдача должна учитывать порядок, согласованный с Мироном")
+		branch = WorldState.from_data(branch.to_data())
+		branch.story_timeline.settle_autumn_delivery(branch)
+		_expect(branch.resources["grain"] == balance and branch.facts.get("autumn_grain_delivery") == expected, "Автосохранение не должно приводить к повторной выдаче")
 
 func _test_authority_changes_cast_and_records_fallout() -> void:
 	var state := WorldState.new()
