@@ -46,6 +46,8 @@ func _initialize() -> void:
 	_test_campaign_conversation_payoffs()
 	_test_finale_resolves_before_epilogue()
 	_test_delayed_border_reply_keeps_decision_window()
+	_test_northern_terms_change_the_crossing_without_rewriting_the_battle()
+	_test_north_gate_relief_changes_supply_or_shelter()
 	_test_personal_choices_follow_location_and_health()
 	_test_location_content_references()
 	_test_city_dilemmas_offer_distinct_free_choices()
@@ -71,7 +73,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 60 checks")
+		print("PASS Godot foundation: 62 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -352,6 +354,10 @@ func _test_every_story_choice_has_working_outcome() -> void:
 			if event_id == "pump_charter":
 				state.story_timeline.resolved["tikhon_pump"] = {"choice": "field_test", "cycle": 12}
 				state.facts["tikhon_pump"] = "field_tested"
+			if event_id == "northern_terms":
+				state.story_timeline.resolved["border_consequence"] = {"choice": "reopen_talks", "cycle": 8, "inspection_offered": true}
+			if event_id == "north_gate_relief":
+				state.story_timeline.resolved["night_of_second_seal"] = {"choice": "capital", "cycle": 17}
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
@@ -936,6 +942,63 @@ func _test_delayed_border_reply_keeps_decision_window() -> void:
 	_expect("border_consequence" in state.story_timeline.available_events(10), "После возвращения посольства у князя должно быть два периода для решения")
 	state.advance_period()
 	_expect(state.story_timeline.resolved.get("border_consequence", {}).get("choice") == "neglected", "Просрочка должна наступить по истечении обоих периодов")
+
+func _test_northern_terms_change_the_crossing_without_rewriting_the_battle() -> void:
+	const CASE_ID := "northern_terms"
+	var state := WorldState.new()
+	state.conversations.choose(state, "envoy", "envoy_written_first")
+	while state.calendar.cycle < 6:
+		state.advance_period()
+	state.story_timeline.choose(state, "border_courier", "envoy")
+	while state.calendar.cycle < 8:
+		state.advance_period()
+	state.story_timeline.choose(state, "border_consequence", "reopen_talks")
+	var refusal := WorldState.from_data(state.to_data())
+	refusal.diplomacy.relations["north_march"] = -25
+	while state.calendar.cycle < 10:
+		state.advance_period()
+		refusal.advance_period()
+	_expect(CASE_ID not in state.story_timeline.available_events(10), "В день отвода войск договор ещё не готов")
+	state.advance_period()
+	refusal.advance_period()
+	_expect(CASE_ID in state.story_timeline.available_events(11) and CASE_ID not in refusal.story_timeline.available_events(11), "Предложение о проверке должно зависеть от ответа Отмара")
+	var legacy := state.to_data()
+	legacy["story_timeline"]["resolved"]["border_consequence"].erase("inspection_offered")
+	state = WorldState.from_data(legacy)
+	_expect(CASE_ID in state.story_timeline.available_events(11), "Старое сохранение с принятым отводом должно открыть новые условия")
+	for option: String in ["joint_ledger", "sealed_manifests", "refused_access"]:
+		var branch := WorldState.from_data(state.to_data())
+		_expect(branch.story_timeline.choose(branch, CASE_ID, option), "Каждый способ проверки должен работать")
+		branch = WorldState.from_data(branch.to_data())
+		_expect(not branch.story_timeline.choose(branch, CASE_ID, "joint_ledger"), "Подписанные условия нельзя заменить после загрузки")
+		while branch.calendar.cycle < 17:
+			branch.advance_period()
+		branch.story_timeline.choose(branch, "night_of_second_seal", "capital")
+		_expect(branch.facts.get("northern_crossing") == ("held" if option == "joint_ledger" else "contested"), "Сверка на месте должна отличаться от одних бумаг")
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	_expect(state.facts.get("northern_terms") == "ignored", "Оставленный договор должен закрыться до ночной тревоги")
+
+func _test_north_gate_relief_changes_supply_or_shelter() -> void:
+	const CASE_ID := "north_gate_relief"
+	var state := WorldState.new()
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	state.army.status = ArmyState.BattleStatus.DEFEAT
+	state.facts["northern_negotiation"] = "stand_down"
+	state.facts["northern_terms"] = "joint_ledger"
+	state.story_timeline.choose(state, "night_of_second_seal", "capital")
+	_expect(state.facts.get("northern_crossing") == "lost" and CASE_ID not in state.story_timeline.available_events(17), "Договор не должен стирать поражение, а очередь у ворот появляется позже")
+	state.advance_period()
+	_expect(str(state.story_timeline.contextual_definition(state, CASE_ID)["summary"]).contains("у стен Ардена"), "После поражения помощь должна происходить у городских ворот")
+	for option: String in ["families", "cargo"]:
+		var branch := WorldState.from_data(state.to_data())
+		var grain := int(branch.resources["grain"])
+		_expect(branch.story_timeline.choose(branch, CASE_ID, option), "У ворот должен быть доступен выбор порядка")
+		_expect(branch.resources["grain"] == grain + (4 if option == "cargo" else 0), "Первая очередь обоза должна пополнить запас, а пропуск семей оставляет груз ждать")
+		_expect(branch.facts.get("north_gate_relief") == option and branch.facts.get("northern_crossing") == "lost", "Решение у ворот не должно менять исход у переправы")
+	state.advance_period()
+	_expect(state.facts.get("north_gate_relief") == "missed", "Ожидание у ворот должно отразиться в итогах, если решение пропущено")
 
 func _test_personal_choices_follow_location_and_health() -> void:
 	var state := WorldState.new()

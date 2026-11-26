@@ -154,6 +154,7 @@ func _run() -> void:
 	await _check_family_letter_from_secretary(app, state)
 	await _check_grain_restitution_in_secretary(app, state)
 	await _check_riverside_recovery(app, state)
+	await _check_northern_terms_and_gate(app, state)
 	await _check_hearing_and_epilogue(app, state)
 	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
@@ -667,6 +668,47 @@ func _check_riverside_recovery(app: Node, original: WorldState) -> void:
 	if not report.visible or not str(labels).contains("Донесение из речного квартала") or not str(labels).contains("Лука спросил"):
 		failures.append("Сводка должна показать, как прежнее решение в храме повлияло на доставку")
 	app.call("_close_period_report")
+	app.set("state", original)
+	app.call("_refresh_ui", "Кампания продолжается")
+
+func _check_northern_terms_and_gate(app: Node, original: WorldState) -> void:
+	var chapter := WorldState.new()
+	chapter.opening_decision.choose_funeral("modest")
+	chapter.opening_decision.choose_grain("partial")
+	chapter.opening_decision.resolve(chapter)
+	chapter.conversations.choose(chapter, "envoy", "envoy_written_first")
+	while chapter.calendar.cycle < 6:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "border_courier", "envoy")
+	while chapter.calendar.cycle < 8:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "border_consequence", "reopen_talks")
+	while chapter.calendar.cycle < 11:
+		chapter.advance_period()
+	app.set("state", chapter)
+	app.call("_open_secretary")
+	var body := app.get("secretary_case_body") as Control
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	await _click_secretary_choice(body, scroll, "Сверять обозы на переправе")
+	var receipt := body.get_node_or_null("StoryResult") as Label
+	if receipt == null or not receipt.text.contains("Оба подписывают запись"):
+		failures.append("Принятые условия проверки должны быть видны в канцелярии")
+	app.call("_close_secretary")
+	while chapter.calendar.cycle < 17:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "night_of_second_seal", "capital")
+	chapter.advance_period()
+	app.call("_open_secretary")
+	await process_frame
+	var labels: Array[String] = []
+	_collect_label_text(body, labels)
+	if not str(labels).contains("совместный журнал переправы"):
+		failures.append("Условия проверки должны отразиться в новом деле у ворот")
+	await _click_secretary_choice(body, scroll, "Сначала впустить семьи")
+	receipt = body.get_node_or_null("StoryResult") as Label
+	if receipt == null or not receipt.text.contains("Лада отвела их") or _find_button(body, "Принять муку") != null:
+		failures.append("Решение у ворот должно показать итог и снять альтернативу")
+	app.call("_close_secretary")
 	app.set("state", original)
 	app.call("_refresh_ui", "Кампания продолжается")
 

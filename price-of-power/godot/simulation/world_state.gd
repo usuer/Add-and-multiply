@@ -323,6 +323,7 @@ static func from_data(data: Dictionary) -> WorldState:
 			state.period_archive.append(report.duplicate(true))
 	state.resources = (data.get("resources", {}) as Dictionary).duplicate(true)
 	state.facts = (data.get("facts", {}) as Dictionary).duplicate(true)
+	state.story_timeline.restore_northern_offer(state)
 	state.consequence_log.assign(data.get("consequence_log", []))
 	state.characters.clear()
 	for id: String in (data.get("characters", {}) as Dictionary):

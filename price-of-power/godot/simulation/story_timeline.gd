@@ -4,6 +4,7 @@ extends Resource
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const RURAL_GRAIN_SHARE := 3
 const PUMP_WORKSHOP_PERIODS := 3
+const NORTHERN_NEGOTIATION_ROUTES := ["scout_report", "border_consequence"]
 
 const DEFINITIONS: Dictionary = {
 	"granary_roof": {
@@ -54,6 +55,15 @@ const DEFINITIONS: Dictionary = {
 		"cycle": 8, "title": "Север отвечает делом", "location": "Пограничная канцелярия",
 		"summary": "Прошло два периода после первого донесения. Ответ соседа и состояние дальних застав требуют нового решения.",
 		"choices": {"inspect": "Лично выехать к заставам с малой охраной", "local_watch": "Вооружить местных старост и создать цепь сигнальных костров", "reopen_talks": "Отправить второго посланника с предложением взаимной проверки границы"}
+	},
+	"northern_terms": {
+		"cycle": 11, "title": "Кто будет проверять северную переправу", "location": "Двор послов",
+		"summary": "Отмар отвёл свой обоз за переправу. Илва привезла предложение о проверках. Два писца, по одному с каждого берега, могут сверять большие обозы на месте. Купцы возражают: чужой писец увидит, кто везёт груз и кому его везут. Можно обмениваться только списками или оставить проверку своим караулам. Отмар отвечает за своё войско. Людей, нанятых баронами, он в договор включить отказался.",
+		"choices": {
+			"joint_ledger": "Сверять обозы на переправе при писцах обеих сторон",
+			"sealed_manifests": "Обмениваться списками через послов",
+			"refused_access": "Оставить проверку своим караулам"
+		}
 	},
 	"savva_at_chapel": {
 		"cycle": 9, "title": "Савва просит один разговор", "location": "Заброшенная часовня",
@@ -148,6 +158,15 @@ const DEFINITIONS: Dictionary = {
 		"summary": "Одновременно звонят колокола у речных складов и северных ворот. По поддельным приказам часть стражи оставила посты, а вооружённые люди Вардана выводят зерно к реке. За границей показались огни военного обоза. Это не случайный налёт: противник проверяет, кому в столице ещё подчиняются.",
 		"choices": {"capital": "Удержать столицу и склады, оставив границу Радомиру", "border": "Возглавить войско у ворот, доверив город Дарену", "expose": "Обнародовать книгу и приказы, призвав горожан не подчиняться печати"}
 	},
+	"north_gate_relief": {
+		"cycle": 18, "title": "Семьи и обоз у северных ворот", "location": "Северные ворота Ардена",
+		"open_until_finale": true,
+		"summary": "У городских ворот ждут люди с северной дороги. У нескольких семей нет пропусков: они ушли из деревень ночью. Следом пришли телеги с мукой для княжеского амбара. Писарь успеет проверить пока только одну очередь. Староста просит сначала впустить семьи. Смотритель амбара просит принять обоз, а людей до проверки разместить во внешнем навесе.",
+		"choices": {
+			"families": "Сначала впустить семьи, отдельно досмотреть повозки",
+			"cargo": "Принять муку, для семей открыть внешний навес"
+		}
+	},
 	"new_rule": {
 		"cycle": 18, "title": "Первое утро после второй печати", "location": "Большой зал совета",
 		"summary": "Заговорщики больше не распоряжаются в столице. Цеховые старшины, судьи и военные ждут решения о том, кто сможет проверять княжеский приказ и как поступить с людьми, которые выполняли ложные грамоты.",
@@ -168,6 +187,11 @@ func available_events(cycle: int) -> Array[String]:
 
 func opening_cycle(event_id: String) -> int:
 	var first_cycle := int(DEFINITIONS[event_id]["cycle"])
+	if event_id == "northern_terms":
+		return maxi(first_cycle, _northern_offer_cycle() + 1)
+	if event_id == "north_gate_relief":
+		var night: Dictionary = resolved.get("night_of_second_seal", {})
+		return maxi(first_cycle, int(night.get("cycle", 0)) + 1)
 	if event_id in ["scout_report", "border_consequence"]:
 		var border: Dictionary = resolved.get("border_courier", {})
 		return maxi(first_cycle, int(border.get("cycle", first_cycle)) + 2)
@@ -192,12 +216,19 @@ func opening_cycle(event_id: String) -> int:
 
 func deadline_cycle(event_id: String) -> int:
 	var last_cycle := CampaignCalendar.MONTH_NAMES.size() * CampaignCalendar.Period.size()
+	if event_id == "northern_terms":
+		return int(DEFINITIONS["night_of_second_seal"]["cycle"]) - 1
 	if DEFINITIONS[event_id].get("open_until_finale", false):
 		return last_cycle
 	return mini(opening_cycle(event_id) + 1, last_cycle)
 
 func _is_unlocked(event_id: String) -> bool:
 	var border: Dictionary = resolved.get("border_courier", {})
+	if event_id == "northern_terms":
+		return _northern_offer_cycle() > 0 and opening_cycle(event_id) <= deadline_cycle(event_id)
+	if event_id == "north_gate_relief":
+		var night: Dictionary = resolved.get("night_of_second_seal", {})
+		return night.get("choice") in ["capital", "border", "expose"] and opening_cycle(event_id) <= deadline_cycle(event_id)
 	if event_id == "scout_report":
 		return str(border.get("choice", "")) == "scouts"
 	if event_id == "border_consequence":
@@ -322,7 +353,7 @@ func _resolve_vardan_exchange(state: WorldState) -> void:
 		_add_report(state.calendar.cycle, "Обмен сорвался", result)
 
 func _resolve_northern_reply(state: WorldState) -> void:
-	for event_id: String in ["scout_report", "border_consequence"]:
+	for event_id: String in NORTHERN_NEGOTIATION_ROUTES:
 		var record: Dictionary = resolved.get(event_id, {})
 		if record.get("choice") not in ["parley", "reopen_talks"] or record.get("followup_applied", false):
 			continue
@@ -332,12 +363,28 @@ func _resolve_northern_reply(state: WorldState) -> void:
 		var standing := int(state.diplomacy.relations.get("north_march", 0))
 		var case_notes: bool = state.facts.get("envoy_meetings") == "written_first"
 		if standing >= 0 or (case_notes and standing > -20):
+			record["inspection_offered"] = true
 			state.facts["northern_negotiation"] = "stand_down"
 			state.diplomacy.relations["north_march"] = mini(100, standing + 4)
 			_add_report(state.calendar.cycle, "Северная марка согласилась отвести обоз", "Маркграф обещал оставить войско за переправой до общего осмотра складов. Это касается его рот. За людей, нанятых частными баронами, он отвечать отказался.")
 		else:
 			state.facts["northern_negotiation"] = "refused"
 			_add_report(state.calendar.cycle, "Посланник вернулся без соглашения", "Северная марка требует сначала признать спорные земли её владением. Илва привезла грамоту обратно, чтобы никто не принял молчание за согласие. Пока обозы остаются на дороге.")
+
+func _northern_offer_cycle() -> int:
+	for event_id: String in NORTHERN_NEGOTIATION_ROUTES:
+		var record: Dictionary = resolved.get(event_id, {})
+		if record.get("inspection_offered", false):
+			return int(record["cycle"]) + 2
+	return 0
+
+func restore_northern_offer(state: WorldState) -> void:
+	if state.facts.get("northern_negotiation") != "stand_down" or state.calendar.cycle > deadline_cycle("northern_terms"):
+		return
+	for event_id: String in NORTHERN_NEGOTIATION_ROUTES:
+		var record: Dictionary = resolved.get(event_id, {})
+		if record.get("followup_applied", false) and record.get("choice") in ["parley", "reopen_talks"]:
+			record["inspection_offered"] = true
 
 func _resolve_pump_workshop(state: WorldState) -> void:
 	var record: Dictionary = resolved.get("tikhon_pump", {})
@@ -481,6 +528,13 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
+		"northern_terms":
+			state.facts["northern_terms"] = "ignored"
+			return "Илва не получила подписи. Войско Отмара пока стоит за переправой, а караулы всё ещё записывают обозы каждый в свою книгу."
+		"north_gate_relief":
+			state.facts["north_gate_relief"] = "missed"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Люди с северной дороги так и не дождались распоряжения у ворот.")
+			return "До конца августа писарь не получил приказа. Семьи остались у городских ворот, а возчики увели телеги с мукой обратно под навес."
 		"fever_recovery":
 			state.facts["fever_recovery"] = "neglected"
 			state.public_health = maxi(0, state.public_health - 3)
@@ -568,6 +622,15 @@ func definition(event_id: String) -> Dictionary:
 
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
+	if event_id == "north_gate_relief":
+		if state.facts.get("northern_crossing") == "lost":
+			event["summary"] += "\n\nПереправа занята. Этот караул стоит уже у стен Ардена, и семьи некуда отправить обратно."
+		elif state.facts.get("northern_terms") == "joint_ledger":
+			event["summary"] += "\n\nИлва принесла совместный журнал переправы. По нему можно сверить обоз, но семей без грамот в нём нет."
+		elif state.facts.get("northern_posture") == "local_watch":
+			event["summary"] += "\n\nСтаросты, которым вы поручили дозор, узнали несколько семей и готовы за них поручиться."
+		if state.facts.get("vardan_river_manifest") == "listed":
+			event["summary"] += " У писаря есть и список перевозчиков Вардана. По нему можно сверить имена возчиков."
 	if event_id == "grain_restitution" and state.calendar.cycle + 2 > deadline_cycle("grain_debt_hearing"):
 		event["summary"] += " Если передать зерно судьям сейчас, они примут мешки на хранение. Слушание начнётся уже после конца лета."
 	if event_id == "grain_debt_hearing" and state.calendar.cycle == deadline_cycle(event_id):
@@ -749,6 +812,10 @@ func _night_brief(state: WorldState) -> String:
 		_:
 			if state.facts.get("northern_negotiation") == "stand_down":
 				text += " Основной обоз отвели по соглашению. У заставы всё равно заметили людей без знамён."
+				match str(state.facts.get("northern_terms", "")):
+					"joint_ledger": text += " Писцы с обоих берегов сверили списки. Этих людей Отмар в своём журнале не подтвердил."
+					"sealed_manifests": text += " Из посольских списков неясно, кому подчиняются пришедшие."
+					"refused_access", "ignored": text += " Общей книги у караулов нет, и показания о переправе расходятся."
 			else:
 				text += " За границей показались огни военного обоза."
 	return text + " Это не случайный налёт: кто-то проверяет, кому ещё подчиняются оба караула."
@@ -760,8 +827,10 @@ func _settle_northern_front(state: WorldState, choice_id: String) -> String:
 	var posture := str(state.facts.get("northern_posture", ""))
 	var prepared := posture in ["fortified", "local_watch"]
 	var crossing := "contested"
-	if state.facts.get("northern_negotiation") == "stand_down" and choice_id != "neglected":
-		crossing = "held"
+	if state.facts.get("northern_negotiation") == "stand_down" and choice_id != "neglected" and not defeated:
+		var terms := str(state.facts.get("northern_terms", ""))
+		if terms in ["", "joint_ledger"] or victory or (prepared and choice_id == "border" and not recalled):
+			crossing = "held"
 	elif (victory and choice_id != "neglected") or (prepared and choice_id == "border" and not defeated and not recalled):
 		crossing = "held"
 	elif defeated or (choice_id in ["capital", "neglected"] and not victory):
@@ -834,6 +903,17 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> String:
 	match "%s:%s" % [event_id, choice_id]:
+		"northern_terms:joint_ledger", "northern_terms:sealed_manifests", "northern_terms:refused_access":
+			return _set_northern_terms(state, choice_id)
+		"north_gate_relief:families":
+			state.facts["north_gate_relief"] = "families"
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, 4, "Семьи с северной дороги приняли в городе до досмотра обоза.")
+			return "Староста назвал дворы, откуда пришли люди. Писарь занёс семьи в книгу, а Лада отвела их в пустой двор у храма. Возчиков оставили у ворот до второй смены, чтобы осмотреть муку при двух свидетелях."
+		"north_gate_relief:cargo":
+			state.facts["north_gate_relief"] = "cargo"
+			state.resources["grain"] = int(state.resources["grain"]) + 4
+			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Обоз прошёл первым. Семьи с северной дороги остались ждать у ворот.")
+			return "Писарь сверил накладные, а в амбар приняли четыре меры муки. Семьи устроили под внешним навесом. Староста просит привести новую смену до темноты: люди боятся, что их снова оставят ждать."
 		"fever_recovery:well_watch":
 			return "Лекарь попросил провести его по больным дворам. Работники амбара понесли воду туда, где велено пока закрыть колодцы."
 		"fever_recovery:bread_rosters":
@@ -1208,6 +1288,21 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "secret_purge", "После победы вы заменили поддельные приказы закрытыми списками задержаний.", {"trust": -8, "grievance": 6})
 			return "До рассвета задержали писцов, кладовщиков и двух офицеров. Приказы снова исполняются быстро, но никто вне кабинета Дарена не знает, кто признан виновным и на каком основании."
 	return "Распоряжение принято. Его последствия станут понятны позже."
+
+func _set_northern_terms(state: WorldState, choice_id: String) -> String:
+	state.facts["northern_terms"] = choice_id
+	var adjustment: int = {"joint_ledger": 4, "sealed_manifests": 2, "refused_access": -1}[choice_id]
+	var standing := int(state.diplomacy.relations["north_march"])
+	state.diplomacy.relations["north_march"] = clampi(standing + adjustment, -100, 100)
+	match choice_id:
+		"joint_ledger":
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, -2, "Купцы недовольны, что обоим писцам видны имена получателей крупных грузов.")
+			return "Илва отвезла подписанные условия. У переправы поставили двух писцов с отдельными печатями. Оба подписывают запись после осмотра. Купцы подали жалобу: теперь получателей крупных грузов увидит и северный писец."
+		"sealed_manifests":
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 1, "Договор о списках не требует предъявлять обеим сторонам купеческие накладные.")
+			return "Послы обменялись первыми запечатанными списками. Писцы ведут каждый свою книгу и сверяют её с полученными именами. Перепроверять груз на другом берегу им не разрешено."
+	(state.factions["military"] as FactionState).react(state.calendar.cycle, 2, "Пограничники сохранили право проверять обозы без участия чужих чиновников.")
+	return "Илва передала, что чужих писцов не пустят. Обещание Отмара держать своё войско за переправой остаётся в силе. Дальше о возах докладывают только караулы со своего берега."
 
 func _settle_grain_debt(state: WorldState, choice_id: String) -> String:
 	state.facts["grain_debt_verdict"] = choice_id

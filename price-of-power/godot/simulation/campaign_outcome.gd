@@ -105,6 +105,19 @@ func _family_summary(state: WorldState) -> String:
 	return result
 
 func _border_summary(state: WorldState) -> String:
+	var result := _border_situation(state)
+	match str(state.facts.get("northern_terms", "")):
+		"joint_ledger": result += " Книги грузов обеих сторон сверили при осмотре складов."
+		"sealed_manifests": result += " Арден и Марка договорились обмениваться запечатанными списками грузов."
+		"refused_access": result += " Двор отказался от общего осмотра складов."
+		"ignored": result += " Условия проверки остались без вашей подписи."
+	match str(state.facts.get("north_gate_relief", "")):
+		"families": result += " Семьи прошли через северные ворота первыми. Обоз приняли после отдельной проверки."
+		"cargo": result += " Муку пропустили в город, а семьи остались ждать проверки в укрытии у северных ворот."
+		"missed": result += " Семьи и обоз остались ждать у северных ворот."
+	return result
+
+func _border_situation(state: WorldState) -> String:
 	var northern_crossing := str(state.facts.get("northern_crossing", ""))
 	var crisis := str(state.facts.get("second_seal_crisis", ""))
 	var earlier := _battle_summary(state)
@@ -239,6 +252,11 @@ func _build_hook(state: WorldState) -> String:
 	if posture == "ambush" and (ambush_waited or ambush_recalled):
 		return "На стол вернули карту Радомира, где всё ещё отмечена ловушка. Рядом положили список застав, от которых не пришло ответа."
 	if str(state.facts.get("northern_crossing", "")) == "lost" or state.facts.get("second_seal_crisis") == "command_collapsed":
+		match str(state.facts.get("north_gate_relief", "")):
+			"families":
+				return "Семьи с северной дороги уже в городе. Староста принёс список прибывших и просит помочь им найти кров на зиму."
+			"cargo":
+				return "Пекари, принявшие муку, готовы отправить хлеб семьям в укрытии у северных ворот. Они просят записать, за чей счёт его испекут."
 		return "Семьи с северной дороги просят пропустить их в город. У пограничных ворот с ними спорит чиновник: в его книге эти дворы всё ещё числятся у переправы."
 	if state.facts.get("second_seal_crisis") == "border_held":
 		return "Смотритель речного склада принёс уцелевшую книгу караула. Одного из подписавших ночной приказ он видел в городе уже после тревоги."
