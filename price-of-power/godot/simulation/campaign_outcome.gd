@@ -37,7 +37,13 @@ func _realm_summary(state: WorldState, rural: FactionState, guilds: FactionState
 	match str(state.facts.get("grain_restitution_result", "")):
 		"delivered": result += " В деревни довезли шесть мер зерна из старого обоза."
 		"in_reserve": result += " Часть груза старого обоза поступила в княжеский запас."
-		"registered": result += " Найденные мешки опечатаны до решения судей о долге."
+		"registered":
+			match str(state.facts.get("grain_debt_verdict", "")):
+				"split": result += " Из найденного зерна три меры отдали деревням, три — в счёт старого долга."
+				"villages": result += " Все шесть мер отдали деревням. Казна заплатила четыре монеты за подтверждённую работу мельницы."
+				"creditor": result += " Все шесть мер отдали в счёт старого долга. Ответ на требование деревень ещё предстоит дать."
+				"unheard": result += " Дело о долге так и не рассмотрели. Найденное зерно осталось под печатью."
+				_: result += " Найденные мешки опечатаны до решения судей о долге."
 		"missed": result += " Деревни так и не получили ответа, что делать с найденным зерном."
 	match str(state.facts.get("miron_grain_oversight", "")):
 		"open_weighing": result += " Выдачу впервые проверили у весов при горожанах."

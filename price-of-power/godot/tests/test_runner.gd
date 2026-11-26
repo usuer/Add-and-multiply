@@ -52,6 +52,7 @@ func _initialize() -> void:
 	_test_forge_request_changes_the_grain_route()
 	_test_opening_evidence_creates_a_distinct_branch()
 	_test_recovered_grain_reaches_its_chosen_destination_once()
+	_test_grain_debt_hearing_has_distinct_settlements_and_deadlines()
 	_test_authority_changes_cast_and_records_fallout()
 	_test_opening_promises_have_followthrough()
 	_test_exchange_resolves_before_the_crisis()
@@ -66,7 +67,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 55 checks")
+		print("PASS Godot foundation: 56 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -337,6 +338,9 @@ func _test_every_story_choice_has_working_outcome() -> void:
 			if event_id == "grain_restitution":
 				state.story_timeline.resolved["east_gate_witness"] = {"choice": "seal", "cycle": 4}
 				state.story_timeline.resolved["savva_at_chapel"] = {"choice": "safe_passage", "cycle": 9}
+			if event_id == "grain_debt_hearing":
+				state.story_timeline.resolved["grain_restitution"] = {"choice": "court", "cycle": 10}
+				state.facts["grain_restitution_result"] = "registered"
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
@@ -443,6 +447,52 @@ func _test_recovered_grain_reaches_its_chosen_destination_once() -> void:
 	_expect(str(older_save.campaign_outcome.summary_lines).contains("довезли шесть мер зерна"), "Последнее распоряжение должно успеть попасть в эпилог")
 	state.advance_period()
 	_expect(state.facts.get("grain_restitution_result") == "missed", "При пропуске до конца главы мешки должны выйти из распоряжения двора")
+
+func _test_grain_debt_hearing_has_distinct_settlements_and_deadlines() -> void:
+	const HEARING := "grain_debt_hearing"
+	var state := WorldState.new()
+	while state.calendar.cycle < 10:
+		state.advance_period()
+	state.story_timeline.resolved["east_gate_witness"] = {"choice": "seal", "cycle": 4}
+	state.story_timeline.resolved["savva_at_chapel"] = {"choice": "safe_passage", "cycle": 9}
+	var late := WorldState.from_data(state.to_data())
+	var direct := WorldState.from_data(state.to_data())
+	direct.story_timeline.choose(direct, "grain_restitution", "villages")
+	direct.advance_period()
+	direct.advance_period()
+	_expect(HEARING not in direct.story_timeline.available_events(12), "Прямая выдача не должна открывать суд о ещё опечатанном зерне")
+	state.story_timeline.choose(state, "grain_restitution", "court")
+	state.advance_period()
+	_expect(state.facts.get("grain_restitution_result") == "registered" and HEARING not in state.story_timeline.available_events(11), "Сначала судьи должны принять зерно и проверить расписку")
+	state = WorldState.from_data(state.to_data())
+	state.advance_period()
+	_expect(HEARING in state.story_timeline.available_events(12) and state.story_timeline.deadline_cycle(HEARING) == 18,
+		"Слушание должно открыться после проверки и оставаться доступным до эпилога")
+	_expect(str(state.period_report["notes"]).contains("Кому отдать зерно со спорного склада"), "Сводка должна сообщить о готовности судей")
+	for option: String in ["split", "villages", "creditor"]:
+		var branch := WorldState.from_data(state.to_data())
+		branch.state_treasury = 0
+		var rural := branch.factions["rural"] as FactionState
+		var approval := rural.disposition
+		var grain := int(branch.resources["grain"])
+		if option == "villages":
+			_expect(not branch.story_timeline.choose(branch, HEARING, option) and not branch.facts.has("grain_debt_verdict"), "Оплату при пустой казне следует блокировать без побочных эффектов")
+			branch.state_treasury = 4
+		_expect(branch.story_timeline.choose(branch, HEARING, option) and branch.facts.get("grain_debt_verdict") == option, "Каждое решение суда должно записывать отдельный итог")
+		_expect(branch.state_treasury == 0 and int(branch.resources["grain"]) == grain, "Монеты списываются только при оплате, найденное зерно уходит сторонам")
+		var impact: int = {"split": 2, "villages": 4, "creditor": -4}[option]
+		_expect(rural.disposition == approval + impact, "Отношение деревень должно зависеть от их доли")
+		var reloaded := WorldState.from_data(branch.to_data())
+		_expect(not reloaded.story_timeline.choose(reloaded, HEARING, "split") and reloaded.facts.get("grain_debt_verdict") == option, "После загрузки решение должно сохраняться без повторной выплаты")
+	while state.calendar.cycle < 19:
+		state.advance_period()
+	_expect(state.facts.get("grain_debt_verdict") == "unheard", "Если слушание успело открыться, пропуск должен остаться в летописи")
+	while late.calendar.cycle < 18:
+		late.advance_period()
+	_expect(str(late.story_timeline.contextual_definition(late, "grain_restitution")["summary"]).contains("после конца лета"), "Последний период должен предупредить, что суд не успеет заслушать дело")
+	late.story_timeline.choose(late, "grain_restitution", "court")
+	late.advance_period()
+	_expect(late.facts.get("grain_restitution_result") == "registered" and not late.facts.has("grain_debt_verdict"), "Если дело только зарегистрировали, эпилог не должен считать слушание пропущенным")
 
 func _test_authority_changes_cast_and_records_fallout() -> void:
 	var state := WorldState.new()

@@ -68,6 +68,16 @@ const DEFINITIONS: Dictionary = {
 			"court": "Запечатать мешки у судей и проверить расписку о долге"
 		}
 	},
+	"grain_debt_hearing": {
+		"cycle": 12, "title": "Кому отдать зерно со спорного склада", "location": "Зал городских судей",
+		"open_until_finale": true,
+		"summary": "Судьи осмотрели шесть мер зерна, которые вы велели опечатать. Бирки и расписки ведут к деревенскому обозу. Хозяин склада действительно молол зерно для двора и до сих пор не получил четыре монеты. Он показывает расписку, по которой ему обещали мешки вместо денег. На ней нет подписи чиновника, который мог распорядиться деревенским грузом.\n\nХозяин согласен взять три меры и закрыть счёт, если остальное уйдёт деревням. Лада предлагает оплатить помол из казны и вернуть деревням весь найденный груз. За хозяином можно оставить и все мешки, как ему обещали, а вопрос с деревнями решить отдельно.",
+		"choices": {
+			"split": "Три меры деревням, три — хозяину в счёт долга",
+			"villages": "Все шесть мер деревням, мельнику заплатить монетами",
+			"creditor": "Все шесть мер хозяину, просьбу деревень отложить"
+		}
+	},
 	"fever_outbreak": {
 		"cycle": 10, "title": "Горячка в нижнем городе", "location": "Речной квартал",
 		"summary": "За три дня слегли семьи кожевников и двое лодочников. Причина неизвестна; слухи уже называют воду, чужеземцев и Божий гнев.",
@@ -135,7 +145,16 @@ func opening_cycle(event_id: String) -> int:
 		var witness: Dictionary = resolved.get("east_gate_witness", {})
 		var meeting: Dictionary = resolved.get("savva_at_chapel", {})
 		return maxi(first_cycle, maxi(int(witness.get("cycle", 0)), int(meeting.get("cycle", 0))) + 1)
+	if event_id == "grain_debt_hearing":
+		var referral: Dictionary = resolved.get("grain_restitution", {})
+		return maxi(first_cycle, int(referral.get("cycle", 0)) + 2)
 	return first_cycle
+
+func deadline_cycle(event_id: String) -> int:
+	var last_cycle := CampaignCalendar.MONTH_NAMES.size() * CampaignCalendar.Period.size()
+	if DEFINITIONS[event_id].get("open_until_finale", false):
+		return last_cycle
+	return mini(opening_cycle(event_id) + 1, last_cycle)
 
 func _is_unlocked(event_id: String) -> bool:
 	var border: Dictionary = resolved.get("border_courier", {})
@@ -153,6 +172,9 @@ func _is_unlocked(event_id: String) -> bool:
 		var witness: Dictionary = resolved.get("east_gate_witness", {})
 		var meeting: Dictionary = resolved.get("savva_at_chapel", {})
 		return witness.get("choice") in ["seal", "public"] and meeting.get("choice") in ["meet", "safe_passage"]
+	if event_id == "grain_debt_hearing":
+		var referral: Dictionary = resolved.get("grain_restitution", {})
+		return referral.get("choice") == "court" and opening_cycle(event_id) <= deadline_cycle(event_id)
 	return true
 
 func update(state: WorldState) -> void:
@@ -311,12 +333,12 @@ func _resolve_neglected_events(state: WorldState) -> void:
 	for event_id: String in DEFINITIONS:
 		if resolved.has(event_id) or not _is_unlocked(event_id):
 			continue
-		if not state.calendar.is_demo_complete() and (DEFINITIONS[event_id].get("open_until_finale", false) or state.calendar.cycle < opening_cycle(event_id) + 2):
+		if state.calendar.cycle <= deadline_cycle(event_id):
 			continue
 		var result := _neglect_consequence(state, event_id)
 		resolved[event_id] = {"choice": "neglected", "cycle": state.calendar.cycle, "outcome": result}
 		state.consequence_log.append({"cycle": state.calendar.cycle, "kind": "story_event_neglected", "event": event_id})
-		_add_report(state.calendar.cycle, "Дело решилось без вас", result)
+		_add_report(state.calendar.cycle, "Дело осталось без распоряжения", result)
 
 func _add_report(cycle: int, title: String, text: String) -> void:
 	reports.append({"cycle": cycle, "title": title, "text": text, "read": false})
@@ -355,6 +377,9 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
+		"grain_debt_hearing":
+			state.facts["grain_debt_verdict"] = "unheard"
+			return "Судьи до конца лета ждали распоряжения о шести мерах со спорного склада. Мешки остались под печатью. Лада вернула старостам копию описи без даты выдачи."
 		"grain_restitution":
 			state.facts["grain_restitution_result"] = "missed"
 			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Двор не распорядился вернуть найденное зерно, пока оно было на складе.")
@@ -429,6 +454,8 @@ func definition(event_id: String) -> Dictionary:
 
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
+	if event_id == "grain_restitution" and state.calendar.cycle + 2 > deadline_cycle("grain_debt_hearing"):
+		event["summary"] += " Если передать зерно судьям сейчас, они примут мешки на хранение. Слушание начнётся уже после конца лета."
 	if event_id == "granary_roof":
 		if state.facts.get("father_warned_of_traitor", false):
 			event["summary"] += " В кладовке может быть накладная того обоза, о котором говорил отец."
@@ -639,6 +666,7 @@ func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func choice_gold_cost(event_id: String, choice_id: String) -> int:
 	match "%s:%s" % [event_id, choice_id]:
+		"grain_debt_hearing:villages": return 4
 		"granary_roof:repair": return 5
 		"smiths_dispute:pay": return 8
 		"scout_report:fortify": return 12
@@ -677,6 +705,8 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> String:
 	match "%s:%s" % [event_id, choice_id]:
+		"grain_debt_hearing:split", "grain_debt_hearing:villages", "grain_debt_hearing:creditor":
+			return _settle_grain_debt(state, choice_id)
 		"grain_restitution:villages":
 			return "Лада забрала у хозяина список мешков и послала за телегами. У старост она попросит расписки о получении. Хозяину велели оставить в канцелярии свою расписку о долге."
 		"grain_restitution:reserve":
@@ -1020,6 +1050,24 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			(state.characters["miron"] as CharacterState).remember(state.calendar.cycle, "secret_purge", "После победы вы заменили поддельные приказы закрытыми списками задержаний.", {"trust": -8, "grievance": 6})
 			return "До рассвета задержали писцов, кладовщиков и двух офицеров. Приказы снова исполняются быстро, но никто вне кабинета Дарена не знает, кто признан виновным и на каком основании."
 	return "Распоряжение принято. Его последствия станут понятны позже."
+
+func _settle_grain_debt(state: WorldState, choice_id: String) -> String:
+	state.facts["grain_debt_verdict"] = choice_id
+	var rural := state.factions["rural"] as FactionState
+	var guilds := state.factions["guilds"] as FactionState
+	match choice_id:
+		"split":
+			rural.react(state.calendar.cycle, 2, "Деревни получили три меры из старого обоза.")
+			guilds.react(state.calendar.cycle, 1, "Хозяин склада принял три меры и подписал, что счёт за помол закрыт.")
+			return "Судьи сняли печать. Лада передала старостам три меры, а хозяин забрал остальные и расписался, что за помол ему больше ничего не должны. В деревнях делят зерно между теми, у кого кончилась мука."
+		"villages":
+			state.state_treasury -= choice_gold_cost("grain_debt_hearing", choice_id)
+			rural.react(state.calendar.cycle, 4, "Старосты получили все шесть мер, которые нашли на складе.")
+			guilds.react(state.calendar.cycle, 2, "Казна оплатила подтверждённую работу мельника.")
+			return "Хозяин отнёс четыре монеты своим людям и вернул расписку о долге. Старосты при Ладе взвесили все шесть мер и приняли их для деревень. Судьи внесли плату за помол в расходную книгу отдельно от выдачи зерна."
+	rural.react(state.calendar.cycle, -4, "Весь груз отдали в счёт долга двора, а деревни остались без найденного зерна.")
+	guilds.react(state.calendar.cycle, 3, "Двор сдержал обещание об оплате помола зерном.")
+	return "Хозяин получил все шесть мер и вернул расписку: за помол ему больше ничего не должны. Судьи записали возражение старост. Те ушли с бумагой, но без зерна. Лада просит назвать день, когда двор выслушает их снова."
 
 func outcome(event_id: String) -> String:
 	return str((resolved.get(event_id, {}) as Dictionary).get("outcome", ""))

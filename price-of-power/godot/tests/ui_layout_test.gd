@@ -578,11 +578,11 @@ func _check_grain_restitution_in_secretary(app: Node, original: WorldState) -> v
 	app.call("_open_secretary")
 	var body := app.get("secretary_case_body") as Control
 	var scroll := app.get("secretary_scroll") as ScrollContainer
-	await _click_secretary_choice(body, scroll, "Вернуть найденное зерно")
+	await _click_secretary_choice(body, scroll, "Запечатать мешки у судей")
 	var receipt := body.get_node_or_null("StoryResult") as Label
-	if receipt == null or not receipt.text.contains("расписки о получении"):
-		failures.append("В канцелярии должен быть виден приказ о возвращении найденного зерна")
-	if _find_button(body, "Запечатать мешки у судей") != null:
+	if receipt == null or not receipt.text.contains("опечатает мешки"):
+		failures.append("Канцелярия должна показать приказ о передаче мешков судьям")
+	if _find_button(body, "Вернуть найденное зерно") != null:
 		failures.append("После приказа другие способы распорядиться зерном должны исчезнуть")
 	app.call("_close_secretary")
 	app.call("_on_advance_period")
@@ -590,9 +590,29 @@ func _check_grain_restitution_in_secretary(app: Node, original: WorldState) -> v
 	var report := app.get("period_report_panel") as Control
 	var labels: Array[String] = []
 	_collect_label_text(report, labels)
-	if not report.visible or not str(labels).contains("Все шесть мер приняли деревни"):
-		failures.append("Из следующей сводки должно быть понятно, куда доставили найденное зерно")
+	if not report.visible or not str(labels).contains("Судьи приняли шесть мер"):
+		failures.append("Сводка должна подтвердить, что судьи приняли мешки")
 	app.call("_close_period_report")
+	app.call("_on_advance_period")
+	await process_frame
+	labels.clear()
+	_collect_label_text(report, labels)
+	if not str(labels).contains("Кому отдать зерно со спорного склада"):
+		failures.append("Сводка должна сообщить, когда суд готов разобрать дело")
+	app.call("_close_period_report")
+	chapter.state_treasury = 0
+	app.call("_open_secretary")
+	await process_frame
+	var paid_choice := _find_button(body, "Все шесть мер деревням")
+	if paid_choice == null or not paid_choice.disabled or not paid_choice.text.contains("4"):
+		failures.append("Платный вариант должен показывать цену и быть закрыт при пустой казне")
+	await _click_secretary_choice(body, scroll, "Три меры деревням")
+	receipt = body.get_node_or_null("StoryResult") as Label
+	if receipt == null or not receipt.text.contains("за помол ему больше ничего не должны"):
+		failures.append("После бесплатного раздела канцелярия должна показать итог слушания")
+	if _find_button(body, "Все шесть мер хозяину") != null:
+		failures.append("После вынесенного решения альтернативы суда должны исчезнуть")
+	app.call("_close_secretary")
 	app.set("state", original)
 	app.call("_refresh_ui", "Кампания продолжается")
 

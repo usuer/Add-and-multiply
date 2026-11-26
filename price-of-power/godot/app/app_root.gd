@@ -921,7 +921,7 @@ func _add_available_story_events() -> void:
 		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		summary.modulate = Color("c7d0c3")
 		card_content.add_child(summary)
-		var last_cycle := mini(state.story_timeline.opening_cycle(event_id) + 1, CampaignCalendar.MONTH_NAMES.size() * 3)
+		var last_cycle := state.story_timeline.deadline_cycle(event_id)
 		if state.calendar.cycle >= last_cycle:
 			var deadline := Label.new()
 			deadline.text = "Последний период для ответа"
