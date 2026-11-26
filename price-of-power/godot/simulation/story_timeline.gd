@@ -5,6 +5,7 @@ const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const RURAL_GRAIN_SHARE := 3
 const PUMP_WORKSHOP_PERIODS := 3
 const NORTHERN_NEGOTIATION_ROUTES := ["scout_report", "border_consequence"]
+const NORTH_GATE_FLOUR := 4
 
 const DEFINITIONS: Dictionary = {
 	"granary_roof": {
@@ -471,6 +472,46 @@ func _resolve_neglected_events(state: WorldState) -> void:
 func _add_report(cycle: int, title: String, text: String) -> void:
 	reports.append({"cycle": cycle, "title": title, "text": text, "read": false})
 
+func settle_north_gate(state: WorldState) -> void:
+	if not state.calendar.is_demo_complete() or state.facts.has("north_gate_followup"):
+		return
+	var reinforced: bool = state.facts.get("north_gate_shift") == "reinforced"
+	var rural := state.factions["rural"] as FactionState
+	var text := ""
+	match str(state.facts.get("north_gate_relief", "")):
+		"families":
+			if reinforced or _north_gate_has_cargo_records(state):
+				state.facts["north_gate_followup"] = "cargo_cleared"
+				state.resources["grain"] = int(state.resources["grain"]) + NORTH_GATE_FLOUR
+				if reinforced:
+					text = "У второго стола выслушали возчиков и сверили накладные."
+				elif state.facts.get("vardan_river_manifest") == "listed":
+					text = "Писарь сверил имена возчиков со списком Вардана и подтвердил, чей это обоз."
+				else:
+					text = "Писарь нашёл подтверждение в совместном журнале переправы."
+				text += " К осенней выдаче в амбар приняли четыре меры муки. Семьи, которых впустили первыми, уже ночуют во дворе у храма."
+			else:
+				state.facts["north_gate_followup"] = "cargo_on_hold"
+				text = "У писаря разошлись имена в накладной и в книге заставы. Телеги остались под навесом до проверки. Лада принесла записку из храма: все принятые семьи устроены на ночь."
+		"cargo":
+			if reinforced or _north_gate_has_family_witnesses(state):
+				state.facts["north_gate_followup"] = "families_sheltered"
+				rural.react(state.calendar.cycle, 2, "Городской караул нашёл свидетелей и впустил семьи с северной дороги.")
+				text = "Вторая смена записала показания старост и впустила людей. Лада отвела их к храму. Муку уже приняли, а тех, кто пришёл без грамот, записали в отдельную книгу."
+			else:
+				state.facts["north_gate_followup"] = "families_waiting"
+				rural.react(state.calendar.cycle, -2, "Семьи с северной дороги всё ещё ждут допуска в Арден.")
+				text = "Мука в амбаре, а у нескольких семей под навесом всё ещё нет поручителей. Писарь оставил их имена в книге. Лада ходит по дворам и ищет тех, кто сможет за них поручиться."
+		_:
+			return
+	_add_report(state.calendar.cycle, "Вторая смена у северных ворот", text)
+
+func _north_gate_has_cargo_records(state: WorldState) -> bool:
+	return state.facts.get("vardan_river_manifest") == "listed" or (state.facts.get("northern_terms") == "joint_ledger" and state.facts.get("northern_crossing") != "lost")
+
+func _north_gate_has_family_witnesses(state: WorldState) -> bool:
+	return state.facts.get("northern_posture") in ["local_watch", "personally_inspected"] or state.facts.get("daren_watch_repair") == "paired_posts"
+
 func settle_autumn_delivery(state: WorldState) -> void:
 	if not state.calendar.is_demo_complete() or state.facts.get("rural_repair") != "winter_credit" or state.facts.has("autumn_grain_delivery"):
 		return
@@ -627,8 +668,8 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			event["summary"] += "\n\nПереправа занята. Этот караул стоит уже у стен Ардена, и семьи некуда отправить обратно."
 		elif state.facts.get("northern_terms") == "joint_ledger":
 			event["summary"] += "\n\nИлва принесла совместный журнал переправы. По нему можно сверить обоз, но семей без грамот в нём нет."
-		elif state.facts.get("northern_posture") == "local_watch":
-			event["summary"] += "\n\nСтаросты, которым вы поручили дозор, узнали несколько семей и готовы за них поручиться."
+		if _north_gate_has_family_witnesses(state):
+			event["summary"] += " У писаря есть люди, которых можно позвать поручиться за семьи без грамот."
 		if state.facts.get("vardan_river_manifest") == "listed":
 			event["summary"] += " У писаря есть и список перевозчиков Вардана. По нему можно сверить имена возчиков."
 	if event_id == "grain_restitution" and state.calendar.cycle + 2 > deadline_cycle("grain_debt_hearing"):
@@ -911,7 +952,7 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			return "Староста назвал дворы, откуда пришли люди. Писарь занёс семьи в книгу, а Лада отвела их в пустой двор у храма. Возчиков оставили у ворот до второй смены, чтобы осмотреть муку при двух свидетелях."
 		"north_gate_relief:cargo":
 			state.facts["north_gate_relief"] = "cargo"
-			state.resources["grain"] = int(state.resources["grain"]) + 4
+			state.resources["grain"] = int(state.resources["grain"]) + NORTH_GATE_FLOUR
 			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Обоз прошёл первым. Семьи с северной дороги остались ждать у ворот.")
 			return "Писарь сверил накладные, а в амбар приняли четыре меры муки. Семьи устроили под внешним навесом. Староста просит привести новую смену до темноты: люди боятся, что их снова оставят ждать."
 		"fever_recovery:well_watch":

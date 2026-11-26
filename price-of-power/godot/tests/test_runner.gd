@@ -975,6 +975,11 @@ func _test_northern_terms_change_the_crossing_without_rewriting_the_battle() -> 
 			branch.advance_period()
 		branch.story_timeline.choose(branch, "night_of_second_seal", "capital")
 		_expect(branch.facts.get("northern_crossing") == ("held" if option == "joint_ledger" else "contested"), "Сверка на месте должна отличаться от одних бумаг")
+		branch.advance_period()
+		branch.story_timeline.choose(branch, "north_gate_relief", "families")
+		branch.advance_period()
+		_expect(branch.facts.get("north_gate_followup") == ("cargo_cleared" if option == "joint_ledger" else "cargo_on_hold"),
+			"Совместный журнал должен помочь пропустить муку после семей")
 	while state.calendar.cycle < 17:
 		state.advance_period()
 	_expect(state.facts.get("northern_terms") == "ignored", "Оставленный договор должен закрыться до ночной тревоги")
@@ -997,6 +1002,27 @@ func _test_north_gate_relief_changes_supply_or_shelter() -> void:
 		_expect(branch.story_timeline.choose(branch, CASE_ID, option), "У ворот должен быть доступен выбор порядка")
 		_expect(branch.resources["grain"] == grain + (4 if option == "cargo" else 0), "Первая очередь обоза должна пополнить запас, а пропуск семей оставляет груз ждать")
 		_expect(branch.facts.get("north_gate_relief") == option and branch.facts.get("northern_crossing") == "lost", "Решение у ворот не должно менять исход у переправы")
+		var reinforced := WorldState.from_data(branch.to_data())
+		var order := reinforced.public_order
+		_expect(not reinforced.conversations.choose(reinforced, "daren", "reinforce_north_gate").is_empty() and reinforced.public_order == order - 2, "Усиление должно забирать дозор с рынка")
+		reinforced = WorldState.from_data(reinforced.to_data())
+		if option == "families":
+			reinforced.resources["grain"] = 0
+			reinforced.council.appointments.clear()
+			reinforced.development.levels["granary"] = 1
+			reinforced.technology.unlocked.clear()
+			reinforced.facts["rural_repair"] = "winter_credit"
+		reinforced.advance_period()
+		branch.advance_period()
+		_expect(branch.facts.get("north_gate_followup") == ("cargo_on_hold" if option == "families" else "families_waiting"), "При нехватке сведений вторая очередь должна ждать")
+		_expect(reinforced.facts.get("north_gate_followup") == ("cargo_cleared" if option == "families" else "families_sheltered"), "Усиленная смена должна завершить вторую проверку после загрузки")
+		_expect(str(reinforced.period_report["notes"]).contains("Вторая смена у северных ворот"), "У итога должна быть отдельная запись в сводке")
+		if option == "families":
+			_expect(reinforced.facts.get("autumn_grain_delivery") == 3 and reinforced.resources["grain"] == 1, "Мука, принятая второй сменой, должна попасть в осеннюю выдачу")
+		reinforced = WorldState.from_data(reinforced.to_data())
+		var final_stock := int(reinforced.resources["grain"])
+		reinforced.story_timeline.settle_north_gate(reinforced)
+		_expect(reinforced.resources["grain"] == final_stock, "Загрузка эпилога не должна повторно принимать обоз")
 	state.advance_period()
 	_expect(state.facts.get("north_gate_relief") == "missed", "Ожидание у ворот должно отразиться в итогах, если решение пропущено")
 

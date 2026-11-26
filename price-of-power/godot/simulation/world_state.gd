@@ -138,6 +138,7 @@ func advance_period() -> bool:
 		technology.advance_month(self)
 		population.advance_month(self)
 	if calendar.is_demo_complete():
+		story_timeline.settle_north_gate(self)
 		story_timeline.settle_autumn_delivery(self)
 		COUNCIL_VERDICT.update(self)
 		campaign_outcome.generate(self)

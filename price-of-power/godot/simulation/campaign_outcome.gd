@@ -111,10 +111,16 @@ func _border_summary(state: WorldState) -> String:
 		"sealed_manifests": result += " Арден и Марка договорились обмениваться запечатанными списками грузов."
 		"refused_access": result += " Двор отказался от общего осмотра складов."
 		"ignored": result += " Условия проверки остались без вашей подписи."
-	match str(state.facts.get("north_gate_relief", "")):
-		"families": result += " Семьи прошли через северные ворота первыми. Обоз приняли после отдельной проверки."
-		"cargo": result += " Муку пропустили в город, а семьи остались ждать проверки в укрытии у северных ворот."
-		"missed": result += " Семьи и обоз остались ждать у северных ворот."
+	match str(state.facts.get("north_gate_followup", "")):
+		"cargo_cleared": result += " Семьи впустили первыми. Следующая смена проверила бумаги и пропустила обоз с мукой."
+		"cargo_on_hold": result += " Семьи уже в городе. Обоз с мукой держат у ворот, пока сверяют противоречивые бумаги."
+		"families_sheltered": result += " Обоз с мукой прошёл первым. Семьи впустили, когда свидетели подтвердили их имена."
+		"families_waiting": result += " Муку пропустили в город. Семьи всё ещё ждут проверки в укрытии у северных ворот."
+		_:
+			match str(state.facts.get("north_gate_relief", "")):
+				"families": result += " Семьи прошли через северные ворота первыми. Обоз приняли после отдельной проверки."
+				"cargo": result += " Муку пропустили в город, а семьи остались ждать проверки в укрытии у северных ворот."
+				"missed": result += " Семьи и обоз остались ждать у северных ворот."
 	return result
 
 func _border_situation(state: WorldState) -> String:
@@ -252,7 +258,13 @@ func _build_hook(state: WorldState) -> String:
 	if posture == "ambush" and (ambush_waited or ambush_recalled):
 		return "На стол вернули карту Радомира, где всё ещё отмечена ловушка. Рядом положили список застав, от которых не пришло ответа."
 	if str(state.facts.get("northern_crossing", "")) == "lost" or state.facts.get("second_seal_crisis") == "command_collapsed":
-		match str(state.facts.get("north_gate_relief", "")):
+		var relief := str(state.facts.get("north_gate_relief", ""))
+		match str(state.facts.get("north_gate_followup", "")):
+			"cargo_on_hold":
+				return "Староста принёс копию накладной от обозника. Марек хочет сверить её с записью караула, прежде чем распорядиться мукой."
+			"families_sheltered":
+				relief = "families"
+		match relief:
 			"families":
 				return "Семьи с северной дороги уже в городе. Староста принёс список прибывших и просит помочь им найти кров на зиму."
 			"cargo":

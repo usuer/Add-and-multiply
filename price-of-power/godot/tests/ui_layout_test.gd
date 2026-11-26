@@ -708,7 +708,20 @@ func _check_northern_terms_and_gate(app: Node, original: WorldState) -> void:
 	receipt = body.get_node_or_null("StoryResult") as Label
 	if receipt == null or not receipt.text.contains("Лада отвела их") or _find_button(body, "Принять муку") != null:
 		failures.append("Решение у ворот должно показать итог и снять альтернативу")
-	app.call("_close_secretary")
+	await _click_secretary_choice(body, scroll, "Дарен просит решить, как проверить вторую очередь")
+	var location := app.get("location_scene") as Control
+	await _click_secretary_choice(location.get("dialogue_options"), location.get("dialogue_scroll"), "Перевести часть рыночного дозора")
+	if chapter.facts.get("north_gate_shift") != "reinforced":
+		failures.append("Канцелярия должна вывести к разговору об усилении смены")
+	app.call("_close_location_scene")
+	app.call("_on_advance_period")
+	await process_frame
+	var report := app.get("period_report_panel") as Control
+	labels.clear()
+	_collect_label_text(report, labels)
+	if not report.visible or not str(labels).contains("Вторая смена у северных ворот"):
+		failures.append("В финальной сводке нужен итог проверки второй очереди")
+	app.call("_close_period_report")
 	app.set("state", original)
 	app.call("_refresh_ui", "Кампания продолжается")
 
