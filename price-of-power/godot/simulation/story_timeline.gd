@@ -168,6 +168,15 @@ const DEFINITIONS: Dictionary = {
 			"cargo": "Принять муку, для семей открыть внешний навес"
 		}
 	},
+	"north_shelter": {
+		"cycle": 18, "title": "Где поселить семьи с северной дороги", "location": "Двор у храма",
+		"open_until_finale": true,
+		"summary": "Лада составила список семей с северной дороги. У храма и под навесом они могут переждать только одну ночь. Лада просит открыть гостевой двор и выдать хлеб на первые дни. Семьи, которых ещё проверяют у ворот, придётся разместить в сторожевом дворе снаружи. Есть и другой путь: старосты нашли свободные дома в трёх приходах, но людей придётся расселить по разным селениям.",
+		"choices": {
+			"public_house": "Дать семьям кров у ворот и хлеб из княжеского запаса",
+			"parish_hosts": "Разместить семьи в домах, которые нашли старосты"
+		}
+	},
 	"new_rule": {
 		"cycle": 18, "title": "Первое утро после второй печати", "location": "Большой зал совета",
 		"summary": "Заговорщики больше не распоряжаются в столице. Цеховые старшины, судьи и военные ждут решения о том, кто сможет проверять княжеский приказ и как поступить с людьми, которые выполняли ложные грамоты.",
@@ -230,6 +239,8 @@ func _is_unlocked(event_id: String) -> bool:
 	if event_id == "north_gate_relief":
 		var night: Dictionary = resolved.get("night_of_second_seal", {})
 		return night.get("choice") in ["capital", "border", "expose"] and opening_cycle(event_id) <= deadline_cycle(event_id)
+	if event_id == "north_shelter":
+		return (resolved.get("north_gate_relief", {}) as Dictionary).get("choice") in ["families", "cargo"]
 	if event_id == "scout_report":
 		return str(border.get("choice", "")) == "scouts"
 	if event_id == "border_consequence":
@@ -505,6 +516,28 @@ func settle_north_gate(state: WorldState) -> void:
 		_:
 			return
 	_add_report(state.calendar.cycle, "Вторая смена у северных ворот", text)
+	_settle_north_shelter(state)
+
+func _settle_north_shelter(state: WorldState) -> void:
+	var decision: Dictionary = resolved.get("north_shelter", {})
+	var rural := state.factions["rural"] as FactionState
+	var text := ""
+	match str(decision.get("choice", "")):
+		"public_house":
+			if state.facts.get("north_gate_followup") == "families_waiting":
+				state.facts["north_shelter_result"] = "outer_yard"
+				text = "Лада отвела семьи из-под навеса в сторожевой двор за воротами. Туда доставили хлеб. Писарь ещё ждёт поручителей перед допуском в город."
+			else:
+				state.facts["north_shelter_result"] = "city_yard"
+				text = "Семьи разместили в гостевом дворе у храма. Лада принесла хлеб и попросила записать, кому завтра нужен лекарь."
+			rural.react(state.calendar.cycle, 3, "Семьям с северной дороги дали сухой кров и хлеб на первые дни.")
+		"parish_hosts":
+			state.facts["north_shelter_result"] = "parish_homes"
+			text = "К утру старосты развезли семьи по свободным домам в трёх приходах. Лада оставила у писаря адреса, чтобы разлучённые родственники могли найти друг друга."
+			rural.react(state.calendar.cycle, 1, "Старосты разместили семьи в приходах за городом.")
+		_:
+			return
+	_add_report(state.calendar.cycle, "Ночлег для семей с северной дороги", text)
 
 func _north_gate_has_cargo_records(state: WorldState) -> bool:
 	return state.facts.get("vardan_river_manifest") == "listed" or (state.facts.get("northern_terms") == "joint_ledger" and state.facts.get("northern_crossing") != "lost")
@@ -569,6 +602,9 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
+		"north_shelter":
+			state.facts["north_shelter_result"] = "unassigned"
+			return "Лада не получила распоряжения о жилье. Писарь оставил адреса семей у ворот, чтобы утренняя смена знала, кого искать."
 		"northern_terms":
 			state.facts["northern_terms"] = "ignored"
 			return "Илва не получила подписи. Войско Отмара пока стоит за переправой, а караулы всё ещё записывают обозы каждый в свою книгу."
@@ -663,6 +699,11 @@ func definition(event_id: String) -> Dictionary:
 
 func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 	var event: Dictionary = definition(event_id).duplicate(true)
+	if event_id == "north_shelter":
+		if state.facts.get("north_gate_relief") == "families":
+			event["summary"] += " Семьи уже допущены в город."
+		else:
+			event["summary"] += " После обоза семьи ждут второй проверки. Ночлег сам по себе пропуска не даёт."
 	if event_id == "north_gate_relief":
 		if state.facts.get("northern_crossing") == "lost":
 			event["summary"] += "\n\nПереправа занята. Этот караул стоит уже у стен Ардена, и семьи некуда отправить обратно."
@@ -901,6 +942,7 @@ func choice_grain_cost(event_id: String, choice_id: String) -> int:
 	match "%s:%s" % [event_id, choice_id]:
 		"rural_repair:public_receipts": return RURAL_GRAIN_SHARE
 		"fever_recovery:bread_rosters": return 4
+		"north_shelter:public_house": return 2
 	return 0
 
 func choice_gold_cost(event_id: String, choice_id: String) -> int:
@@ -944,6 +986,11 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> String:
 	match "%s:%s" % [event_id, choice_id]:
+		"north_shelter:public_house":
+			state.resources["grain"] = int(state.resources["grain"]) - choice_grain_cost(event_id, choice_id)
+			return "Лада взяла хлеб на первые дни и послала за ключами. Она откроет гостевой двор для тех, кому выдадут пропуск, а для остальных приготовит кров снаружи."
+		"north_shelter:parish_hosts":
+			return "Старосты передали Ладе адреса и пошли за телегами. Она раздаст по копии списка, чтобы семьи знали, как найти друг друга."
 		"northern_terms:joint_ledger", "northern_terms:sealed_manifests", "northern_terms:refused_access":
 			return _set_northern_terms(state, choice_id)
 		"north_gate_relief:families":

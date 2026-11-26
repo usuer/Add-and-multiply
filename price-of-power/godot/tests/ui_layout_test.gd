@@ -714,13 +714,18 @@ func _check_northern_terms_and_gate(app: Node, original: WorldState) -> void:
 	if chapter.facts.get("north_gate_shift") != "reinforced":
 		failures.append("Канцелярия должна вывести к разговору об усилении смены")
 	app.call("_close_location_scene")
+	app.call("_open_secretary")
+	await _click_secretary_choice(body, scroll, "Разместить семьи в домах")
+	if (chapter.story_timeline.resolved.get("north_shelter", {}) as Dictionary).get("choice") != "parish_hosts":
+		failures.append("После второй очереди должно работать распоряжение о ночлеге")
+	app.call("_close_secretary")
 	app.call("_on_advance_period")
 	await process_frame
 	var report := app.get("period_report_panel") as Control
 	labels.clear()
 	_collect_label_text(report, labels)
-	if not report.visible or not str(labels).contains("Вторая смена у северных ворот"):
-		failures.append("В финальной сводке нужен итог проверки второй очереди")
+	if not report.visible or not str(labels).contains("Вторая смена у северных ворот") or not str(labels).contains("Ночлег для семей"):
+		failures.append("В финальной сводке нужны итоги проверки и расселения")
 	app.call("_close_period_report")
 	app.set("state", original)
 	app.call("_refresh_ui", "Кампания продолжается")

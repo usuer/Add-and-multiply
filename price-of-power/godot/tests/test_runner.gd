@@ -48,6 +48,7 @@ func _initialize() -> void:
 	_test_delayed_border_reply_keeps_decision_window()
 	_test_northern_terms_change_the_crossing_without_rewriting_the_battle()
 	_test_north_gate_relief_changes_supply_or_shelter()
+	_test_north_shelter_follows_the_gate_check()
 	_test_personal_choices_follow_location_and_health()
 	_test_location_content_references()
 	_test_city_dilemmas_offer_distinct_free_choices()
@@ -73,7 +74,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 62 checks")
+		print("PASS Godot foundation: 63 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -358,6 +359,8 @@ func _test_every_story_choice_has_working_outcome() -> void:
 				state.story_timeline.resolved["border_consequence"] = {"choice": "reopen_talks", "cycle": 8, "inspection_offered": true}
 			if event_id == "north_gate_relief":
 				state.story_timeline.resolved["night_of_second_seal"] = {"choice": "capital", "cycle": 17}
+			if event_id == "north_shelter":
+				state.story_timeline.resolved["north_gate_relief"] = {"choice": "families", "cycle": 18}
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
@@ -1025,6 +1028,40 @@ func _test_north_gate_relief_changes_supply_or_shelter() -> void:
 		_expect(reinforced.resources["grain"] == final_stock, "Загрузка эпилога не должна повторно принимать обоз")
 	state.advance_period()
 	_expect(state.facts.get("north_gate_relief") == "missed", "Ожидание у ворот должно отразиться в итогах, если решение пропущено")
+
+func _test_north_shelter_follows_the_gate_check() -> void:
+	const CASE_ID := "north_shelter"
+	var state := WorldState.new()
+	while state.calendar.cycle < 17:
+		state.advance_period()
+	state.story_timeline.choose(state, "night_of_second_seal", "capital")
+	state.advance_period()
+	_expect(CASE_ID not in state.story_timeline.available_events(18), "Сначала игрок должен решить, кого пропустить")
+	state.story_timeline.choose(state, "north_gate_relief", "cargo")
+	_expect(CASE_ID in state.story_timeline.available_events(18), "После решения у ворот остаётся время выбрать жильё")
+	state.state_treasury = 0
+	state.resources["grain"] = 0
+	_expect(not state.story_timeline.choose(state, CASE_ID, "public_house"), "Нельзя выдать хлеб из пустого амбара")
+	var parishes := WorldState.from_data(state.to_data())
+	_expect(parishes.story_timeline.choose(parishes, CASE_ID, "parish_hosts"), "Старосты должны принять семьи и без запаса")
+	parishes.advance_period()
+	_expect(parishes.facts.get("north_shelter_result") == "parish_homes" and parishes.facts.get("north_gate_followup") == "families_waiting", "Расселение в приходах не должно подменять допуск в город")
+	var yard := WorldState.from_data(state.to_data())
+	yard.resources["grain"] = 2
+	_expect(yard.story_timeline.choose(yard, CASE_ID, "public_house") and yard.resources["grain"] == 0, "Хлеб на ночлег должен списываться ровно один раз")
+	var city_yard := WorldState.from_data(yard.to_data())
+	city_yard.conversations.choose(city_yard, "daren", "reinforce_north_gate")
+	city_yard.advance_period()
+	_expect(city_yard.facts.get("north_shelter_result") == "city_yard", "Семьи, которых пропустили второй сменой, должны получить ночлег в городе")
+	yard = WorldState.from_data(yard.to_data())
+	yard.advance_period()
+	_expect(yard.facts.get("north_shelter_result") == "outer_yard", "Семьям без пропуска нужен доступный ночлег снаружи")
+	_expect(str(yard.period_report["notes"]).contains("Ночлег для семей"), "Сводка должна показать, куда отвели семьи")
+	var saved := WorldState.from_data(yard.to_data())
+	saved.story_timeline.settle_north_gate(saved)
+	_expect(saved.story_timeline.reports == yard.story_timeline.reports, "Загрузка эпилога не должна повторять расселение")
+	state.advance_period()
+	_expect(state.facts.get("north_shelter_result") == "unassigned", "Временный ночлег должен остаться без продолжения при пропуске")
 
 func _test_personal_choices_follow_location_and_health() -> void:
 	var state := WorldState.new()
