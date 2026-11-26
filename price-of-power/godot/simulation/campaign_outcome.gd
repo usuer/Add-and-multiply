@@ -65,6 +65,14 @@ func _realm_summary(state: WorldState, rural: FactionState, guilds: FactionState
 	match str(state.facts.get("vardan_quay_terms", "")):
 		"shared_warehouse": result += " Разгрузку на причале ведут городской писец и старшина Вардана."
 		"city_only": result += " Ключи от причала остались у городского писца."
+	match str(state.facts.get("fever_recovery", "")):
+		"well_watch": result += " В Речном квартале проверили колодцы и пометили те, из которых нельзя брать воду."
+		"bread_rosters": result += " В Речном квартале семьи с больными получили зерно на дому."
+		"reopen_trade": result += " Для купцов вновь открыли погрузочную площадку в Речном квартале."
+		"neglected": result += " В Речном квартале каждый двор сам решал, как помочь больным."
+	match str(state.facts.get("pump_charter", "")):
+		"open_plans": result += " Местным мастерам открыли чертежи Тихона для изготовления и ремонта насосов."
+		"guild_license": result += " Цех заплатил казне за право делать насосы и взял на себя обслуживание уже установленного."
 	return result
 
 func _family_summary(state: WorldState) -> String:

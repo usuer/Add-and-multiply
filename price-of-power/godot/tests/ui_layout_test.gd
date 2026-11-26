@@ -153,6 +153,7 @@ func _run() -> void:
 	await _check_authority_confirmation(app, state)
 	await _check_family_letter_from_secretary(app, state)
 	await _check_grain_restitution_in_secretary(app, state)
+	await _check_riverside_recovery(app, state)
 	await _check_hearing_and_epilogue(app, state)
 	app.call("_open_secretary")
 	await _check_common_desktop_sizes(app)
@@ -628,6 +629,44 @@ func _check_grain_restitution_in_secretary(app: Node, original: WorldState) -> v
 	if receipt == null or not receipt.text.contains("Гаврила расписались"):
 		failures.append("При пустом амбаре и казне игрок должен получить подписанную грамоту")
 	app.call("_close_secretary")
+	app.set("state", original)
+	app.call("_refresh_ui", "Кампания продолжается")
+
+func _check_riverside_recovery(app: Node, original: WorldState) -> void:
+	var chapter := WorldState.new()
+	chapter.opening_decision.choose_funeral("modest")
+	chapter.opening_decision.choose_grain("partial")
+	chapter.opening_decision.resolve(chapter)
+	while chapter.calendar.cycle < 10:
+		chapter.advance_period()
+	chapter.story_timeline.choose(chapter, "fever_outbreak", "quarantine")
+	chapter.advance_period()
+	app.set("state", chapter)
+	app.call("_on_illustrated_building_selected", &"temple")
+	await process_frame
+	var location := app.get("location_scene") as Control
+	var actors: Dictionary = location.get("person_actors")
+	var chaplain := actors["chaplain"] as Control
+	_click(chaplain.get_global_rect().get_center())
+	await _click_secretary_choice(location.get("dialogue_options"), location.get("dialogue_scroll"), "Оставить записки у храма")
+	if chapter.facts.get("fever_family_messages") != "temple_relay":
+		failures.append("Решение о записках должно работать из разговора в храме")
+	app.call("_close_location_scene")
+	app.call("_open_secretary")
+	var body := app.get("secretary_case_body") as Control
+	var scroll := app.get("secretary_scroll") as ScrollContainer
+	await _click_secretary_choice(body, scroll, "Развезти зерно семьям")
+	if _find_button(body, "Открыть грузовой двор") != null:
+		failures.append("После распоряжения о квартале альтернативы должны исчезнуть")
+	app.call("_close_secretary")
+	app.call("_on_advance_period")
+	await process_frame
+	var report := app.get("period_report_panel") as Control
+	var labels: Array[String] = []
+	_collect_label_text(report, labels)
+	if not report.visible or not str(labels).contains("Донесение из речного квартала") or not str(labels).contains("Лука спросил"):
+		failures.append("Сводка должна показать, как прежнее решение в храме повлияло на доставку")
+	app.call("_close_period_report")
 	app.set("state", original)
 	app.call("_refresh_ui", "Кампания продолжается")
 

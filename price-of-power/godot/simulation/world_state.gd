@@ -218,6 +218,13 @@ func _apply_monthly_economy() -> Dictionary:
 		"постройки": development.monthly_gold_bonus(),
 		"технологии": technology.gold_bonus()
 	}
+	var pump_health := 0
+	match str(facts.get("pump_charter", "")):
+		"open_plans":
+			pump_health = 2
+		"guild_license":
+			income["лицензия на насос"] = 2
+			pump_health = 1
 	for amount: int in income.values():
 		state_treasury += amount
 	resources["grain"] = maxi(0, int(resources.get("grain", 0)) - 5 + council.monthly_grain_bonus() + development.monthly_grain_bonus() + technology.grain_bonus())
@@ -225,7 +232,17 @@ func _apply_monthly_economy() -> Dictionary:
 	resources["worked_iron"] = int(resources.get("worked_iron", 0)) + 1
 	resources["tools"] = int(resources.get("tools", 0)) + development.monthly_tools_bonus() + technology.tools_bonus()
 	resources["weapons"] = int(resources.get("weapons", 0)) + policies.monthly_weapon_modifier()
-	public_health = clampi(public_health + policies.monthly_health_modifier() + development.monthly_health_bonus() + technology.health_bonus(), 0, 100)
+	var base_health := public_health + policies.monthly_health_modifier() + development.monthly_health_bonus() + technology.health_bonus()
+	public_health = clampi(base_health + pump_health, 0, 100)
+	var charter: Dictionary = story_timeline.resolved.get("pump_charter", {})
+	if pump_health > 0 and calendar.cycle <= int(charter.get("cycle", 0)) + CampaignCalendar.Period.size():
+		var report := "Мастера соседних дворов сверили новые клапаны с копиями чертежа. Теперь у них есть детали для ремонта без очереди в литейной."
+		if pump_health == 1:
+			report = "Цеховой мастер сменил клапан у действующего насоса. Старшина внёс плату за разрешение на сборку."
+		var contribution := public_health - clampi(base_health, 0, 100)
+		if contribution > 0:
+			report += " Вклад в здоровье жителей при расчёте +%d." % contribution
+		story_timeline.reports.append({"cycle": calendar.cycle, "title": "Первый отчёт о работе насоса", "text": report, "read": false})
 	public_order = clampi(public_order + policies.monthly_order_modifier(), 0, 100)
 	return income
 

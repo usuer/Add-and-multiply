@@ -27,6 +27,8 @@ func _initialize() -> void:
 	_test_council_appointments_affect_government()
 	_test_council_candidates_have_visible_tradeoffs()
 	_test_physician_changes_epidemic_outcome()
+	_test_riverside_recovery_follows_the_actual_outbreak()
+	_test_pump_charter_has_distinct_monthly_results()
 	_test_governance_policies_change_monthly_results()
 	_test_governance_rules_explain_each_choice()
 	_test_justice_cases_use_evidence_and_capacity()
@@ -69,7 +71,7 @@ func _initialize() -> void:
 	_test_late_audiences_reach_the_epilogue()
 	_test_save_round_trip()
 	if failures.is_empty():
-		print("PASS Godot foundation: 58 checks")
+		print("PASS Godot foundation: 60 checks")
 		quit(0)
 	else:
 		for failure in failures:
@@ -345,6 +347,11 @@ func _test_every_story_choice_has_working_outcome() -> void:
 				state.facts["grain_restitution_result"] = "registered"
 			if event_id == "rural_repair":
 				state.story_timeline.resolved["grain_debt_hearing"] = {"choice": "creditor", "cycle": 12}
+			if event_id == "fever_recovery":
+				state.story_timeline.resolved["fever_outbreak"] = {"choice": "quarantine", "cycle": 10}
+			if event_id == "pump_charter":
+				state.story_timeline.resolved["tikhon_pump"] = {"choice": "field_test", "cycle": 12}
+				state.facts["tikhon_pump"] = "field_tested"
 			_expect(state.story_timeline.choose(state, event_id, choice_id), "Ветка %s:%s должна разыгрываться без скрытой блокировки" % [event_id, choice_id])
 			_expect(not state.story_timeline.outcome(event_id).is_empty(), "Ветка %s:%s должна давать понятный непосредственный итог" % [event_id, choice_id])
 
@@ -558,6 +565,75 @@ func _test_autumn_grain_fulfills_the_commitment_once() -> void:
 		branch = WorldState.from_data(branch.to_data())
 		branch.story_timeline.settle_autumn_delivery(branch)
 		_expect(branch.resources["grain"] == balance and branch.facts.get("autumn_grain_delivery") == expected, "Автосохранение не должно приводить к повторной выдаче")
+
+func _test_riverside_recovery_follows_the_actual_outbreak() -> void:
+	const CASE_ID := "fever_recovery"
+	var state := WorldState.new()
+	while state.calendar.cycle < 10:
+		state.advance_period()
+	state.story_timeline.choose(state, "fever_outbreak", "quarantine")
+	_expect(CASE_ID not in state.story_timeline.available_events(10), "Двор должен получить новый доклад после первой реакции на горячку")
+	state.advance_period()
+	_expect(CASE_ID in state.story_timeline.available_events(11) and str(state.period_report["notes"]).contains("Что нужно речному кварталу"), "Сводка должна сообщить о новом решении")
+	_expect(str(state.story_timeline.contextual_definition(state, CASE_ID)["summary"]).contains("Оцепление жилых улиц"), "Описание должно учитывать ранее введённое оцепление")
+	state.state_treasury = 0
+	state.public_health = 60
+	var grain := int(state.resources["grain"])
+	var poor := WorldState.from_data(state.to_data())
+	poor.resources["grain"] = 3
+	_expect(not poor.story_timeline.choose(poor, CASE_ID, "bread_rosters") and poor.resources["grain"] == 3, "Нельзя отправить больше зерна, чем есть в амбаре")
+	for option: String in ["well_watch", "bread_rosters", "reopen_trade"]:
+		var branch := WorldState.from_data(state.to_data())
+		_expect(branch.story_timeline.choose(branch, CASE_ID, option), "Каждое распоряжение о помощи должно работать без монет")
+		_expect(branch.resources["grain"] == grain - (4 if option == "bread_rosters" else 0) and not branch.facts.has("fever_recovery"), "Выдача списывает зерно сразу, последствие требует периода")
+		branch = WorldState.from_data(branch.to_data())
+		branch.advance_period()
+		var expected_health: int = {"well_watch": 63, "bread_rosters": 61, "reopen_trade": 56}[option]
+		_expect(branch.facts.get("fever_recovery") == option and branch.public_health == expected_health, "Доклад должен учитывать выбранное действие после загрузки")
+		_expect(branch.state_treasury == (5 if option == "reopen_trade" else 0), "Пошлина должна появиться только при открытии грузового двора")
+		_expect(str(branch.period_report["notes"]).contains("Донесение из речного квартала"), "Последствие должно быть видно в итогах следующего периода")
+		if option == "well_watch":
+			branch.state_treasury = 3
+			_expect(branch.story_timeline.choose(branch, "tikhon_pump", "field_test") and branch.public_health == 67, "Осмотр колодцев должен улучшать испытание насоса")
+	var supervised := WorldState.from_data(state.to_data())
+	supervised.technology.unlocked.append("sanitation")
+	supervised.story_timeline.choose(supervised, CASE_ID, "reopen_trade")
+	supervised.advance_period()
+	_expect(supervised.public_health == 59, "Изученная санитария должна снижать ущерб при возобновлении погрузки")
+
+func _test_pump_charter_has_distinct_monthly_results() -> void:
+	const CASE_ID := "pump_charter"
+	var state := WorldState.new()
+	while state.calendar.cycle < 12:
+		state.advance_period()
+	var ended := WorldState.from_data(state.to_data())
+	ended.story_timeline.choose(ended, "tikhon_pump", "dismiss")
+	state.story_timeline.choose(state, "tikhon_pump", "workshop")
+	while state.calendar.cycle < 14:
+		state.advance_period()
+		ended.advance_period()
+	_expect(CASE_ID not in state.story_timeline.available_events(14), "Лицензия не должна появляться до окончания работы в литейной")
+	state = WorldState.from_data(state.to_data())
+	state.advance_period()
+	ended.advance_period()
+	_expect(CASE_ID in state.story_timeline.available_events(15) and state.facts.get("tikhon_pump") == "workshop_ready",
+		"Договор должен появляться после доработки насоса, даже если игрок загрузился раньше")
+	_expect(CASE_ID not in ended.story_timeline.available_events(15), "Отказ от насоса не должен создавать действующее устройство")
+	var shared := WorldState.from_data(state.to_data())
+	var licensed := WorldState.from_data(state.to_data())
+	shared.public_health = 60
+	licensed.public_health = 60
+	_expect(shared.story_timeline.choose(shared, CASE_ID, "open_plans") and licensed.story_timeline.choose(licensed, CASE_ID, "guild_license"), "Оба договора о насосе должны быть доступны")
+	shared.advance_period()
+	licensed.advance_period()
+	_expect(shared.public_health == licensed.public_health + 1 and licensed.state_treasury == shared.state_treasury + 2,
+		"Открытые чертежи и лицензия должны по-разному работать при месячном расчёте")
+	_expect(str(licensed.period_report["notes"]).contains("лицензия на насос +2"), "Плату цеха должно быть видно в месячной сводке")
+	_expect(str(shared.period_report["notes"]).contains("Вклад в здоровье жителей при расчёте +2"), "Первая сводка должна объяснять, какая часть прибавки связана с насосом")
+	while licensed.advance_period():
+		pass
+	var pump_reports := licensed.story_timeline.reports.filter(func(report: Dictionary) -> bool: return report["title"] == "Первый отчёт о работе насоса")
+	_expect(pump_reports.size() == 1 and str(licensed.period_report["notes"]).contains("лицензия на насос +2"), "Лицензия должна приносить плату каждый месяц, а отчёт о запуске появляться один раз")
 
 func _test_authority_changes_cast_and_records_fallout() -> void:
 	var state := WorldState.new()

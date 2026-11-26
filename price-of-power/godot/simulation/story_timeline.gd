@@ -3,6 +3,7 @@ extends Resource
 
 const COURT_AUTHORITY := preload("res://simulation/court_authority.gd")
 const RURAL_GRAIN_SHARE := 3
+const PUMP_WORKSHOP_PERIODS := 3
 
 const DEFINITIONS: Dictionary = {
 	"granary_roof": {
@@ -93,6 +94,16 @@ const DEFINITIONS: Dictionary = {
 		"summary": "За три дня слегли семьи кожевников и двое лодочников. Причина неизвестна; слухи уже называют воду, чужеземцев и Божий гнев.",
 		"choices": {"quarantine": "Перекрыть квартал и доставлять пищу внутрь", "clinics": "Открыть временные лечебницы", "conceal": "Не объявлять тревогу до точного диагноза"}
 	},
+	"fever_recovery": {
+		"cycle": 11, "title": "Что нужно речному кварталу", "location": "Двор у речных складов",
+		"open_until_finale": true,
+		"summary": "В речном квартале ещё болеют. У кожевников три колодца, и жители спорят, из каких брать воду. Семьи носильщиков просят хлеб: часть людей не может работать. Погрузка остановилась, за воротами ждут возы. Купцы просят открыть грузовой двор и готовы заплатить пошлину. На всё сразу помощников не хватит. Совет ждёт первого поручения.",
+		"choices": {
+			"well_watch": "Обойти колодцы с лекарем и указать, где брать воду",
+			"bread_rosters": "Развезти зерно семьям, где заболевшие остались без заработка",
+			"reopen_trade": "Открыть грузовой двор и принимать обозы по одному"
+		}
+	},
 	"family_warning": {
 		"cycle": 11, "title": "Печать в детской", "location": "Семейные покои",
 		"summary": "Адела нашла у девятилетнего Всеволода кусок воска с оттиском второй печати. Сын говорит, что его дал «старый друг деда» и попросил спрятать до игры в тайного посланника. Незнакомец сумел пройти во внутренний двор, не вызвав тревоги охраны.",
@@ -102,6 +113,15 @@ const DEFINITIONS: Dictionary = {
 		"cycle": 12, "title": "Тихон и машина против горячки", "location": "Двор старой красильни",
 		"summary": "Изобретатель Тихон Лучин собрал ручной насос, который может подавать чистую воду выше речных стоков. Машина гремит, течёт на соединениях и пока обслуживает один двор. Тихон просит не верить ему на слово, а дать людей для открытого испытания.",
 		"choices": {"field_test": "Испытать насос в больном квартале", "workshop": "Дать Тихону мастерскую и месяц на доработку", "dismiss": "Отказать: во время горячки нужны лекари, а не опытная машина"}
+	},
+	"pump_charter": {
+		"cycle": 14, "title": "Кому Тихон отдаст чертёж", "location": "Литейная",
+		"open_until_finale": true,
+		"summary": "Опытный насос работает, но у него снова стёрся кожаный клапан. Тихон показывает, как его заменить. Ремесленники соседних дворов просят копии чертежа, чтобы самим чинить детали и собирать насосы. Старшина цеха предлагает другой договор: выдать право на сборку только его мастерам. Цех будет следить за ремонтом действующего насоса и платить казне за это право.",
+		"choices": {
+			"open_plans": "Разрешить местным мастерам копировать чертёж и чинить насосы",
+			"guild_license": "Поручить сборку и ремонт цеху за плату в казну"
+		}
 	},
 	"fathers_ledger": {
 		"cycle": 13, "title": "Книга отцовских платежей", "location": "Личный архив князя",
@@ -161,6 +181,13 @@ func opening_cycle(event_id: String) -> int:
 	if event_id == "rural_repair":
 		var hearing: Dictionary = resolved.get("grain_debt_hearing", {})
 		return maxi(first_cycle, int(hearing.get("cycle", 0)) + 1)
+	if event_id == "fever_recovery":
+		var outbreak: Dictionary = resolved.get("fever_outbreak", {})
+		return maxi(first_cycle, int(outbreak.get("cycle", 0)) + 1)
+	if event_id == "pump_charter":
+		var pump: Dictionary = resolved.get("tikhon_pump", {})
+		var wait := PUMP_WORKSHOP_PERIODS if pump.get("choice") == "workshop" else 1
+		return maxi(first_cycle, int(pump.get("cycle", 0)) + wait)
 	return first_cycle
 
 func deadline_cycle(event_id: String) -> int:
@@ -191,6 +218,11 @@ func _is_unlocked(event_id: String) -> bool:
 	if event_id == "rural_repair":
 		var hearing: Dictionary = resolved.get("grain_debt_hearing", {})
 		return hearing.get("choice") == "creditor" and opening_cycle(event_id) <= deadline_cycle(event_id)
+	if event_id == "fever_recovery":
+		return resolved.has("fever_outbreak") and opening_cycle(event_id) <= deadline_cycle(event_id)
+	if event_id == "pump_charter":
+		var pump: Dictionary = resolved.get("tikhon_pump", {})
+		return pump.get("choice") in ["field_test", "workshop"] and opening_cycle(event_id) <= deadline_cycle(event_id)
 	return true
 
 func update(state: WorldState) -> void:
@@ -203,6 +235,7 @@ func _apply_delayed_results(state: WorldState) -> void:
 	_resolve_northern_reply(state)
 	_resolve_pump_workshop(state)
 	_resolve_grain_restitution(state)
+	_resolve_fever_recovery(state)
 	var roof: Dictionary = resolved.get("granary_roof", {})
 	if roof.get("choice") == "inspect" and not roof.get("followup_applied", false) and state.calendar.cycle >= int(roof["cycle"]) + 2:
 		roof["followup_applied"] = true
@@ -310,13 +343,45 @@ func _resolve_pump_workshop(state: WorldState) -> void:
 	var record: Dictionary = resolved.get("tikhon_pump", {})
 	if record.get("choice") != "workshop" or record.get("followup_applied", false):
 		return
-	if state.calendar.cycle < int(record["cycle"]) + 3:
+	if state.calendar.cycle < int(record["cycle"]) + PUMP_WORKSHOP_PERIODS:
 		return
 	record["followup_applied"] = true
 	state.facts["tikhon_pump"] = "workshop_ready"
 	var prepared := bool(state.facts.get("tikhon_trial_prepared", false))
 	state.public_health = mini(100, state.public_health + (5 if prepared else 3))
 	_add_report(state.calendar.cycle, "Тихон закончил работу в литейной", "После месяца работы машину установили у красильни. Тихон показал дворовым, как менять клапан. Лекари подтверждают, что чистую воду теперь не приходится носить с нижнего берега." if prepared else "Механизм запустили у красильни. Он подаёт чистую воду в один двор. Тихон оставил там чертёж клапана: если мастер снова понадобится, ему смогут объяснить, какая деталь вышла из строя.")
+
+func _resolve_fever_recovery(state: WorldState) -> void:
+	var record: Dictionary = resolved.get("fever_recovery", {})
+	if record.is_empty() or state.facts.has("fever_recovery") or state.calendar.cycle <= int(record["cycle"]):
+		return
+	var choice := str(record.get("choice", ""))
+	var rural := state.factions["rural"] as FactionState
+	var guilds := state.factions["guilds"] as FactionState
+	var text := ""
+	match choice:
+		"well_watch":
+			state.public_health = mini(100, state.public_health + 3)
+			rural.react(state.calendar.cycle, 2, "Дворам показали, где брать воду, пока лекари проверяют колодцы.")
+			text = "Лекари пометили колодцы, которыми чаще пользовались заболевшие. Пока их проверяют, воду туда возят с верхней улицы. Список дворов передали Тихону, чтобы он знал, где испытывать насос."
+		"bread_rosters":
+			state.public_order = mini(100, state.public_order + 4)
+			state.public_health = mini(100, state.public_health + 1)
+			rural.react(state.calendar.cycle, 3, "Зерно развезли семьям, где заболевшие остались без заработка.")
+			text = "Телеги развезли четыре меры до дверей семей из списка Лады. Семьи, у которых никто не мог дойти до храма, получили свою долю. Купцы снова просят открыть грузовой двор."
+			match str(state.facts.get("fever_family_messages", "")):
+				"temple_relay": text += " Лука спросил у тех, кто приносил записки, где ещё нужна помощь. Так в список попали семьи, которых не было в приходской книге."
+				"palace_courier": text += " Посыльные Марека сверили адреса перед отправкой и успели найти два двора, которые недавно переехали."
+		"reopen_trade":
+			var supervised: bool = "sanitation" in state.technology.unlocked or (state.facts.get("fever_policy") == "clinics" and state.council.medicine_skill() >= 3)
+			state.state_treasury += 5
+			state.public_health = maxi(0, state.public_health - (1 if supervised else 4))
+			guilds.react(state.calendar.cycle, 3, "Купцы выпустили задержанные грузы и внесли пошлину.")
+			text = "Купцы внесли пять монет пошлины. " + ("Лекари заметили жар у носильщика и сменили его до отправки следующего обоза. Горячка всё ещё держится." if supervised else "К вечеру двое носильщиков слегли. Лекарь узнал об этом только на следующий день, когда телеги уже разошлись по городу.")
+		_:
+			return
+	state.facts["fever_recovery"] = choice
+	_add_report(state.calendar.cycle, "Донесение из речного квартала", text)
 
 func _resolve_grain_restitution(state: WorldState) -> void:
 	var record: Dictionary = resolved.get("grain_restitution", {})
@@ -416,6 +481,12 @@ func resolved_history(limit: int = 6) -> Array[Dictionary]:
 
 func _neglect_consequence(state: WorldState, event_id: String) -> String:
 	match event_id:
+		"fever_recovery":
+			state.facts["fever_recovery"] = "neglected"
+			state.public_health = maxi(0, state.public_health - 3)
+			return "Совет так и не назначил ответственных за квартал. Каждый двор сам решал, откуда носить воду. Купцы разгружали возы подальше от заставы, а семьи без заработка ждали помощи у храма."
+		"pump_charter":
+			return "Тихон остался чинить опытный насос сам. Цех не получил права на сборку, а соседние мастера ушли без копии чертежа."
 		"rural_repair":
 			state.facts["rural_repair"] = "missed"
 			(state.factions["rural"] as FactionState).react(state.calendar.cycle, -2, "Старосты остались без зерна и без обещанной даты разговора.")
@@ -542,6 +613,11 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 		match str(state.facts.get("temple_food_line", "")):
 			"household_tokens": event["summary"] += " У отца Луки уже есть список дворов для доставки еды, но недавно приехавшие семьи в него не попали."
 			"open_pots": event["summary"] += " К храмовой кухне привыкли ходить и новые жители. Отец Лука просит, чтобы на время горячки пищу развозили по дворам вместо общей очереди."
+	if event_id == "fever_recovery":
+		match str(state.facts.get("fever_policy", "")):
+			"quarantine": event["summary"] += "\n\nГрузовой двор можно открыть отдельно. Оцепление жилых улиц при этом останется."
+			"clinics": event["summary"] += "\n\nУ временных лечебниц уже есть записи, по которым можно искать связь между колодцами и заболевшими дворами."
+			"concealed", "neglected": event["summary"] += "\n\nВ начале вспышки не вели общего списка больных. Лекари предупреждают, что часть заболевших до сих пор не учтена."
 	if event_id == "border_consequence":
 		var first_choice := str((resolved.get("border_courier", {}) as Dictionary).get("choice", ""))
 		if first_choice == "envoy":
@@ -588,6 +664,8 @@ func contextual_definition(state: WorldState, event_id: String) -> Dictionary:
 			"concealed": event["summary"] = str(event["summary"]) + " Тихон вслух называет квартал больным, хотя двор официально не объявлял о горячке."
 		if bool(state.facts.get("tikhon_trial_prepared", false)):
 			event["summary"] += " После разговора в школе лекари приготовили посуду для проб, а Тихон отметил место для забора воды выше по реке."
+		if state.facts.get("fever_recovery") == "well_watch":
+			event["summary"] += " После обхода колодцев уже известно, каким дворам нужен запасной источник воды."
 	if event_id == "aglaia_invitation" and (state.characters["aglaia"] as CharacterState).trust < 0:
 		event["summary"] = str(event["summary"]) + " После истории с задержанной работницей нет уверенности, что она предупреждает вас из доброй воли."
 	if event_id == "vardan_offer":
@@ -710,7 +788,10 @@ func can_choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 	return state.state_treasury >= choice_gold_cost(event_id, choice_id) and int(state.resources.get("grain", 0)) >= choice_grain_cost(event_id, choice_id)
 
 func choice_grain_cost(event_id: String, choice_id: String) -> int:
-	return RURAL_GRAIN_SHARE if event_id == "rural_repair" and choice_id == "public_receipts" else 0
+	match "%s:%s" % [event_id, choice_id]:
+		"rural_repair:public_receipts": return RURAL_GRAIN_SHARE
+		"fever_recovery:bread_rosters": return 4
+	return 0
 
 func choice_gold_cost(event_id: String, choice_id: String) -> int:
 	match "%s:%s" % [event_id, choice_id]:
@@ -753,6 +834,21 @@ func choose(state: WorldState, event_id: String, choice_id: String) -> bool:
 
 func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> String:
 	match "%s:%s" % [event_id, choice_id]:
+		"fever_recovery:well_watch":
+			return "Лекарь попросил провести его по больным дворам. Работники амбара понесли воду туда, где велено пока закрыть колодцы."
+		"fever_recovery:bread_rosters":
+			state.resources["grain"] = int(state.resources["grain"]) - choice_grain_cost(event_id, choice_id)
+			return "В амбаре отмерили зерно. Лада попросила записать адреса, где больные остались без заработка, и послала две телеги по дворам."
+		"fever_recovery:reopen_trade":
+			return "Стража открыла грузовые ворота и стала впускать обозы по очереди. Писец ждёт первую пошлину. Лекари попросили сообщать о каждом заболевшем носильщике."
+		"pump_charter:open_plans":
+			state.facts["pump_charter"] = "open_plans"
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 1, "Местные мастера получили право ремонтировать и повторять насос.")
+			return "Тихон оставил копии чертежа у двух мастеров. У действующего насоса они вместе заменили клапан. Теперь соседние дворы могут заказать свой насос без разрешения цехового старшины."
+		"pump_charter:guild_license":
+			state.facts["pump_charter"] = "guild_license"
+			(state.factions["guilds"] as FactionState).react(state.calendar.cycle, 3, "Цех получил право на сборку насоса и обязался платить казне.")
+			return "Старшина подписал договор и назначил мастера на ремонт действующего насоса. За исключительное право на сборку цех будет платить при каждом месячном расчёте."
 		"rural_repair:public_receipts":
 			state.resources["grain"] = int(state.resources["grain"]) - choice_grain_cost(event_id, choice_id)
 			state.facts["rural_repair"] = "public_receipts"
@@ -957,14 +1053,19 @@ func _apply_choice(state: WorldState, event_id: String, choice_id: String) -> St
 			var prepared := bool(state.facts.get("tikhon_trial_prepared", false))
 			var reluctant := inventor.trust < 0
 			var health_gain := 1 if reluctant else 3
+			var mapped_wells: bool = state.facts.get("fever_recovery") == "well_watch"
 			if prepared:
 				health_gain = 5
+			elif mapped_wells and not reluctant:
+				health_gain = 4
 			state.public_health = mini(100, state.public_health + health_gain)
 			inventor.remember(state.calendar.cycle, "first_trial", "Вы дали ему людей и позволили проверить несовершенную машину там, где она нужна.", {"trust": 5, "respect": 4})
 			if prepared:
 				return "Когда насос заклинило, лекари остановили подачу и проверили оба ведра, как договорились в школе. Тихон исправил забор воды до открытия бака, и к вечеру чистой воды хватило и на соседний двор."
 			if reluctant:
 				return "Тихон привёз насос по приказу, но не стал спорить, когда помощники поставили забор слишком низко. Лекари вовремя заметили грязь. Насос переставили, однако большую часть дня вода так и не поступала."
+			if mapped_wells:
+				return "Лекари привели Тихона туда, где после обхода закрыли колодец. Пока он менял клапан, воду привезли с верхней улицы. К вечеру из насоса брали воду уже два двора."
 			return "За первый день насос дважды заклинило, зато вода в верхнем баке осталась чистой. Тихон сам признал поломки и предложил заменить кожаные клапаны; лекари просят продолжить наблюдение."
 		"tikhon_pump:workshop":
 			state.state_treasury -= 8
